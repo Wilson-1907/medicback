@@ -92,7 +92,7 @@ function find_patient_by_phone(string $phone): ?array
          FROM contact_channels c
          INNER JOIN patients p ON p.id = c.patient_id
          WHERE c.address = ?
-            OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(c.address, "+", ""), " ", ""), "-", ""), "(", ""), ")", "") = ?
+            OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(c.address, \'+\', \'\'), \' \', \'\'), \'-\', \'\'), \'(\', \'\'), \')\', \'\') = ?
          ORDER BY c.is_primary DESC, c.id ASC
          LIMIT 1'
     );

@@ -11,18 +11,44 @@ require_once __DIR__ . '/openai_assistant.php';
  */
 header('Content-Type: text/plain; charset=UTF-8');
 
-function text_value(string $key): string
+function request_payload(): array
 {
-    $value = $_POST[$key] ?? $_GET[$key] ?? '';
-    return trim((string) $value);
+    $payload = [];
+
+    foreach ([$_GET, $_POST] as $source) {
+        foreach ($source as $k => $v) {
+            $payload[(string) $k] = is_scalar($v) ? (string) $v : json_encode($v);
+        }
+    }
+
+    $raw = file_get_contents('php://input');
+    if (is_string($raw) && trim($raw) !== '') {
+        $json = json_decode($raw, true);
+        if (is_array($json)) {
+            foreach ($json as $k => $v) {
+                $payload[(string) $k] = is_scalar($v) ? (string) $v : json_encode($v);
+            }
+        } else {
+            parse_str($raw, $formPairs);
+            if (is_array($formPairs)) {
+                foreach ($formPairs as $k => $v) {
+                    $payload[(string) $k] = is_scalar($v) ? (string) $v : json_encode($v);
+                }
+            }
+        }
+    }
+
+    return $payload;
 }
 
-function inbound_text(): string
+function payload_value(array $payload, array $keys): string
 {
-    // Africa's Talking payload names can differ by channel/integration.
-    $candidates = ['text', 'message', 'body', 'content'];
-    foreach ($candidates as $k) {
-        $v = text_value($k);
+    $lower = [];
+    foreach ($payload as $k => $v) {
+        $lower[strtolower((string) $k)] = trim((string) $v);
+    }
+    foreach ($keys as $k) {
+        $v = $lower[strtolower($k)] ?? '';
         if ($v !== '') {
             return $v;
         }
@@ -30,13 +56,13 @@ function inbound_text(): string
     return '';
 }
 
-function channel_from_payload(): string
+function channel_from_payload(array $payload): string
 {
-    $channel = strtolower(text_value('channel'));
+    $channel = strtolower(payload_value($payload, ['channel']));
     if ($channel === 'whatsapp') {
         return 'whatsapp';
     }
-    $to = strtolower(text_value('to'));
+    $to = strtolower(payload_value($payload, ['to', 'toNumber', 'recipient']));
     if (str_contains($to, 'whatsapp')) {
         return 'whatsapp';
     }
@@ -75,13 +101,13 @@ function find_patient_by_phone(string $phone): ?array
     return $row ?: null;
 }
 
-function save_inbound(?int $patientId, string $channel, string $from, string $body): void
+function save_inbound(?int $patientId, string $channel, string $from, string $body, array $payload): void
 {
     $st = db()->prepare(
-        'INSERT INTO inbound_messages (patient_id, channel, from_address, body)
-         VALUES (?,?,?,?)'
+        'INSERT INTO inbound_messages (patient_id, channel, from_address, body, raw_payload)
+         VALUES (?,?,?,?,?)'
     );
-    $st->execute([$patientId, $channel, $from, $body]);
+    $st->execute([$patientId, $channel, $from, $body, json_encode($payload)]);
 }
 
 function upsert_escalation(int $patientId, string $reason): void
@@ -101,13 +127,14 @@ function send_unlinked_reply(string $channel, string $to, string $body): void
     africastalking_send($channel, $to, $body);
 }
 
-$from = normalize_inbound_phone(text_value('from'));
-$body = inbound_text();
-$channel = channel_from_payload();
+$payload = request_payload();
+$from = normalize_inbound_phone(payload_value($payload, ['from', 'fromNumber', 'source', 'sender']));
+$body = payload_value($payload, ['text', 'message', 'body', 'content']);
+$channel = channel_from_payload($payload);
 $patient = find_patient_by_phone($from);
 $patientId = $patient ? (int) $patient['id'] : null;
 
-save_inbound($patientId, $channel, $from, $body);
+save_inbound($patientId, $channel, $from, $body, $payload);
 
 if ($body === '') {
     echo 'OK';

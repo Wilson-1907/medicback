@@ -17,6 +17,19 @@ function text_value(string $key): string
     return trim((string) $value);
 }
 
+function inbound_text(): string
+{
+    // Africa's Talking payload names can differ by channel/integration.
+    $candidates = ['text', 'message', 'body', 'content'];
+    foreach ($candidates as $k) {
+        $v = text_value($k);
+        if ($v !== '') {
+            return $v;
+        }
+    }
+    return '';
+}
+
 function channel_from_payload(): string
 {
     $channel = strtolower(text_value('channel'));
@@ -47,15 +60,17 @@ function find_patient_by_phone(string $phone): ?array
     if ($phone === '') {
         return null;
     }
+    $digits = preg_replace('/\D+/', '', $phone) ?? '';
     $st = db()->prepare(
         'SELECT p.id, p.full_name
          FROM contact_channels c
          INNER JOIN patients p ON p.id = c.patient_id
          WHERE c.address = ?
+            OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(c.address, "+", ""), " ", ""), "-", ""), "(", ""), ")", "") = ?
          ORDER BY c.is_primary DESC, c.id ASC
          LIMIT 1'
     );
-    $st->execute([$phone]);
+    $st->execute([$phone, $digits]);
     $row = $st->fetch();
     return $row ?: null;
 }
@@ -79,7 +94,7 @@ function upsert_escalation(int $patientId, string $reason): void
 }
 
 $from = normalize_inbound_phone(text_value('from'));
-$body = text_value('text');
+$body = inbound_text();
 $channel = channel_from_payload();
 $patient = find_patient_by_phone($from);
 $patientId = $patient ? (int) $patient['id'] : null;

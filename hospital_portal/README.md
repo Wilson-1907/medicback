@@ -37,6 +37,14 @@ Backend and staff UI for the PHV engagement pilot.
 - Diagnosis/result logging
 - Message center (`message_center.php`) for outbound/inbound/escalation tracking
 
+## 4.1) API endpoints for external frontend
+
+- `GET /api/dashboard.php`
+- `GET /api/patients.php?q=`
+- `POST /api/patients.php`
+- `POST /api/appointments.php` (`action=add|reschedule`)
+- `GET /api/message_center.php`
+
 ## 5) Webhooks
 
 - Incoming messages:

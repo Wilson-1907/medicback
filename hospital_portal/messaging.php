@@ -216,3 +216,55 @@ function build_engagement_menu_message(): string
         . "3) Appointment help\n"
         . "4) Talk to hospital team";
 }
+
+function build_appointment_reminder_message(
+    string $patientName,
+    array $appointment,
+    string $reason,
+    int $reminderNumber,
+    int $totalReminders = 3
+): string {
+    $prefix = $reminderNumber === 1 ? 'Appointment details' : ('Appointment reminder ' . $reminderNumber . '/' . $totalReminders);
+    $parts = [];
+    $parts[] = "Hello {$patientName}, {$prefix} from " . HOSPITAL_NAME . ".";
+    $parts[] = 'Date/Time: ' . ($appointment['scheduled_start'] ?? 'TBD');
+    if (!empty($appointment['department'])) {
+        $parts[] = 'Department: ' . $appointment['department'];
+    }
+    if (!empty($appointment['provider_name'])) {
+        $parts[] = 'Provider: ' . $appointment['provider_name'];
+    }
+    if (!empty($appointment['location'])) {
+        $parts[] = 'Location: ' . $appointment['location'];
+    }
+    if ($reason !== '') {
+        $parts[] = 'Reason: ' . $reason;
+    }
+    $parts[] = 'Reply HELP for PHV guidance or DOCTOR for direct hospital support.';
+    return implode("\n", $parts);
+}
+
+function send_appointment_bundle_messages(
+    int $patientId,
+    string $patientName,
+    array $appointment,
+    string $reason,
+    bool $isUpdate
+): void {
+    send_patient_message(
+        $patientId,
+        'appointment_reminder',
+        build_appointment_change_message($patientName, $appointment, $reason, $isUpdate)
+    );
+    send_patient_message(
+        $patientId,
+        'appointment_reminder',
+        build_appointment_reminder_message($patientName, $appointment, $reason, 2, 3)
+    );
+    send_patient_message(
+        $patientId,
+        'appointment_reminder',
+        build_appointment_reminder_message($patientName, $appointment, $reason, 3, 3)
+    );
+    send_patient_message($patientId, 'education_menu', build_engagement_menu_message());
+}

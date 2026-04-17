@@ -64,17 +64,13 @@ try {
             throw $e;
         }
 
-        send_patient_message(
-            $patientId,
-            'appointment_reminder',
-            build_appointment_change_message($patientName, [
-                'scheduled_start' => $startSql,
-                'scheduled_end' => $endSql,
-                'department' => $department === '' ? null : $department,
-                'provider_name' => $provider === '' ? null : $provider,
-                'location' => $location === '' ? null : $location,
-            ], $reason, false)
-        );
+        send_appointment_bundle_messages($patientId, $patientName, [
+            'scheduled_start' => $startSql,
+            'scheduled_end' => $endSql,
+            'department' => $department === '' ? null : $department,
+            'provider_name' => $provider === '' ? null : $provider,
+            'location' => $location === '' ? null : $location,
+        ], $reason, false);
         api_json(['ok' => true, 'appointment_id' => $appointmentId], 201);
     }
 
@@ -132,17 +128,13 @@ try {
             throw $e;
         }
 
-        send_patient_message(
-            (int) $row['patient_id'],
-            'appointment_reminder',
-            build_appointment_change_message((string) $row['full_name'], [
-                'scheduled_start' => $newStartSql,
-                'scheduled_end' => $newEndSql,
-                'department' => $row['department'],
-                'provider_name' => $row['provider_name'],
-                'location' => $row['location'],
-            ], $reason, true)
-        );
+        send_appointment_bundle_messages((int) $row['patient_id'], (string) $row['full_name'], [
+            'scheduled_start' => $newStartSql,
+            'scheduled_end' => $newEndSql,
+            'department' => $row['department'],
+            'provider_name' => $row['provider_name'],
+            'location' => $row['location'],
+        ], $reason, true);
         api_json(['ok' => true, 'appointment_id' => $appointmentId]);
     }
 

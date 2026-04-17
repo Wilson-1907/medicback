@@ -107,6 +107,16 @@ if (!$patientId || $body === '') {
 }
 
 $msg = strtoupper($body);
+if (in_array($msg, ['HI', 'HELLO', 'HEY', 'MAMBO', 'SAWA'], true)) {
+    send_patient_message(
+        $patientId,
+        'system',
+        'Hi. What do you want to know about PHV today? You can ask about signs, prevention, appointments, or reply DOCTOR for direct hospital support.'
+    );
+    echo 'OK';
+    exit;
+}
+
 if ($msg === 'HELP' || $msg === 'MENU' || $msg === '0') {
     send_patient_message($patientId, 'education_menu', build_engagement_menu_message());
     echo 'OK';

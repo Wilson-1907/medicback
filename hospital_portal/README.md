@@ -21,6 +21,7 @@ Backend and staff UI for the PHV engagement pilot.
 1. Import `phv_pilot_schema.sql`.
 2. Run migration:
    - `sql/2026_04_17_enforce_appointment_reason.sql`
+   - `sql/2026_04_17_add_appointment_reminder_columns.sql`
 
 ## 3) Run locally
 
@@ -36,6 +37,7 @@ Backend and staff UI for the PHV engagement pilot.
 - Automatic patient notification on add/change
 - Diagnosis/result logging
 - Message center (`message_center.php`) for outbound/inbound/escalation tracking
+- Appointment reminders are scheduled for 7 days, 3 days, and the previous night
 
 ## 4.1) API endpoints for external frontend
 
@@ -59,6 +61,15 @@ Supported inbound patient keywords:
 - `2` -> prevention tips
 - `DOCTOR` / `4` -> escalation to hospital team
 - Messages containing `PHV` -> direct PHV explanation
+- `HI` / `HELLO` -> guided PHV prompt
+
+## 5.1) Reminder scheduler endpoint
+
+Run this endpoint on a schedule (recommended every 30-60 minutes):
+
+- `/cron_run_reminders.php`
+
+In Render, create a Cron Job that calls this URL regularly.
 
 ## 6) AI behavior
 

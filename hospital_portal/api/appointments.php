@@ -64,13 +64,18 @@ try {
             throw $e;
         }
 
-        send_appointment_bundle_messages($patientId, $patientName, [
-            'scheduled_start' => $startSql,
-            'scheduled_end' => $endSql,
-            'department' => $department === '' ? null : $department,
-            'provider_name' => $provider === '' ? null : $provider,
-            'location' => $location === '' ? null : $location,
-        ], $reason, false);
+        send_patient_message(
+            $patientId,
+            'appointment_reminder',
+            build_appointment_change_message($patientName, [
+                'scheduled_start' => $startSql,
+                'scheduled_end' => $endSql,
+                'department' => $department === '' ? null : $department,
+                'provider_name' => $provider === '' ? null : $provider,
+                'location' => $location === '' ? null : $location,
+            ], $reason, false)
+        );
+        send_patient_message($patientId, 'education_menu', build_engagement_menu_message());
         api_json(['ok' => true, 'appointment_id' => $appointmentId], 201);
     }
 
@@ -102,7 +107,7 @@ try {
         try {
             $up = $pdo->prepare(
                 'UPDATE appointments
-                 SET scheduled_start = ?, scheduled_end = ?, updated_at = NOW(3)
+                 SET scheduled_start = ?, scheduled_end = ?, reminder_7d_sent_at = NULL, reminder_3d_sent_at = NULL, reminder_night_sent_at = NULL, updated_at = NOW(3)
                  WHERE id = ?'
             );
             $up->execute([$newStartSql, $newEndSql, $appointmentId]);
@@ -128,13 +133,18 @@ try {
             throw $e;
         }
 
-        send_appointment_bundle_messages((int) $row['patient_id'], (string) $row['full_name'], [
-            'scheduled_start' => $newStartSql,
-            'scheduled_end' => $newEndSql,
-            'department' => $row['department'],
-            'provider_name' => $row['provider_name'],
-            'location' => $row['location'],
-        ], $reason, true);
+        send_patient_message(
+            (int) $row['patient_id'],
+            'appointment_reminder',
+            build_appointment_change_message((string) $row['full_name'], [
+                'scheduled_start' => $newStartSql,
+                'scheduled_end' => $newEndSql,
+                'department' => $row['department'],
+                'provider_name' => $row['provider_name'],
+                'location' => $row['location'],
+            ], $reason, true)
+        );
+        send_patient_message((int) $row['patient_id'], 'education_menu', build_engagement_menu_message());
         api_json(['ok' => true, 'appointment_id' => $appointmentId]);
     }
 

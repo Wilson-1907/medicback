@@ -93,6 +93,14 @@ function upsert_escalation(int $patientId, string $reason): void
     $st->execute([$patientId, $reason, 'same_day', 'open']);
 }
 
+function send_unlinked_reply(string $channel, string $to, string $body): void
+{
+    if ($to === '') {
+        return;
+    }
+    africastalking_send($channel, $to, $body);
+}
+
 $from = normalize_inbound_phone(text_value('from'));
 $body = inbound_text();
 $channel = channel_from_payload();
@@ -101,7 +109,17 @@ $patientId = $patient ? (int) $patient['id'] : null;
 
 save_inbound($patientId, $channel, $from, $body);
 
-if (!$patientId || $body === '') {
+if ($body === '') {
+    echo 'OK';
+    exit;
+}
+
+if (!$patientId) {
+    send_unlinked_reply(
+        $channel,
+        $from,
+        'Hi. To help you with PHV updates, please register your number with the hospital first. If this is urgent, contact the hospital directly.'
+    );
     echo 'OK';
     exit;
 }

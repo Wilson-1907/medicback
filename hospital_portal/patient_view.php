@@ -82,13 +82,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $hist->execute([$apptId, $startSql, $endVal, $startSql, $endVal, $reason, 'staff']);
                     $pdo->commit();
 
-                    send_appointment_bundle_messages($id, $patientNameForMsgs, [
-                        'scheduled_start' => $startSql,
-                        'scheduled_end' => $endVal,
-                        'department' => $department,
-                        'provider_name' => $providerName,
-                        'location' => $location,
-                    ], $reason, false);
+                    send_patient_message(
+                        $id,
+                        'appointment_reminder',
+                        build_appointment_change_message($patientNameForMsgs, [
+                            'scheduled_start' => $startSql,
+                            'scheduled_end' => $endVal,
+                            'department' => $department,
+                            'provider_name' => $providerName,
+                            'location' => $location,
+                        ], $reason, false)
+                    );
+                    send_patient_message($id, 'education_menu', build_engagement_menu_message());
                     $flash = 'Appointment added.';
                 }
             } elseif ($action === 'confirm_appt') {
@@ -127,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $pdo->beginTransaction();
                         $up = $pdo->prepare(
                             'UPDATE appointments
-                             SET scheduled_start = ?, scheduled_end = ?, updated_at = NOW(3)
+                             SET scheduled_start = ?, scheduled_end = ?, reminder_7d_sent_at = NULL, reminder_3d_sent_at = NULL, reminder_night_sent_at = NULL, updated_at = NOW(3)
                              WHERE id = ? AND patient_id = ?'
                         );
                         $up->execute([$newStartSql, $newEndVal, $aid, $id]);
@@ -147,13 +152,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ]);
                         $pdo->commit();
 
-                        send_appointment_bundle_messages($id, $patientNameForMsgs, [
-                            'scheduled_start' => $newStartSql,
-                            'scheduled_end' => $newEndVal,
-                            'department' => $current['department'],
-                            'provider_name' => $current['provider_name'],
-                            'location' => $current['location'],
-                        ], $newReason, true);
+                        send_patient_message(
+                            $id,
+                            'appointment_reminder',
+                            build_appointment_change_message($patientNameForMsgs, [
+                                'scheduled_start' => $newStartSql,
+                                'scheduled_end' => $newEndVal,
+                                'department' => $current['department'],
+                                'provider_name' => $current['provider_name'],
+                                'location' => $current['location'],
+                            ], $newReason, true)
+                        );
+                        send_patient_message($id, 'education_menu', build_engagement_menu_message());
                         $flash = 'Appointment rescheduled and patient notified.';
                     }
                 }

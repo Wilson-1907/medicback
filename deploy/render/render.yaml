@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: phv-render-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./deploy/render/Dockerfile
+    envVars:
+      - key: APP_NAME
+        value: PHV Hospital Console
+      - key: HOSPITAL_NAME
+        value: PHV Pilot Hospital

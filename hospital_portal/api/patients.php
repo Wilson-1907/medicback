@@ -1,88 +1,90 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../_bootstrap.php';
-
-header('Content-Type: application/json');
+require_once __DIR__ . '/_bootstrap.php';
 
 try {
     $pdo = db();
-    $method = $_SERVER['REQUEST_METHOD'];
-    
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
     if ($method === 'GET') {
-        $q = $_GET['q'] ?? '';
-        $sql = 'SELECT id, full_name, external_mrn, phone, preferred_language, primary_channel, status, registration_at 
-                FROM patients';
-        $params = [];
-        
-        if (!empty($q)) {
-            $sql .= ' WHERE full_name LIKE ? OR external_mrn LIKE ? OR id = ?';
-            $params = ["%$q%", "%$q%", is_numeric($q) ? $q : 0];
+        $q = trim((string) ($_GET['q'] ?? ''));
+        $sql = 'SELECT p.id, p.full_name, p.status, p.registration_at,
+                (SELECT cc.channel FROM contact_channels cc WHERE cc.patient_id = p.id AND cc.is_primary = 1 LIMIT 1) AS primary_channel
+                FROM patients p';
+        $args = [];
+        if ($q !== '') {
+            $sql .= ' WHERE p.full_name LIKE ? OR p.external_mrn LIKE ? OR p.id = ?';
+            $like = '%' . $q . '%';
+            $args = [$like, $like, ctype_digit($q) ? $q : -1];
         }
-        
-        $sql .= ' ORDER BY registration_at DESC LIMIT 100';
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
-        $items = $stmt->fetchAll();
-        
-        api_json(['ok' => true, 'items' => $items]);
+        $sql .= ' ORDER BY p.full_name ASC LIMIT 300';
+        $st = $pdo->prepare($sql);
+        $st->execute($args);
+        api_json(['ok' => true, 'items' => $st->fetchAll()]);
     }
-    
-    elseif ($method === 'POST') {
-        $data = json_decode(file_get_contents('php://input'), true);
-        
-        // Validate required fields
-        if (empty($data['full_name']) || empty($data['phone'])) {
-            throw new Exception('Full name and phone are required');
-        }
-        
-        // Insert patient
-        $stmt = $pdo->prepare(
-            'INSERT INTO patients (full_name, date_of_birth, external_mrn, phone, preferred_language, 
-             primary_channel, notes, opt_in, status, registration_at) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
+
+    if ($method !== 'POST') {
+        api_json(['ok' => false, 'error' => 'Method not allowed'], 405);
+    }
+
+    $body = api_body();
+    $name = trim((string) ($body['full_name'] ?? ''));
+    $dob = trim((string) ($body['date_of_birth'] ?? ''));
+    $lang = trim((string) ($body['preferred_language'] ?? 'en')) ?: 'en';
+    $mrn = trim((string) ($body['external_mrn'] ?? ''));
+    $notes = trim((string) ($body['notes'] ?? ''));
+    $phone = api_phone((string) ($body['phone'] ?? ''));
+    $channel = ((string) ($body['contact_channel'] ?? 'sms')) === 'whatsapp' ? 'whatsapp' : 'sms';
+    $optIn = !empty($body['opt_in']);
+
+    if ($name === '') {
+        api_json(['ok' => false, 'error' => 'Full name is required'], 422);
+    }
+    if ($phone === '' || strlen($phone) < 8) {
+        api_json(['ok' => false, 'error' => 'Valid phone number is required'], 422);
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $st = $pdo->prepare(
+            'INSERT INTO patients (full_name, date_of_birth, preferred_language, external_mrn, notes, status)
+             VALUES (?,?,?,?,?,?)'
         );
-        
-        $stmt->execute([
-            $data['full_name'],
-            $data['date_of_birth'] ?? null,
-            $data['external_mrn'] ?? null,
-            $data['phone'],
-            $data['preferred_language'] ?? 'en',
-            $data['contact_channel'] ?? 'sms',
-            $data['notes'] ?? null,
-            $data['opt_in'] ?? 1,
-            'active'
+        $st->execute([
+            $name,
+            $dob === '' ? null : $dob,
+            $lang,
+            $mrn === '' ? null : $mrn,
+            $notes === '' ? null : $notes,
+            'active',
         ]);
-        
-        $patientId = $pdo->lastInsertId();
-        
-        // Send welcome message based on language preference
-        if ($data['opt_in'] ?? 1) {
-            sendLanguageSpecificMessage($patientId, $data['preferred_language'] ?? 'en');
+        $pid = (int) $pdo->lastInsertId();
+
+        $ch = $pdo->prepare(
+            'INSERT INTO contact_channels (patient_id, channel, address, is_primary, opted_in, opted_in_at)
+             VALUES (?,?,?,?,?,?)'
+        );
+        $ch->execute([$pid, $channel, $phone, 1, $optIn ? 1 : 0, $optIn ? date('Y-m-d H:i:s') : null]);
+
+        $ev = $pdo->prepare(
+            'INSERT INTO contact_preference_events (patient_id, channel, action, source)
+             VALUES (?,?,?,?)'
+        );
+        $ev->execute([$pid, $channel, $optIn ? 'opt_in' : 'opt_out', 'frontend_registration']);
+        $pdo->commit();
+
+        if ($optIn) {
+            send_patient_message($pid, 'welcome', build_welcome_message($name));
+            send_patient_message($pid, 'education_menu', build_engagement_menu_message());
         }
-        
-        api_json(['ok' => true, 'id' => $patientId, 'message' => 'Patient registered successfully']);
+        api_json(['ok' => true, 'patient_id' => $pid], 201);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        api_json(['ok' => false, 'error' => $e->getMessage()], 500);
     }
-    
 } catch (Throwable $e) {
     api_json(['ok' => false, 'error' => $e->getMessage()], 500);
 }
-
-function sendLanguageSpecificMessage($patientId, $language) {
-    // This function would integrate with your SMS/WhatsApp service
-    // For now, we'll log it
-    $messages = [
-        'en' => "Welcome to PHV Hospital! Your health is our priority. We'll send you appointment reminders and health tips.",
-        'sw' => "Karibu Hospitali ya PHV! Afya yako ni kipaumbele chetu. Tutakutumia vikumbusho vya miadi na vidokezo vya afya."
-    ];
-    
-    $message = $messages[$language] ?? $messages['en'];
-    
-    // Log the message that would be sent
-    error_log("Sending to patient $patientId ($language): $message");
-    
-    // Here you would call your actual messaging service
-    // sendSMS($phone, $message);
-}
-?>

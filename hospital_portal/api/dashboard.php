@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/../_bootstrap.php';
 
 try {
     $pdo = db();
@@ -15,36 +15,39 @@ try {
         )->fetch()['c'],
     ];
 
+    // Fetch appointments with patient details and language preference
+    $appointments = $pdo->query(
+        'SELECT 
+            a.id,
+            a.scheduled_start,
+            a.scheduled_end,
+            a.status,
+            a.department,
+            a.provider_name,
+            a.location,
+            a.reason,
+            p.id as patient_id,
+            p.full_name,
+            p.phone,
+            p.preferred_language,
+            p.primary_channel
+         FROM appointments a
+         JOIN patients p ON a.patient_id = p.id
+         WHERE a.scheduled_start >= CURDATE() 
+            AND a.status IN ("proposed", "confirmed")
+         ORDER BY a.scheduled_start ASC
+         LIMIT 20'
+    )->fetchAll();
+
     $recent = $pdo->query(
-        'SELECT id, full_name, status, registration_at
+        'SELECT id, full_name, status, registration_at, preferred_language
          FROM patients
          ORDER BY registration_at DESC
          LIMIT 10'
     )->fetchAll();
 
-    // NEW: Fetch appointments with patient names and formatted dates
-    $appointments = $pdo->query(
-        'SELECT 
-            a.id,
-            DATE(a.scheduled_start) as appointment_date,
-            TIME(a.scheduled_start) as start_time,
-            TIME(a.scheduled_end) as end_time,
-            a.status,
-            p.full_name,
-            p.id as patient_id
-         FROM appointments a
-         JOIN patients p ON a.patient_id = p.id
-         WHERE a.scheduled_start >= CURDATE()
-         ORDER BY a.scheduled_start ASC
-         LIMIT 30'
-    )->fetchAll();
-
-    api_json([
-        'ok' => true, 
-        'stats' => $stats, 
-        'recent' => $recent,
-        'appointments' => $appointments
-    ]);
+    api_json(['ok' => true, 'stats' => $stats, 'appointments' => $appointments, 'recent' => $recent]);
 } catch (Throwable $e) {
     api_json(['ok' => false, 'error' => $e->getMessage()], 500);
 }
+?>

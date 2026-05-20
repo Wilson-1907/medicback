@@ -1,124 +1,154 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../_bootstrap.php';
+require_once __DIR__ . '/_bootstrap.php';
 
 try {
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+        api_json(['ok' => false, 'error' => 'Method not allowed'], 405);
+    }
+
     $pdo = db();
-    $data = json_decode(file_get_contents('php://input'), true);
-    $action = $data['action'] ?? 'add';
-    
+    $body = api_body();
+    $action = (string) ($body['action'] ?? 'add');
+
     if ($action === 'add') {
-        // Validate required fields
-        if (empty($data['patient_id']) || empty($data['scheduled_start']) || empty($data['reason'])) {
-            throw new Exception('Patient ID, scheduled start time, and reason are required');
+        $patientId = (int) ($body['patient_id'] ?? 0);
+        $start = trim((string) ($body['scheduled_start'] ?? ''));
+        $reason = trim((string) ($body['reason'] ?? ''));
+        if ($patientId < 1 || $start === '' || $reason === '') {
+            api_json(['ok' => false, 'error' => 'patient_id, scheduled_start and reason are required'], 422);
         }
-        
-        // Get patient language preference
-        $stmt = $pdo->prepare('SELECT full_name, phone, preferred_language, primary_channel FROM patients WHERE id = ?');
-        $stmt->execute([$data['patient_id']]);
-        $patient = $stmt->fetch();
-        
-        if (!$patient) {
-            throw new Exception('Patient not found');
+        $end = trim((string) ($body['scheduled_end'] ?? ''));
+        $department = trim((string) ($body['department'] ?? ''));
+        $provider = trim((string) ($body['provider_name'] ?? ''));
+        $location = trim((string) ($body['location'] ?? ''));
+
+        $nameSt = $pdo->prepare('SELECT full_name FROM patients WHERE id = ? LIMIT 1');
+        $nameSt->execute([$patientId]);
+        $nameRow = $nameSt->fetch();
+        if (!$nameRow) {
+            api_json(['ok' => false, 'error' => 'Patient not found'], 404);
         }
-        
-        // Insert appointment
-        $stmt = $pdo->prepare(
-            'INSERT INTO appointments (patient_id, scheduled_start, scheduled_end, department, 
-             provider_name, location, reason, status, created_at) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())'
+        $patientName = (string) $nameRow['full_name'];
+
+        $startSql = api_dt($start);
+        $endSql = $end === '' ? null : api_dt($end);
+        $pdo->beginTransaction();
+        try {
+            $st = $pdo->prepare(
+                'INSERT INTO appointments (patient_id, department, provider_name, scheduled_start, scheduled_end, location, status)
+                 VALUES (?,?,?,?,?,?,?)'
+            );
+            $st->execute([
+                $patientId,
+                $department === '' ? null : $department,
+                $provider === '' ? null : $provider,
+                $startSql,
+                $endSql,
+                $location === '' ? null : $location,
+                'proposed',
+            ]);
+            $appointmentId = (int) $pdo->lastInsertId();
+            $h = $pdo->prepare(
+                'INSERT INTO appointment_reschedule_events
+                 (appointment_id, old_start, old_end, new_start, new_end, reason, initiated_by)
+                 VALUES (?,?,?,?,?,?,?)'
+            );
+            $h->execute([$appointmentId, $startSql, $endSql, $startSql, $endSql, $reason, 'staff']);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+
+        send_patient_message(
+            $patientId,
+            'appointment_reminder',
+            build_appointment_change_message($patientName, [
+                'scheduled_start' => $startSql,
+                'scheduled_end' => $endSql,
+                'department' => $department === '' ? null : $department,
+                'provider_name' => $provider === '' ? null : $provider,
+                'location' => $location === '' ? null : $location,
+            ], $reason, false)
         );
-        
-        $stmt->execute([
-            $data['patient_id'],
-            $data['scheduled_start'],
-            $data['scheduled_end'] ?? null,
-            $data['department'] ?? null,
-            $data['provider_name'] ?? null,
-            $data['location'] ?? null,
-            $data['reason'],
-            'proposed'
-        ]);
-        
-        $appointmentId = $pdo->lastInsertId();
-        
-        // Send notification in patient's preferred language
-        sendAppointmentNotification($patient, $data['scheduled_start'], $appointmentId);
-        
-        api_json(['ok' => true, 'id' => $appointmentId, 'message' => 'Appointment scheduled successfully']);
+        send_patient_message($patientId, 'education_menu', build_engagement_menu_message());
+        api_json(['ok' => true, 'appointment_id' => $appointmentId], 201);
     }
-    
-    elseif ($action === 'reschedule') {
-        if (empty($data['appointment_id']) || empty($data['new_scheduled_start']) || empty($data['reason'])) {
-            throw new Exception('Appointment ID, new time, and reason are required');
+
+    if ($action === 'reschedule') {
+        $appointmentId = (int) ($body['appointment_id'] ?? 0);
+        $newStart = trim((string) ($body['new_scheduled_start'] ?? ''));
+        $reason = trim((string) ($body['reason'] ?? ''));
+        if ($appointmentId < 1 || $newStart === '' || $reason === '') {
+            api_json(['ok' => false, 'error' => 'appointment_id, new_scheduled_start and reason are required'], 422);
         }
-        
-        // Get appointment and patient details
-        $stmt = $pdo->prepare(
-            'SELECT a.*, p.full_name, p.phone, p.preferred_language, p.primary_channel 
-             FROM appointments a 
-             JOIN patients p ON a.patient_id = p.id 
-             WHERE a.id = ?'
+        $newEnd = trim((string) ($body['new_scheduled_end'] ?? ''));
+        $newStartSql = api_dt($newStart);
+        $newEndSql = $newEnd === '' ? null : api_dt($newEnd);
+
+        $st = $pdo->prepare(
+            'SELECT a.id, a.patient_id, a.scheduled_start, a.scheduled_end, a.department, a.provider_name, a.location, p.full_name
+             FROM appointments a
+             INNER JOIN patients p ON p.id = a.patient_id
+             WHERE a.id = ?
+             LIMIT 1'
         );
-        $stmt->execute([$data['appointment_id']]);
-        $appointment = $stmt->fetch();
-        
-        if (!$appointment) {
-            throw new Exception('Appointment not found');
+        $st->execute([$appointmentId]);
+        $row = $st->fetch();
+        if (!$row) {
+            api_json(['ok' => false, 'error' => 'Appointment not found'], 404);
         }
-        
-        // Update appointment
-        $stmt = $pdo->prepare(
-            'UPDATE appointments 
-             SET scheduled_start = ?, scheduled_end = ?, status = "proposed", updated_at = NOW()
-             WHERE id = ?'
+
+        $pdo->beginTransaction();
+        try {
+            $up = $pdo->prepare(
+                'UPDATE appointments
+                 SET scheduled_start = ?, scheduled_end = ?, reminder_7d_sent_at = NULL, reminder_3d_sent_at = NULL, reminder_night_sent_at = NULL, updated_at = NOW(3)
+                 WHERE id = ?'
+            );
+            $up->execute([$newStartSql, $newEndSql, $appointmentId]);
+            $h = $pdo->prepare(
+                'INSERT INTO appointment_reschedule_events
+                 (appointment_id, old_start, old_end, new_start, new_end, reason, initiated_by)
+                 VALUES (?,?,?,?,?,?,?)'
+            );
+            $h->execute([
+                $appointmentId,
+                $row['scheduled_start'],
+                $row['scheduled_end'],
+                $newStartSql,
+                $newEndSql,
+                $reason,
+                'staff',
+            ]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+
+        send_patient_message(
+            (int) $row['patient_id'],
+            'appointment_reminder',
+            build_appointment_change_message((string) $row['full_name'], [
+                'scheduled_start' => $newStartSql,
+                'scheduled_end' => $newEndSql,
+                'department' => $row['department'],
+                'provider_name' => $row['provider_name'],
+                'location' => $row['location'],
+            ], $reason, true)
         );
-        $stmt->execute([$data['new_scheduled_start'], $data['new_scheduled_end'] ?? null, $data['appointment_id']]);
-        
-        // Send reschedule notification in patient's language
-        sendRescheduleNotification($appointment, $data['new_scheduled_start'], $data['reason']);
-        
-        api_json(['ok' => true, 'message' => 'Appointment rescheduled successfully']);
+        send_patient_message((int) $row['patient_id'], 'education_menu', build_engagement_menu_message());
+        api_json(['ok' => true, 'appointment_id' => $appointmentId]);
     }
-    
+
+    api_json(['ok' => false, 'error' => 'Unknown action'], 422);
 } catch (Throwable $e) {
     api_json(['ok' => false, 'error' => $e->getMessage()], 500);
 }
-
-function sendAppointmentNotification($patient, $appointmentTime, $appointmentId) {
-    $date = date('l, F j, Y', strtotime($appointmentTime));
-    $time = date('g:i A', strtotime($appointmentTime));
-    
-    $messages = [
-        'en' => "📅 Appointment Confirmation\n\nDear {$patient['full_name']},\n\nYour appointment has been scheduled for:\n📆 Date: $date\n⏰ Time: $time\n\nPlease arrive 15 minutes early.\n\nReply CONFIRM to confirm or RESCHEDULE to change.\n\nPHV Hospital",
-        
-        'sw' => "📅 Uthibitisho wa Miadi\n\nMpendwa {$patient['full_name']},\n\nMiadi yako imepangwa kwa:\n📆 Tarehe: $date\n⏰ Saa: $time\n\nTafadhali fika dakika 15 kabla ya wakati.\n\nJibu CONFIRM ili kuthibitisha au RESCHEDULE kubadilisha.\n\nHospitali ya PHV"
-    ];
-    
-    $message = $messages[$patient['preferred_language']] ?? $messages['en'];
-    
-    // Log the message (in production, send via SMS/WhatsApp)
-    error_log("Sending to {$patient['phone']} ({$patient['preferred_language']}): $message");
-    
-    // Here you would integrate with your messaging service
-    // sendMessage($patient['phone'], $message, $patient['primary_channel']);
-}
-
-function sendRescheduleNotification($appointment, $newTime, $reason) {
-    $oldDate = date('l, F j, Y', strtotime($appointment['scheduled_start']));
-    $oldTime = date('g:i A', strtotime($appointment['scheduled_start']));
-    $newDate = date('l, F j, Y', strtotime($newTime));
-    $newTimeDate = date('g:i A', strtotime($newTime));
-    
-    $messages = [
-        'en' => "🔄 Appointment Rescheduled\n\nDear {$appointment['full_name']},\n\nYour appointment has been rescheduled.\n\n❌ Old: $oldDate at $oldTime\n✅ New: $newDate at $newTime\n\nReason: $reason\n\nPlease confirm your availability by replying CONFIRM.\n\nPHV Hospital",
-        
-        'sw' => "🔄 Miadi Imebadilishwa\n\nMpendwa {$appointment['full_name']},\n\nMiadi yako imebadilishwa.\n\n❌ Ya zamani: $oldDate saa $oldTime\n✅ Mpya: $newDate saa $newTimeDate\n\nSababu: $reason\n\nTafadhali thibitisha upatikanaji wako kwa kujibu CONFIRM.\n\nHospitali ya PHV"
-    ];
-    
-    $message = $messages[$appointment['preferred_language']] ?? $messages['en'];
-    
-    error_log("Reschedule notification to {$appointment['phone']}: $message");
-}
-?>

@@ -22,7 +22,29 @@ try {
          LIMIT 10'
     )->fetchAll();
 
-    api_json(['ok' => true, 'stats' => $stats, 'recent' => $recent]);
+    // NEW: Fetch appointments with patient names and formatted dates
+    $appointments = $pdo->query(
+        'SELECT 
+            a.id,
+            DATE(a.scheduled_start) as appointment_date,
+            TIME(a.scheduled_start) as start_time,
+            TIME(a.scheduled_end) as end_time,
+            a.status,
+            p.full_name,
+            p.id as patient_id
+         FROM appointments a
+         JOIN patients p ON a.patient_id = p.id
+         WHERE a.scheduled_start >= CURDATE()
+         ORDER BY a.scheduled_start ASC
+         LIMIT 30'
+    )->fetchAll();
+
+    api_json([
+        'ok' => true, 
+        'stats' => $stats, 
+        'recent' => $recent,
+        'appointments' => $appointments
+    ]);
 } catch (Throwable $e) {
     api_json(['ok' => false, 'error' => $e->getMessage()], 500);
 }

@@ -1,4 +1,4 @@
-<?php
+p
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
@@ -225,4 +225,4 @@ send_patient_message(
     'system',
     'Thank you for your message. We are here for you. Reply HELP for PHV guidance or DOCTOR for direct hospital support.'
 );
-echo 'OK';
+echo 'OK'

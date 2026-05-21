@@ -88,7 +88,7 @@ function find_patient_by_phone(string $phone): ?array
     }
     $digits = preg_replace('/\D+/', '', $phone) ?? '';
     $st = db()->prepare(
-        'SELECT p.id, p.full_name
+        'SELECT p.id, p.full_name, p.preferred_language
          FROM contact_channels c
          INNER JOIN patients p ON p.id = c.patient_id
          WHERE c.address = ?
@@ -127,6 +127,21 @@ function send_unlinked_reply(string $channel, string $to, string $body): void
     africastalking_send($channel, $to, $body);
 }
 
+// Get language-specific greeting based on patient's preferred language
+function get_greeting_response(int $patientId, string $channel, string $message): ?string
+{
+    $db = db();
+    $stmt = $db->prepare("SELECT preferred_language FROM patients WHERE id = ?");
+    $stmt->execute([$patientId]);
+    $patient = $stmt->fetch();
+    $lang = $patient['preferred_language'] ?? detect_language($message);
+    
+    if ($lang === 'sw') {
+        return "Habari! Karibu " . HOSPITAL_NAME . ". Je, nikusaidieje leo? Unaweza kuniuliza kuhusu miadi, dalili za tahadhari, kinga, au kuwasiliana na daktari. Tuma HELP kwa chaguo zaidi.";
+    }
+    return "Hello! Welcome to " . HOSPITAL_NAME . ". How can I help you today? You can ask about appointments, warning symptoms, prevention tips, or contact a doctor. Reply HELP for more options.";
+}
+
 $payload = request_payload();
 $from = normalize_inbound_phone(payload_value($payload, ['from', 'fromNumber', 'source', 'sender']));
 $body = payload_value($payload, ['text', 'message', 'body', 'content']);
@@ -142,87 +157,94 @@ if ($body === '') {
 }
 
 if (!$patientId) {
-    send_unlinked_reply(
-        $channel,
-        $from,
-        'Hi. To help you with PHV updates, please register your number with the hospital first. If this is urgent, contact the hospital directly.'
-    );
+    // Patient not registered - send registration message
+    $unlinkedReply = "Hi. To help you with PHV updates, please register your number with the hospital first. If this is urgent, contact the hospital directly.";
+    if (detect_language($body) === 'sw') {
+        $unlinkedReply = "Habari. Ili kukusaidia kwa taarifa za PHV, tafadhali sajili nambari yako hospitalini kwanza. Ikiwa ni dharura, wasiliana na hospitali moja kwa moja.";
+    }
+    send_unlinked_reply($channel, $from, $unlinkedReply);
     echo 'OK';
     exit;
 }
 
-$msg = strtoupper($body);
-if (in_array($msg, ['HI', 'HELLO', 'HEY', 'MAMBO', 'SAWA'], true)) {
-    send_patient_message(
-        $patientId,
-        'system',
-        'Hi. What do you want to know about PHV today? You can ask about signs, prevention, appointments, or reply DOCTOR for direct hospital support.'
-    );
+$msg = strtoupper(trim($body));
+
+// Get patient's preferred language for responses
+$stmt = db()->prepare("SELECT preferred_language FROM patients WHERE id = ?");
+$stmt->execute([$patientId]);
+$patientData = $stmt->fetch();
+$userLanguage = $patientData['preferred_language'] ?? detect_language($body);
+
+// Simple command handlers with language support
+if (in_array($msg, ['HI', 'HELLO', 'HEY', 'MAMBO', 'SAWA', 'JAMBO', 'HABARI'], true)) {
+    $greeting = get_greeting_response($patientId, $channel, $body);
+    send_patient_message($patientId, 'system', $greeting);
     echo 'OK';
     exit;
 }
 
 if ($msg === 'HELP' || $msg === 'MENU' || $msg === '0') {
-    send_patient_message($patientId, 'education_menu', build_engagement_menu_message());
+    $menuMessage = ($userLanguage === 'sw') 
+        ? "MENU YA HUDUMA:\n1) Dalili za tahadhari\n2) Kinga na ushauri\n3) Miadi yangu\n4) Wasiliana na daktari\n\nTuma namba ili kupata maelezo."
+        : "HELP MENU:\n1) Warning symptoms\n2) Prevention tips\n3) My appointments\n4) Contact doctor\n\nSend number for details.";
+    send_patient_message($patientId, 'education_menu', $menuMessage);
     echo 'OK';
     exit;
 }
 
 if ($msg === '1') {
-    send_patient_message(
-        $patientId,
-        'system',
-        'PHV signs to watch: sudden severe symptoms, high fever, persistent pain, worsening breathing, or unusual bleeding. '
-        . 'If symptoms are severe, seek emergency care immediately.'
-    );
+    $response = ($userLanguage === 'sw')
+        ? "DALILI ZA TAHADHARI: Homa kali (>39°C), ugumu wa kupumua, maumivu ya kifua, kuzirai, au kutokwa na damu isiyo kawaida. Ikiwa una dalili hizi, tafuta matibabu mara moja."
+        : "WARNING SYMPTOMS: High fever (>39°C), difficulty breathing, chest pain, fainting, or unusual bleeding. If you have these symptoms, seek emergency care immediately.";
+    send_patient_message($patientId, 'system', $response);
     echo 'OK';
     exit;
 }
 
 if ($msg === '2') {
-    send_patient_message(
-        $patientId,
-        'system',
-        'PHV prevention tips: take prescribed medication, keep follow-up visits, stay hydrated, rest, and report any worsening signs early. '
-        . 'Reply HELP for more options.'
-    );
+    $response = ($userLanguage === 'sw')
+        ? "KINGA BORA: Tumia dawa kama ilivyoagizwa, hudhuria miadi yote, kunywa maji mengi, pumzika, na ripoti dalili mapema. Tuma HELP kwa chaguo zaidi."
+        : "PREVENTION TIPS: Take prescribed medication, attend all appointments, stay hydrated, rest, and report symptoms early. Reply HELP for more options.";
+    send_patient_message($patientId, 'system', $response);
+    echo 'OK';
+    exit;
+}
+
+if ($msg === '3') {
+    $response = ($userLanguage === 'sw')
+        ? "KUANGALIA MIADI: Tuma nambari yako ya kitambulisho kupata miadi yako ijayo. Au wasiliana nasi kwa simu " . HOSPITAL_PHONE . "."
+        : "CHECK APPOINTMENTS: Send your patient ID to get your next appointment. Or contact us at " . HOSPITAL_PHONE . ".";
+    send_patient_message($patientId, 'system', $response);
     echo 'OK';
     exit;
 }
 
 if ($msg === 'DOCTOR' || $msg === '4') {
     upsert_escalation($patientId, 'Patient requested direct doctor contact via messaging channel.');
-    send_patient_message(
-        $patientId,
-        'escalation_notice',
-        'Thank you. Your request has been sent to ' . HOSPITAL_NAME . '. A care team member will contact you shortly.'
-    );
+    $response = ($userLanguage === 'sw')
+        ? "Asante. Ombi lako limetumwa kwa " . HOSPITAL_NAME . ". Timu yetu itawasiliana nawe hivi karibuni."
+        : "Thank you. Your request has been sent to " . HOSPITAL_NAME . ". A care team member will contact you shortly.";
+    send_patient_message($patientId, 'escalation_notice', $response);
     echo 'OK';
     exit;
 }
 
-if (str_contains($msg, 'PHV')) {
-    send_patient_message(
-        $patientId,
-        'system',
-        'PHV is a health condition that needs close follow-up, early symptom reporting, and prevention support. '
-        . 'At ' . HOSPITAL_NAME . ', we help you with appointment reminders, warning signs, and practical prevention guidance. '
-        . 'If you feel worse or have severe symptoms, seek urgent care immediately. Reply DOCTOR for direct hospital contact.'
-    );
-    echo 'OK';
-    exit;
-}
-
+// For all other messages, use AI to generate response in the user's language
 $ai = ai_generate_reply($patientId, $channel, $body);
+
 if ($ai['ok']) {
     send_patient_message($patientId, 'system', $ai['reply']);
+    // Log the AI conversation for analytics
+    log_ai_conversation($patientId, $body, $ai['reply'], $ai['language']);
     echo 'OK';
     exit;
 }
 
-send_patient_message(
-    $patientId,
-    'system',
-    'Thank you for your message. We are here for you. Reply HELP for PHV guidance or DOCTOR for direct hospital support.'
-);
+// Ultimate fallback
+$fallbackResponse = ($userLanguage === 'sw')
+    ? "Asante kwa ujumbe wako. Tunajaribu kukusaidia. Tuma HELP kwa chaguo au DOCTOR kuwasiliana na daktari."
+    : "Thank you for your message. We're here to help. Reply HELP for options or DOCTOR to contact a doctor.";
+
+send_patient_message($patientId, 'system', $fallbackResponse);
 echo 'OK';
+?>

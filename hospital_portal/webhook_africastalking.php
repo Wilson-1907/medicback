@@ -88,7 +88,7 @@ function find_patient_by_phone(string $phone): ?array
     }
     $digits = preg_replace('/\D+/', '', $phone) ?? '';
     $st = db()->prepare(
-        'SELECT p.id, p.full_name, p.preferred_language
+        'SELECT p.id, p.full_name
          FROM contact_channels c
          INNER JOIN patients p ON p.id = c.patient_id
          WHERE c.address = ?
@@ -134,183 +134,95 @@ $channel = channel_from_payload($payload);
 $patient = find_patient_by_phone($from);
 $patientId = $patient ? (int) $patient['id'] : null;
 
-// Log the incoming message
-error_log("Webhook received: From={$from}, Body={$body}, Channel={$channel}, PatientId={$patientId}");
-
 save_inbound($patientId, $channel, $from, $body, $payload);
 
 if ($body === '') {
-    error_log("Empty message body, exiting");
     echo 'OK';
     exit;
 }
 
-// Handle unregistered patients
 if (!$patientId) {
-    $unlinkedReply = "Hi. To help you with PHV updates, please register your number with the hospital first. If this is urgent, contact the hospital directly.";
-    // Check if message might be Swahili
-    $body_lower = strtolower($body);
-    if (strpos($body_lower, 'habari') !== false || strpos($body_lower, 'jambo') !== false || strpos($body_lower, 'asante') !== false) {
-        $unlinkedReply = "Habari. Ili kukusaidia kwa taarifa za PHV, tafadhali sajili nambari yako hospitalini kwanza. Ikiwa ni dharura, wasiliana na hospitali moja kwa moja.";
-    }
-    send_unlinked_reply($channel, $from, $unlinkedReply);
-    error_log("Sent unlinked reply to {$from}");
+    send_unlinked_reply(
+        $channel,
+        $from,
+        'Hi. To help you with PHV updates, please register your number with the hospital first. If this is urgent, contact the hospital directly.'
+    );
     echo 'OK';
     exit;
 }
 
-$msg = strtoupper(trim($body));
-
-// Handle specific commands first (these don't need AI)
-if (in_array($msg, ['HI', 'HELLO', 'HEY', 'MAMBO', 'SAWA', 'JAMBO', 'HABARI'], true)) {
-    // Get greeting in patient's language
-    $stmt = db()->prepare("SELECT preferred_language FROM patients WHERE id = ?");
-    $stmt->execute([$patientId]);
-    $patientData = $stmt->fetch();
-    $lang = ($patientData && $patientData['preferred_language']) ? $patientData['preferred_language'] : 'en';
-    
-    $greeting = ($lang === 'sw') 
-        ? "Habari! Karibu " . HOSPITAL_NAME . ". Je, nikusaidieje leo? Unaweza kuniuliza kuhusu miadi, dalili za tahadhari, kinga, au kuwasiliana na daktari. Tuma HELP kwa chaguo zaidi."
-        : "Hello! Welcome to " . HOSPITAL_NAME . ". How can I help you today? You can ask about appointments, warning symptoms, prevention tips, or contact a doctor. Reply HELP for more options.";
-    
-    send_patient_message($patientId, 'system', $greeting);
-    error_log("Sent greeting to patient {$patientId}");
+$msg = strtoupper($body);
+if (in_array($msg, ['HI', 'HELLO', 'HEY', 'MAMBO', 'SAWA'], true)) {
+    send_patient_message(
+        $patientId,
+        'system',
+        'Hi. What do you want to know about PHV today? You can ask about signs, prevention, appointments, or reply DOCTOR for direct hospital support.'
+    );
     echo 'OK';
     exit;
 }
 
 if ($msg === 'HELP' || $msg === 'MENU' || $msg === '0') {
-    $stmt = db()->prepare("SELECT preferred_language FROM patients WHERE id = ?");
-    $stmt->execute([$patientId]);
-    $patientData = $stmt->fetch();
-    $lang = ($patientData && $patientData['preferred_language']) ? $patientData['preferred_language'] : 'en';
-    
-    $menu = ($lang === 'sw') 
-        ? "MENU YA HUDUMA:\n1) Dalili za tahadhari\n2) Kinga na ushauri\n3) Miadi yangu\n4) Wasiliana na daktari\n\nTuma namba ili kupata maelezo."
-        : "HELP MENU:\n1) Warning symptoms\n2) Prevention tips\n3) My appointments\n4) Contact doctor\n\nSend number for details.";
-    
-    send_patient_message($patientId, 'education_menu', $menu);
-    error_log("Sent menu to patient {$patientId}");
+    send_patient_message($patientId, 'education_menu', build_engagement_menu_message());
     echo 'OK';
     exit;
 }
 
 if ($msg === '1') {
-    $stmt = db()->prepare("SELECT preferred_language FROM patients WHERE id = ?");
-    $stmt->execute([$patientId]);
-    $patientData = $stmt->fetch();
-    $lang = ($patientData && $patientData['preferred_language']) ? $patientData['preferred_language'] : 'en';
-    
-    $response = ($lang === 'sw')
-        ? "DALILI ZA TAHADHARI: Homa kali (>39°C), ugumu wa kupumua, maumivu ya kifua, kuzirai, au kutokwa na damu isiyo kawaida. Ikiwa una dalili hizi, tafuta matibabu mara moja."
-        : "WARNING SYMPTOMS: High fever (>39°C), difficulty breathing, chest pain, fainting, or unusual bleeding. If you have these symptoms, seek emergency care immediately.";
-    
-    send_patient_message($patientId, 'system', $response);
-    error_log("Sent symptoms info to patient {$patientId}");
+    send_patient_message(
+        $patientId,
+        'system',
+        'PHV signs to watch: sudden severe symptoms, high fever, persistent pain, worsening breathing, or unusual bleeding. '
+        . 'If symptoms are severe, seek emergency care immediately.'
+    );
     echo 'OK';
     exit;
 }
 
 if ($msg === '2') {
-    $stmt = db()->prepare("SELECT preferred_language FROM patients WHERE id = ?");
-    $stmt->execute([$patientId]);
-    $patientData = $stmt->fetch();
-    $lang = ($patientData && $patientData['preferred_language']) ? $patientData['preferred_language'] : 'en';
-    
-    $response = ($lang === 'sw')
-        ? "KINGA BORA: Tumia dawa kama ilivyoagizwa, hudhuria miadi yote, kunywa maji mengi, pumzika, na ripoti dalili mapema. Tuma HELP kwa chaguo zaidi."
-        : "PREVENTION TIPS: Take prescribed medication, attend all appointments, stay hydrated, rest, and report symptoms early. Reply HELP for more options.";
-    
-    send_patient_message($patientId, 'system', $response);
-    error_log("Sent prevention tips to patient {$patientId}");
-    echo 'OK';
-    exit;
-}
-
-if ($msg === '3') {
-    $stmt = db()->prepare("SELECT preferred_language FROM patients WHERE id = ?");
-    $stmt->execute([$patientId]);
-    $patientData = $stmt->fetch();
-    $lang = ($patientData && $patientData['preferred_language']) ? $patientData['preferred_language'] : 'en';
-    
-    $response = ($lang === 'sw')
-        ? "KUANGALIA MIADI: Tuma nambari yako ya kitambulisho kupata miadi yako ijayo. Au wasiliana nasi kwa simu " . HOSPITAL_PHONE . "."
-        : "CHECK APPOINTMENTS: Send your patient ID to get your next appointment. Or contact us at " . HOSPITAL_PHONE . ".";
-    
-    send_patient_message($patientId, 'system', $response);
-    error_log("Sent appointment info to patient {$patientId}");
+    send_patient_message(
+        $patientId,
+        'system',
+        'PHV prevention tips: take prescribed medication, keep follow-up visits, stay hydrated, rest, and report any worsening signs early. '
+        . 'Reply HELP for more options.'
+    );
     echo 'OK';
     exit;
 }
 
 if ($msg === 'DOCTOR' || $msg === '4') {
     upsert_escalation($patientId, 'Patient requested direct doctor contact via messaging channel.');
-    
-    $stmt = db()->prepare("SELECT preferred_language FROM patients WHERE id = ?");
-    $stmt->execute([$patientId]);
-    $patientData = $stmt->fetch();
-    $lang = ($patientData && $patientData['preferred_language']) ? $patientData['preferred_language'] : 'en';
-    
-    $response = ($lang === 'sw')
-        ? "Asante. Ombi lako la kuwasiliana na daktari limepokelewa. Timu yetu itawasiliana nawe hivi karibuni. Kama ni dharura, tafadhali wasiliana nasi kwa simu."
-        : "Thank you. Your request to contact a doctor has been received. Our team will contact you shortly. If this is an emergency, please call us.";
-    
-    send_patient_message($patientId, 'escalation_notice', $response);
-    error_log("Sent escalation notice to patient {$patientId}");
+    send_patient_message(
+        $patientId,
+        'escalation_notice',
+        'Thank you. Your request has been sent to ' . HOSPITAL_NAME . '. A care team member will contact you shortly.'
+    );
     echo 'OK';
     exit;
 }
 
-// ============================================
-// FOR ALL OTHER MESSAGES - USE AI
-// ============================================
-error_log("Sending message to AI for patient {$patientId}: {$body}");
-
-try {
-    // Call the AI function to generate a reply
-    $aiResult = ai_generate_reply($patientId, $channel, $body);
-    
-    error_log("AI Result: ok=" . ($aiResult['ok'] ? 'true' : 'false') . ", language=" . ($aiResult['language'] ?? 'unknown'));
-    
-    if ($aiResult['ok'] && !empty($aiResult['reply'])) {
-        // Send the AI response back to the patient
-        send_patient_message($patientId, 'system', $aiResult['reply']);
-        error_log("AI response sent to patient {$patientId}: " . substr($aiResult['reply'], 0, 100) . "...");
-    } else {
-        // Fallback response if AI failed
-        $errorMsg = $aiResult['error'] ?? 'Unknown error';
-        error_log("AI generation failed: {$errorMsg}");
-        
-        // Get patient's language for fallback
-        $stmt = db()->prepare("SELECT preferred_language FROM patients WHERE id = ?");
-        $stmt->execute([$patientId]);
-        $patientData = $stmt->fetch();
-        $lang = ($patientData && $patientData['preferred_language']) ? $patientData['preferred_language'] : 'en';
-        
-        $fallbackReply = ($lang === 'sw')
-            ? "Samahani, kuna hitilafu ya kiufundi. Tafadhali jaribu tena baadaye au wasiliana nasi kwa simu. Tuma HELP kwa chaguo zaidi."
-            : "Sorry, there's a technical issue. Please try again later or contact us by phone. Reply HELP for more options.";
-        
-        send_patient_message($patientId, 'system', $fallbackReply);
-        error_log("Sent fallback response to patient {$patientId}");
-    }
-    
-} catch (Throwable $e) {
-    error_log("AI Exception: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
-    
-    // Ultimate fallback
-    $stmt = db()->prepare("SELECT preferred_language FROM patients WHERE id = ?");
-    $stmt->execute([$patientId]);
-    $patientData = $stmt->fetch();
-    $lang = ($patientData && $patientData['preferred_language']) ? $patientData['preferred_language'] : 'en';
-    
-    $emergencyReply = ($lang === 'sw')
-        ? "Samahani, tumepata hitilafu. Timu yetu imejulishwa. Tafadhali wasiliana nasi kwa simu " . HOSPITAL_PHONE . " kwa msaada wa haraka."
-        : "Sorry, we encountered an error. Our team has been notified. Please contact us at " . HOSPITAL_PHONE . " for immediate assistance.";
-    
-    send_patient_message($patientId, 'system', $emergencyReply);
+if (str_contains($msg, 'PHV')) {
+    send_patient_message(
+        $patientId,
+        'system',
+        'PHV is a health condition that needs close follow-up, early symptom reporting, and prevention support. '
+        . 'At ' . HOSPITAL_NAME . ', we help you with appointment reminders, warning signs, and practical prevention guidance. '
+        . 'If you feel worse or have severe symptoms, seek urgent care immediately. Reply DOCTOR for direct hospital contact.'
+    );
+    echo 'OK';
+    exit;
 }
 
+$ai = ai_generate_reply($patientId, $channel, $body);
+if ($ai['ok']) {
+    send_patient_message($patientId, 'system', $ai['reply']);
+    echo 'OK';
+    exit;
+}
+
+send_patient_message(
+    $patientId,
+    'system',
+    'Thank you for your message. We are here for you. Reply HELP for PHV guidance or DOCTOR for direct hospital support.'
+);
 echo 'OK';
-exit;
-?>

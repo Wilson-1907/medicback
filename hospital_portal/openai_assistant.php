@@ -111,6 +111,18 @@ function ai_system_prompt(string $language = 'en'): string
     - Keep responses brief (2-4 sentences) and helpful';
 }
 
+function ai_generate_reply(int $patientId, string $channel, string $patientText): array
+{
+    // Add debug logging
+    error_log("AI generate reply called for patient {$patientId}, channel: {$channel}, text: {$patientText}");
+    
+    // Detect language from the patient's message
+    $detectedLanguage = detect_language($patientText);
+    error_log("Detected language: {$detectedLanguage}");
+    
+    
+}
+
 /**
  * Get fallback response when OpenAI is unavailable
  */

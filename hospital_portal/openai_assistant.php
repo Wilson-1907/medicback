@@ -68,8 +68,20 @@ function ai_recent_messages(int $conversationId, int $limit = 10): array
     return $messages;
 }
 
-function ai_system_prompt(): string
+/**
+ * Get language-aware system prompt for AI
+ */
+function ai_system_prompt(string $lang = 'en'): string
 {
+    if ($lang === 'sw') {
+        return 'Wewe ni msaada wa kujali kwa wagonjwa wa PHV kwa ' . HOSPITAL_NAME . '. '
+            . 'Tono lazima iwe nzuri, linalokutania, lina tumaini, na la vitendo. '
+            . 'Toa mwongozo mfupi unaoweza kufanya na ushindi. '
+            . 'KAMWE usitoe kuchafua magonjwa mapya, KAMWE usibadilishe dawa, na KAMWE usiwe na hatari. '
+            . 'Ikiwa dalili zinaweza kuwa kali au dharura-kama, mwambie mgonjwa kutafuta huduma ya haraka na kuwasiliana na hospitali. '
+            . 'Wakati unapofaa, kumbuka wagonjwa wanaweza kujibu DOCTOR kwa mawasiliano ya moja kwa moja.';
+    }
+    
     return 'You are a caring PHV patient support assistant for ' . HOSPITAL_NAME . '. '
         . 'Tone must be warm, reassuring, hopeful, and practical. '
         . 'Give short actionable guidance and encouragement. '
@@ -81,7 +93,7 @@ function ai_system_prompt(): string
 /**
  * Returns ['ok'=>bool, 'reply'=>string, 'error'=>?string]
  */
-function ai_generate_reply(int $patientId, string $channel, string $patientText): array
+function ai_generate_reply(int $patientId, string $channel, string $patientText, string $lang = 'en'): array
 {
     if (!openai_enabled()) {
         return ['ok' => false, 'reply' => '', 'error' => 'OPENAI_API_KEY is empty'];
@@ -93,7 +105,7 @@ function ai_generate_reply(int $patientId, string $channel, string $patientText)
     $conversationId = ai_get_or_create_conversation($patientId, $channel);
     ai_log_turn($conversationId, 'user', $patientText, null);
 
-    $messages = [['role' => 'system', 'content' => ai_system_prompt()]];
+    $messages = [['role' => 'system', 'content' => ai_system_prompt($lang)]];
     foreach (ai_recent_messages($conversationId, 12) as $m) {
         $messages[] = $m;
     }
@@ -137,7 +149,11 @@ function ai_generate_reply(int $patientId, string $channel, string $patientText)
         $reply = trim((string) $json['choices'][0]['message']['content']);
     }
     if ($reply === '') {
-        $reply = 'Thank you for reaching out. We are here for you. Reply DOCTOR for direct hospital support.';
+        if ($lang === 'sw') {
+            $reply = 'Asante kwa kuitikia. Tupo hapa kwako. Jibu DOCTOR kwa msaada wa hospitali.';
+        } else {
+            $reply = 'Thank you for reaching out. We are here for you. Reply DOCTOR for direct hospital support.';
+        }
     }
 
     ai_log_turn($conversationId, 'assistant', $reply, OPENAI_MODEL);

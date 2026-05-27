@@ -71,8 +71,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $pdo->commit();
                 if ($optIn) {
-                    send_patient_message($pid, 'welcome', build_welcome_message($name, $lang));
-                    send_patient_message($pid, 'education_menu', build_engagement_menu_message($lang));
+                    try {
+                        send_patient_message($pid, 'welcome', build_welcome_message($name, $lang));
+                        send_patient_message($pid, 'education_menu', build_engagement_menu_message($lang));
+                    } catch (Throwable $msgErr) {
+                        error_log('Warning: Failed to send welcome messages: ' . $msgErr->getMessage());
+                        // Don't fail registration if messaging fails
+                    }
                 }
                 header('Location: patient_view.php?id=' . $pid . '&saved=1');
                 exit;
@@ -80,6 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($pdo->inTransaction()) {
                     $pdo->rollBack();
                 }
+                error_log('Patient registration error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
                 if (str_contains($e->getMessage(), 'Duplicate')) {
                     $errors[] = 'That phone number is already registered for this channel. Use a different number or open the existing patient.';
                 } else {
@@ -101,7 +107,7 @@ layout_header('Register patient');
     <div class="alert alert-error"><?= h($e) ?></div>
   <?php endforeach; ?>
 
-  <form method="post" action="patient_new.php">
+  <form method="post" action="patient_new.php" id="patientForm">
     <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
 
     <div class="field">
@@ -160,9 +166,42 @@ layout_header('Register patient');
       <textarea id="notes" name="notes"><?= h($_POST['notes'] ?? '') ?></textarea>
     </div>
 
-    <button class="btn" type="submit">Save patient</button>
+    <button class="btn" type="submit" id="submitBtn">Save patient</button>
     <a class="btn btn-secondary" href="patients.php" style="margin-left:0.5rem">Cancel</a>
   </form>
 </div>
+
+<style>
+  .loading-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 0.8s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  button.loading {
+    opacity: 0.7;
+    pointer-events: none;
+  }
+</style>
+
+<script>
+  document.getElementById('patientForm').addEventListener('submit', function(e) {
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.classList.add('loading');
+    submitBtn.innerHTML = '<span class="loading-spinner"></span>Saving...';
+    submitBtn.disabled = true;
+  });
+</script>
+
 <?php
 layout_footer();

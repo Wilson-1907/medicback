@@ -71,8 +71,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $pdo->commit();
                 if ($optIn) {
-                    send_patient_message($pid, 'welcome', build_welcome_message($name));
-                    send_patient_message($pid, 'education_menu', build_engagement_menu_message());
+                    send_patient_message($pid, 'welcome', build_welcome_message($name, $lang));
+                    send_patient_message($pid, 'education_menu', build_engagement_menu_message($lang));
                 }
                 header('Location: patient_view.php?id=' . $pid . '&saved=1');
                 exit;
@@ -136,7 +136,7 @@ layout_header('Register patient');
     <div class="field">
       <label for="phone">Mobile for SMS / WhatsApp</label>
       <input id="phone" name="phone" type="tel" required placeholder="+254712345678" value="<?= h($_POST['phone'] ?? '') ?>">
-      <div class="field-hint">Include country code. This is used for automated messages (when you connect Africa’s Talking).</div>
+      <div class="field-hint">Include country code. This is used for automated messages (when you connect Africa's Talking).</div>
     </div>
 
     <div class="field">

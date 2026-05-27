@@ -24,7 +24,7 @@ function normalize_phone(string $raw): string
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify($_POST['_csrf'] ?? null)) {
-        $errors[] = 'Invalid session. Refresh and try again.';
+        $errors[] = 'Invalid session. Please refresh and try again.';
     } else {
         $name = trim((string) ($_POST['full_name'] ?? ''));
         $dob = trim((string) ($_POST['date_of_birth'] ?? ''));
@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Full name is required.';
         }
         if ($phone === '' || strlen($phone) < 8) {
-            $errors[] = 'Enter a valid phone number (include country code, e.g. +254712345678).';
+            $errors[] = 'Please enter a valid phone number with country code (e.g., +254712345678).';
         }
 
         if ($errors === []) {
@@ -87,9 +87,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 error_log('Patient registration error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
                 if (str_contains($e->getMessage(), 'Duplicate')) {
-                    $errors[] = 'That phone number is already registered for this channel. Use a different number or open the existing patient.';
+                    $errors[] = 'This phone number is already registered. Please use a different number or contact the patient if they already exist.';
                 } else {
-                    $errors[] = 'Could not save: ' . $e->getMessage();
+                    $errors[] = 'Registration failed. Please check your information and try again.';
                 }
             }
         }
@@ -100,19 +100,21 @@ $csrf = csrf_token();
 layout_header('Register patient');
 ?>
 <div class="card" style="max-width:640px">
-  <h1>Register patient</h1>
-  <p style="color:var(--muted);margin-top:-0.5rem">One short form: identity, contact, and messaging consent.</p>
+  <h1>Register new patient</h1>
+  <p style="color:var(--muted);margin-top:-0.5rem">Complete the form below to register a patient in the system.</p>
 
   <?php foreach ($errors as $e): ?>
-    <div class="alert alert-error"><?= h($e) ?></div>
+    <div class="alert alert-error">
+      <strong>⚠ Error:</strong> <?= h($e) ?>
+    </div>
   <?php endforeach; ?>
 
   <form method="post" action="patient_new.php" id="patientForm">
     <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
 
     <div class="field">
-      <label for="full_name">Full name</label>
-      <input id="full_name" name="full_name" type="text" required value="<?= h($_POST['full_name'] ?? '') ?>">
+      <label for="full_name">Full name *</label>
+      <input id="full_name" name="full_name" type="text" required value="<?= h($_POST['full_name'] ?? '') ?>" placeholder="e.g., Jane Doe">
     </div>
 
     <div class="row-inline">
@@ -121,7 +123,7 @@ layout_header('Register patient');
         <input id="date_of_birth" name="date_of_birth" type="date" value="<?= h($_POST['date_of_birth'] ?? '') ?>">
       </div>
       <div class="field">
-        <label for="preferred_language">Language</label>
+        <label for="preferred_language">Preferred language *</label>
         <select id="preferred_language" name="preferred_language">
           <?php
             $cur = $_POST['preferred_language'] ?? 'en';
@@ -131,22 +133,23 @@ layout_header('Register patient');
             }
           ?>
         </select>
+        <div class="field-hint">Messages will be sent in this language</div>
       </div>
     </div>
 
     <div class="field">
       <label for="external_mrn">Hospital MRN (optional)</label>
-      <input id="external_mrn" name="external_mrn" type="text" value="<?= h($_POST['external_mrn'] ?? '') ?>">
+      <input id="external_mrn" name="external_mrn" type="text" value="<?= h($_POST['external_mrn'] ?? '') ?>" placeholder="Medical record number">
     </div>
 
     <div class="field">
-      <label for="phone">Mobile for SMS / WhatsApp</label>
+      <label for="phone">Mobile phone number *</label>
       <input id="phone" name="phone" type="tel" required placeholder="+254712345678" value="<?= h($_POST['phone'] ?? '') ?>">
-      <div class="field-hint">Include country code. This is used for automated messages (when you connect Africa's Talking).</div>
+      <div class="field-hint">Include country code (e.g., +254 for Kenya). Used for SMS and WhatsApp messages.</div>
     </div>
 
     <div class="field">
-      <label>Preferred channel</label>
+      <label>Contact method *</label>
       <?php $ch = ($_POST['contact_channel'] ?? 'sms') === 'whatsapp' ? 'whatsapp' : 'sms'; ?>
       <select name="contact_channel">
         <option value="sms"<?= $ch === 'sms' ? ' selected' : '' ?>>SMS</option>
@@ -157,49 +160,84 @@ layout_header('Register patient');
     <div class="field">
       <label>
         <input type="checkbox" name="opt_in" value="1" <?= !empty($_POST['opt_in']) ? ' checked' : '' ?>>
-        Patient consents to receive health education and appointment messages on this channel
+        <strong>Patient consents to receive messages</strong>
       </label>
+      <div class="field-hint">Patient agrees to receive health education, appointment reminders, and updates via the selected channel in their preferred language.</div>
     </div>
 
     <div class="field">
       <label for="notes">Internal notes (optional)</label>
-      <textarea id="notes" name="notes"><?= h($_POST['notes'] ?? '') ?></textarea>
+      <textarea id="notes" name="notes" placeholder="Add any additional information about the patient..."><?= h($_POST['notes'] ?? '') ?></textarea>
     </div>
 
-    <button class="btn" type="submit" id="submitBtn">Save patient</button>
-    <a class="btn btn-secondary" href="patients.php" style="margin-left:0.5rem">Cancel</a>
+    <div style="display: flex; gap: 0.75rem; margin-top: 2rem;">
+      <button class="btn" type="submit" id="submitBtn">Save patient</button>
+      <a class="btn btn-secondary" href="patients.php">Cancel</a>
+    </div>
   </form>
 </div>
 
+<!-- Loading Modal -->
+<div id="loadingOverlay" class="loading-overlay">
+  <div class="loading-content">
+    <div class="loading-spinner"></div>
+    <p>Registering patient...</p>
+  </div>
+</div>
+
 <style>
+  .loading-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .loading-overlay.active {
+    display: flex;
+  }
+
+  .loading-content {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  }
+
+  .loading-content p {
+    margin: 1rem 0 0 0;
+    font-size: 1.05rem;
+    color: #333;
+    font-weight: 500;
+  }
+
   .loading-spinner {
-    display: inline-block;
-    width: 16px;
-    height: 16px;
-    border: 3px solid rgba(255, 255, 255, 0.3);
+    width: 48px;
+    height: 48px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #0d6efd;
     border-radius: 50%;
-    border-top-color: white;
-    animation: spin 0.8s linear infinite;
-    margin-right: 8px;
-    vertical-align: middle;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
   }
-  
+
   @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-  
-  button.loading {
-    opacity: 0.7;
-    pointer-events: none;
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
   }
 </style>
 
 <script>
   document.getElementById('patientForm').addEventListener('submit', function(e) {
-    const submitBtn = document.getElementById('submitBtn');
-    submitBtn.classList.add('loading');
-    submitBtn.innerHTML = '<span class="loading-spinner"></span>Saving...';
-    submitBtn.disabled = true;
+    const overlay = document.getElementById('loadingOverlay');
+    overlay.classList.add('active');
   });
 </script>
 

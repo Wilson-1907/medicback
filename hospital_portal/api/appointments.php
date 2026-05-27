@@ -24,13 +24,14 @@ try {
         $provider = trim((string) ($body['provider_name'] ?? ''));
         $location = trim((string) ($body['location'] ?? ''));
 
-        $nameSt = $pdo->prepare('SELECT full_name FROM patients WHERE id = ? LIMIT 1');
+        $nameSt = $pdo->prepare('SELECT full_name, preferred_language FROM patients WHERE id = ? LIMIT 1');
         $nameSt->execute([$patientId]);
         $nameRow = $nameSt->fetch();
         if (!$nameRow) {
             api_json(['ok' => false, 'error' => 'Patient not found'], 404);
         }
         $patientName = (string) $nameRow['full_name'];
+        $lang = in_array($nameRow['preferred_language'], ['en', 'sw']) ? $nameRow['preferred_language'] : 'en';
 
         $startSql = api_dt($start);
         $endSql = $end === '' ? null : api_dt($end);
@@ -73,9 +74,9 @@ try {
                 'department' => $department === '' ? null : $department,
                 'provider_name' => $provider === '' ? null : $provider,
                 'location' => $location === '' ? null : $location,
-            ], $reason, false)
+            ], $reason, false, $lang)
         );
-        send_patient_message($patientId, 'education_menu', build_engagement_menu_message());
+        send_patient_message($patientId, 'education_menu', build_engagement_menu_message($lang));
         api_json(['ok' => true, 'appointment_id' => $appointmentId], 201);
     }
 
@@ -91,7 +92,7 @@ try {
         $newEndSql = $newEnd === '' ? null : api_dt($newEnd);
 
         $st = $pdo->prepare(
-            'SELECT a.id, a.patient_id, a.scheduled_start, a.scheduled_end, a.department, a.provider_name, a.location, p.full_name
+            'SELECT a.id, a.patient_id, a.scheduled_start, a.scheduled_end, a.department, a.provider_name, a.location, p.full_name, p.preferred_language
              FROM appointments a
              INNER JOIN patients p ON p.id = a.patient_id
              WHERE a.id = ?
@@ -102,6 +103,8 @@ try {
         if (!$row) {
             api_json(['ok' => false, 'error' => 'Appointment not found'], 404);
         }
+
+        $lang = in_array($row['preferred_language'], ['en', 'sw']) ? $row['preferred_language'] : 'en';
 
         $pdo->beginTransaction();
         try {
@@ -142,9 +145,9 @@ try {
                 'department' => $row['department'],
                 'provider_name' => $row['provider_name'],
                 'location' => $row['location'],
-            ], $reason, true)
+            ], $reason, true, $lang)
         );
-        send_patient_message((int) $row['patient_id'], 'education_menu', build_engagement_menu_message());
+        send_patient_message((int) $row['patient_id'], 'education_menu', build_engagement_menu_message($lang));
         api_json(['ok' => true, 'appointment_id' => $appointmentId]);
     }
 

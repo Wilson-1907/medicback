@@ -7,7 +7,7 @@ require_once __DIR__ . '/messaging.php';
 function reminder_dispatch_query(string $column, string $whenExpr): array
 {
     $pdo = db();
-    $sql = "SELECT a.id, a.patient_id, p.full_name, a.scheduled_start, a.scheduled_end, a.department, a.provider_name, a.location,
+    $sql = "SELECT a.id, a.patient_id, p.full_name, p.preferred_language, a.scheduled_start, a.scheduled_end, a.department, a.provider_name, a.location,
                    (SELECT e.reason FROM appointment_reschedule_events e WHERE e.appointment_id = a.id ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS latest_reason
             FROM appointments a
             INNER JOIN patients p ON p.id = a.patient_id
@@ -39,13 +39,14 @@ function process_due_appointment_reminders(): array
         $rows = reminder_dispatch_query($cfg['column'], $cfg['when']);
         foreach ($rows as $r) {
             $ordinal = $key === '7d' ? 1 : ($key === '3d' ? 2 : 3);
+            $lang = in_array($r['preferred_language'], ['en', 'sw']) ? $r['preferred_language'] : 'en';
             $msg = build_appointment_reminder_message((string) $r['full_name'], [
                 'scheduled_start' => $r['scheduled_start'],
                 'scheduled_end' => $r['scheduled_end'],
                 'department' => $r['department'],
                 'provider_name' => $r['provider_name'],
                 'location' => $r['location'],
-            ], (string) ($r['latest_reason'] ?? ''), $ordinal, 3);
+            ], (string) ($r['latest_reason'] ?? ''), $ordinal, 3, $lang);
             send_patient_message((int) $r['patient_id'], 'appointment_reminder', $msg);
             mark_reminder_sent((int) $r['id'], $cfg['column']);
             $sent[$key]++;

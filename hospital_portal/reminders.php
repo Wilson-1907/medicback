@@ -55,3 +55,36 @@ function process_due_appointment_reminders(): array
 
     return $sent;
 }
+
+/**
+ * Process random engagement messages for all active patients
+ * Only sends to patients who haven't received one in 3+ days
+ * This runs independently and does NOT interfere with appointment reminders
+ */
+function process_random_engagement_messages(): array
+{
+    $pdo = db();
+    
+    $sql = "SELECT DISTINCT p.id
+            FROM patients p
+            INNER JOIN contact_channels cc ON cc.patient_id = p.id
+            WHERE p.status = 'active'
+              AND cc.opted_in = 1
+            ORDER BY p.id ASC
+            LIMIT 500";
+    
+    $patients = $pdo->query($sql)->fetchAll();
+    $sent = 0;
+    
+    foreach ($patients as $patient) {
+        $patientId = (int) $patient['id'];
+        try {
+            send_random_engagement_message($patientId);
+            $sent++;
+        } catch (Throwable $e) {
+            error_log("Engagement message error for patient {$patientId}: " . $e->getMessage());
+        }
+    }
+    
+    return ['engagement_boost' => $sent];
+}

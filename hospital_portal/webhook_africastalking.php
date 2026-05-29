@@ -8,6 +8,9 @@ require_once __DIR__ . '/openai_assistant.php';
 /**
  * Africa's Talking inbound webhook handler.
  * Configure this URL in AT dashboard for both SMS and WhatsApp callbacks.
+ * 
+ * FLOW: Patient message → Save to DB → Route to AI for response
+ * Special keywords (DOCTOR, HELP) are handled AFTER AI tries
  */
 header('Content-Type: text/plain; charset=UTF-8');
 
@@ -111,13 +114,14 @@ function save_inbound(?int $patientId, string $channel, string $from, string $bo
     $st->execute([$patientId, $channel, $from, $body, json_encode($payload)]);
 }
 
-function upsert_escalation(int $patientId, string $reason): void
+function create_doctor_call_request(int $patientId, string $reason): void
 {
     $st = db()->prepare(
-        'INSERT INTO escalations (patient_id, reason, urgency, status)
-         VALUES (?,?,?,?)'
+        'INSERT INTO doctor_call_requests (patient_id, reason, status, requested_at)
+         VALUES (?, ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE status = ?, requested_at = NOW()'
     );
-    $st->execute([$patientId, $reason, 'same_day', 'open']);
+    $st->execute([$patientId, $reason, 'pending', 'pending']);
 }
 
 function send_unlinked_reply(string $channel, string $to, string $body): void
@@ -143,140 +147,67 @@ if ($body === '') {
     exit;
 }
 
+// Unlinked patient (not registered)
 if (!$patientId) {
     send_unlinked_reply(
         $channel,
         $from,
-        'Hi. To help you with PHV updates, please register your number with the hospital first. If this is urgent, contact the hospital directly.'
+        'Hi. To get personalized health support, please register your number with the hospital. If this is urgent, contact the hospital directly.'
     );
     echo 'OK';
     exit;
 }
 
-$msg = strtoupper($body);
-if (in_array($msg, ['HI', 'HELLO', 'HEY', 'MAMBO', 'SAWA'], true)) {
+$msg = strtoupper(trim($body));
+
+// SPECIAL HANDLING: DOCTOR keyword triggers call booking (direct call to doctor/nurse)
+if ($msg === 'DOCTOR' || $msg === '4') {
+    create_doctor_call_request($patientId, 'Patient requested direct doctor contact via ' . $channel);
     if ($lang === 'sw') {
         send_patient_message(
             $patientId,
             'system',
-            'Habari. Nini unataka kujua juu ya PHV leo? Unaweza kuuliza juu ya dalili, kuzuia, miadi, au jibu DOCTOR kwa msaada wa hospitali.'
+            'Asante. Ombi lako limetumwa kwa ' . HOSPITAL_NAME . '. Mwanachama wa timu atakupigia simu hivi karibuni kwa ajili ya mazungumzo ya umbea.'
         );
     } else {
         send_patient_message(
             $patientId,
             'system',
-            'Hi. What do you want to know about PHV today? You can ask about signs, prevention, appointments, or reply DOCTOR for direct hospital support.'
+            'Thank you. Your request has been sent to ' . HOSPITAL_NAME . '. A care team member will call you shortly for a consultation.'
         );
     }
     echo 'OK';
     exit;
 }
 
+// SPECIAL HANDLING: HELP/MENU shows options
 if ($msg === 'HELP' || $msg === 'MENU' || $msg === '0') {
     send_patient_message($patientId, 'education_menu', build_engagement_menu_message($lang));
     echo 'OK';
     exit;
 }
 
-if ($msg === '1') {
-    if ($lang === 'sw') {
-        send_patient_message(
-            $patientId,
-            'system',
-            'Dalili za PHV za kumangalia: dalili kali kwa ghafla, joto la juu, maumivu yanayodumu, kupumzika kupiga kelele, au kutoka kwa kawaida. '
-            . 'Ikiwa dalili ni kali, tafuta huduma ya dharura mara moja.'
-        );
-    } else {
-        send_patient_message(
-            $patientId,
-            'system',
-            'PHV signs to watch: sudden severe symptoms, high fever, persistent pain, worsening breathing, or unusual bleeding. '
-            . 'If symptoms are severe, seek emergency care immediately.'
-        );
-    }
-    echo 'OK';
-    exit;
-}
-
-if ($msg === '2') {
-    if ($lang === 'sw') {
-        send_patient_message(
-            $patientId,
-            'system',
-            'Vidokezo vya kuzuia PHV: chukua dawa iliyoagizwa, kuendelea na kutembelea, eneza kwa maji, pumzika, na kuripoti dalili yoyote inayoongezwa mapema. '
-            . 'Jibu HELP kwa chaguo zaidi.'
-        );
-    } else {
-        send_patient_message(
-            $patientId,
-            'system',
-            'PHV prevention tips: take prescribed medication, keep follow-up visits, stay hydrated, rest, and report any worsening signs early. '
-            . 'Reply HELP for more options.'
-        );
-    }
-    echo 'OK';
-    exit;
-}
-
-if ($msg === 'DOCTOR' || $msg === '4') {
-    upsert_escalation($patientId, 'Patient requested direct doctor contact via messaging channel.');
-    if ($lang === 'sw') {
-        send_patient_message(
-            $patientId,
-            'escalation_notice',
-            'Asante. Ombi lako limetumwa kwa ' . HOSPITAL_NAME . '. Mwanachama wa timu ya huduma atakupigia simu hivi karibuni.'
-        );
-    } else {
-        send_patient_message(
-            $patientId,
-            'escalation_notice',
-            'Thank you. Your request has been sent to ' . HOSPITAL_NAME . '. A care team member will contact you shortly.'
-        );
-    }
-    echo 'OK';
-    exit;
-}
-
-if (str_contains($msg, 'PHV')) {
-    if ($lang === 'sw') {
-        send_patient_message(
-            $patientId,
-            'system',
-            'PHV ni hali ya afya inayohitaji ufuatiliaji wenye karibu, kuripoti dalili mapema, na msaada wa kuzuia. '
-            . 'Katika ' . HOSPITAL_NAME . ', tunakusaidia na ukumbusho wa miadi, dalili za onyo, na mwongozo wa vitendo vya kuzuia. '
-            . 'Ikiwa unajisikia mbaya au una dalili kali, tafuta huduma ya dharura mara moja. Jibu DOCTOR kwa mawasiliano ya hospitali moja kwa moja.'
-        );
-    } else {
-        send_patient_message(
-            $patientId,
-            'system',
-            'PHV is a health condition that needs close follow-up, early symptom reporting, and prevention support. '
-            . 'At ' . HOSPITAL_NAME . ', we help you with appointment reminders, warning signs, and practical prevention guidance. '
-            . 'If you feel worse or have severe symptoms, seek urgent care immediately. Reply DOCTOR for direct hospital contact.'
-        );
-    }
-    echo 'OK';
-    exit;
-}
-
+// DEFAULT: ALL OTHER MESSAGES GO TO AI
+// This includes: questions about PHV signs, prevention, symptoms, any medical topic
 $ai = ai_generate_reply($patientId, $channel, $body, $lang);
-if ($ai['ok']) {
+if ($ai['ok'] && !empty($ai['reply'])) {
     send_patient_message($patientId, 'system', $ai['reply']);
     echo 'OK';
     exit;
 }
 
+// Fallback if AI fails (no OPENAI_API_KEY or API error)
 if ($lang === 'sw') {
     send_patient_message(
         $patientId,
         'system',
-        'Asante kwa ujumbe wako. Tupo hapa kwako. Jibu HELP kwa mwongozo wa PHV au DOCTOR kwa msaada wa hospitali.'
+        'Asante kwa ujumbe wako. Tupo hapa kwako. Jibu DOCTOR kwa kuongea na daktari au HELP kwa mwongozo zaidi.'
     );
 } else {
     send_patient_message(
         $patientId,
         'system',
-        'Thank you for your message. We are here for you. Reply HELP for PHV guidance or DOCTOR for direct hospital support.'
+        'Thank you for your message. We are here for you. Reply DOCTOR to speak with a doctor or HELP for more options.'
     );
 }
 echo 'OK';

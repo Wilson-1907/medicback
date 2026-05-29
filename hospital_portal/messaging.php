@@ -140,13 +140,19 @@ function send_patient_message(int $patientId, string $messageType, string $body)
 {
     $contact = patient_primary_contact($patientId);
     if (!$contact) {
+        error_log("SEND_PATIENT_MESSAGE FAILED: No contact channel found for patient $patientId (message: '$messageType')");
         return;
     }
 
     $channel = (string) $contact['channel'];
     $address = (string) $contact['address'];
+    
+    error_log("SEND_PATIENT_MESSAGE: Patient=$patientId, Channel=$channel, Address=$address, Type=$messageType");
+
     $outboundId = log_outbound_message($patientId, $channel, $messageType, $body);
     $result = africastalking_send($channel, $address, $body);
+
+    error_log("AFRICASTALKING_RESULT: outboundId=$outboundId, ok=" . ($result['ok'] ? 'true' : 'false') . ", error=" . ($result['error'] ?? 'none'));
 
     if ($result['ok']) {
         update_outbound_status($outboundId, 'sent', $result['message_id'], null);

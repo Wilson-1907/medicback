@@ -42,11 +42,43 @@ function load_env_file(string $path): void
 
 function env_value(string $key, string $default = ''): string
 {
-    $value = getenv($key);
-    if ($value === false || $value === null || $value === '') {
-        return $default;
+    $candidates = [];
+    $fromGetenv = getenv($key);
+    if ($fromGetenv !== false && $fromGetenv !== null) {
+        $candidates[] = $fromGetenv;
     }
-    return (string) $value;
+    if (isset($_ENV[$key]) && $_ENV[$key] !== '') {
+        $candidates[] = $_ENV[$key];
+    }
+    if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') {
+        $candidates[] = $_SERVER[$key];
+    }
+
+    foreach ($candidates as $value) {
+        $value = normalize_env_secret((string) $value, $key);
+        if ($value !== '') {
+            return $value;
+        }
+    }
+    return $default;
+}
+
+/** Strip quotes/whitespace; fix accidental "KEY=value" paste into the value field. */
+function normalize_env_secret(string $value, string $key): string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+    $prefix = $key . '=';
+    if (str_starts_with($value, $prefix)) {
+        $value = substr($value, strlen($prefix));
+    }
+    if ((str_starts_with($value, '"') && str_ends_with($value, '"'))
+        || (str_starts_with($value, "'") && str_ends_with($value, "'"))) {
+        $value = substr($value, 1, -1);
+    }
+    return trim($value);
 }
 
 function env_by_mode(string $mode, string $sandboxKey, string $prodKey, string $legacyKey, string $default = ''): string

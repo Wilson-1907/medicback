@@ -1,0 +1,7 @@
+.git
+.gitignore
+**/.env
+hospital_portal/.env
+.medicback.git
+.medicfront.git
+deploy/vercel

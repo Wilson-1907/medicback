@@ -203,8 +203,8 @@ if ($ai['ok'] && !empty($ai['reply'])) {
     exit;
 }
 
-// Fallback only when AI is unavailable (no key / cURL): never leave a patient unanswered.
-error_log("WEBHOOK_ACTION: Using fallback reply");
+// Fallback only when AI is unavailable (no key / API error): never leave a patient unanswered.
+error_log("WEBHOOK_ACTION: Using fallback reply; AI error=" . ($ai['error'] ?? 'unknown'));
 if ($lang === 'sw') {
     send_patient_message(
         $patientId,

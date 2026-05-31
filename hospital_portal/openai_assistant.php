@@ -139,7 +139,8 @@ function ai_generate_reply(int $patientId, string $channel, string $patientText,
             'Content-Type: application/json',
         ],
         CURLOPT_POSTFIELDS => json_encode($payload),
-        CURLOPT_TIMEOUT => 20,
+        CURLOPT_TIMEOUT => 45,
+        CURLOPT_CONNECTTIMEOUT => 15,
     ]);
 
     $raw = curl_exec($ch);

@@ -136,17 +136,24 @@ function africastalking_send(string $channel, string $to, string $message): arra
     return ['ok' => false, 'message_id' => $messageId, 'error' => 'HTTP ' . $code . ': ' . $error];
 }
 
-function send_patient_message(int $patientId, string $messageType, string $body): void
+function send_patient_message(int $patientId, string $messageType, string $body): bool
 {
     $contact = patient_primary_contact($patientId);
     if (!$contact) {
         error_log("SEND_PATIENT_MESSAGE FAILED: No contact channel found for patient $patientId (message: '$messageType')");
-        return;
+        return false;
     }
 
     $channel = (string) $contact['channel'];
     $address = (string) $contact['address'];
-    
+
+    if ($channel === 'whatsapp' && AFRICASTALKING_WHATSAPP_FROM === '') {
+        error_log("SEND_PATIENT_MESSAGE FAILED: WhatsApp sender (AFRICASTALKING_*_WHATSAPP_FROM) not configured for patient $patientId");
+        $outboundId = log_outbound_message($patientId, $channel, $messageType, $body);
+        update_outbound_status($outboundId, 'failed', null, 'WhatsApp sender not configured on server');
+        return false;
+    }
+
     error_log("SEND_PATIENT_MESSAGE: Patient=$patientId, Channel=$channel, Address=$address, Type=$messageType");
 
     $outboundId = log_outbound_message($patientId, $channel, $messageType, $body);
@@ -156,9 +163,10 @@ function send_patient_message(int $patientId, string $messageType, string $body)
 
     if ($result['ok']) {
         update_outbound_status($outboundId, 'sent', $result['message_id'], null);
-        return;
+        return true;
     }
     update_outbound_status($outboundId, 'failed', $result['message_id'], $result['error']);
+    return false;
 }
 
 /**
@@ -359,30 +367,30 @@ function get_random_engagement_messages(string $lang = 'en'): array
 {
     if ($lang === 'sw') {
         return [
-            "Habari! 👋 Tunakamatiana na wewe. Je, unajisikia vizuri? Tupo hapa ikiwa una maswali au haja ya msaada. Jibu HELP.",
-            "💪 Dakika 5 ya stretching kila asubuhi inaweza kuboresha afya yako. Je, unajaribu? Tusifu za kujaza! 🌟",
-            "🥗 Kula vyakula vya kumata kuna chuma na vitamini. Hii husaidia katika kujaga macho na afya. Unakula vizuri?",
-            "😴 Usingizi wa saa 7-8 kila usiku ni muhimu. Je, unajipata usingizi wa kutosha? Jibu naye.",
-            "🚶 Tengeneza wakati wa kutembea kila siku. Hii inaboresha moyo na akili. Karibu kusambaza mafanikio!",
-            "💧 Kunua maji mengi (lita 8-10) kila siku inaboresha ndoto. Je, unakumbuka kunua?",
-            "🌞 Jua la asubuhi linaboresha vitamin D. Njia nzuri na salama. Kusimama majumbani kwa dakika 15-20?",
-            "😊 Kujaza akili kwa ujinga ni vyema. Je, una filamu, kitabu au muziki unayopenda? Fanya hivi leo!",
-            "❤️ Afya yako ni muhimu sana kwetu. Tupo hapa wakati wowote. Lolote ulilowajua, karibu sana kuuliza.",
-            "🎯 Kuwa na madhumuni mazuri kila siku kunaboresha moyo. Nini madhumuni yako kwa kila siku?",
+            "Habari! 👋 Tunakujali katika safari yako ya afya ya HPV. Je, una maswali kuhusu chanjo au uchunguzi? Jibu HELP au uliza chochote.",
+            "💪 Afya yako ni muhimu! HPV inaweza kuzuilika kwa chanjo na uchunguzi wa mara kwa mara. Unajisikiaje leo?",
+            "🌸 Kumbuka: chanjo ya HPV inaweza kulinda dhidi ya saratani ya shingo ya kizazi. Je, una swali lolote? Tupo hapa!",
+            "🥗 Lishe bora na usingizi wa kutosha huimarisha kinga yako. Leo umekula matunda na mboga za majani?",
+            "💧 Kunywa maji mengi husaidia mwili wako kujikinga. Lita 6-8 leo — unaweza kufanya hivyo!",
+            "🚶 Tembea kwa dakika 20 kila siku — moyo na akili yako vitashukuru. Karibu kutuambia jinsi unavyojisikia!",
+            "😊 Unafanya vizuri kwa kujali afya yako. Kila hatua ndogo inahesabu. Je, una swali lingine?",
+            "❤️ Hospitali yetu iko hapa kukusaidia. Chanjo, uchunguzi, au ushauri — jibu ujumbe huu wakati wowote.",
+            "🎯 Lengo la leo: fanya kitu kimoja cha kujali afya yako. Unaweza kuanza na maji au matembezi!",
+            "🌞 Afya ni mali. HPV inaweza kudhibitiwa — usisite kuuliza. Je, una swali lolote leo?",
         ];
     }
-    
+
     return [
-        "Hi there! 👋 We're checking in on you. How are you feeling? We're here to help. Reply HELP if you need anything.",
-        "💪 Just 5 minutes of stretching every morning can boost your health. How about trying today? You've got this! 🌟",
-        "🥗 Eating nutrient-rich foods strengthens your immunity. What's your favorite healthy meal?",
-        "😴 Getting 7-8 hours of sleep is key to wellness. Are you getting enough rest? Let us know!",
-        "🚶 Take a 20-minute walk daily—it's great for your heart and mind. Share your progress with us!",
-        "💧 Drinking 8-10 glasses of water daily keeps you hydrated and healthy. Remember to drink up today!",
-        "🌞 Morning sunlight boosts vitamin D naturally. Spend 15-20 minutes outside safely. Feel the difference!",
-        "😊 It's okay to take mental breaks. Watch something you love, read a book, or listen to music today!",
-        "❤️ Your health matters to us. We're here anytime you need support. Ask us anything—no question is too small.",
-        "🎯 Set one small health goal for today and celebrate it! What will it be? Share with us!",
+        "Hi! 👋 We're thinking of you on your HPV care journey. Have questions about vaccination or screening? Reply HELP anytime.",
+        "💪 Your health matters! HPV can be prevented with vaccination and regular screening. How are you feeling today?",
+        "🌸 Remember: HPV vaccination helps protect against cervical cancer. Any questions? We're here for you!",
+        "🥗 Good nutrition and rest strengthen your immunity. Did you eat fruits and vegetables today?",
+        "💧 Stay hydrated — 6-8 glasses of water daily supports your body. You've got this!",
+        "🚶 A 20-minute walk daily is great for heart and mind. How is your day going?",
+        "😊 You're doing great by staying engaged with your health. Every small step counts. Any questions for us?",
+        "❤️ Our team is here for you — vaccination, screening, or advice. Reply anytime with a question.",
+        "🎯 Today's health goal: do one small thing for yourself — water, a walk, or rest. What will you choose?",
+        "🌞 HPV is manageable with the right care. Never hesitate to ask. Do you have a question today?",
     ];
 }
 
@@ -412,19 +420,40 @@ function should_send_engagement_message(int $patientId): bool
 }
 
 /**
- * Send random engagement message to patient
+ * Send random engagement message to patient (every 3+ days). Returns true if sent.
  */
-function send_random_engagement_message(int $patientId): void
+function send_random_engagement_message(int $patientId): bool
 {
     if (!should_send_engagement_message($patientId)) {
-        return;
+        return false;
     }
-    
+
+    $body = build_engagement_boost_message($patientId);
+    return send_patient_message($patientId, 'engagement_boost', $body);
+}
+
+/**
+ * Build a warm HPV-focused engagement message (Groq when available, else curated tips).
+ */
+function build_engagement_boost_message(int $patientId): string
+{
     $lang = get_patient_language($patientId);
+    $st = db()->prepare('SELECT full_name FROM patients WHERE id = ? LIMIT 1');
+    $st->execute([$patientId]);
+    $name = (string) ($st->fetch()['full_name'] ?? '');
+
+    if (file_exists(__DIR__ . '/openai_assistant.php')) {
+        require_once __DIR__ . '/openai_assistant.php';
+        if (function_exists('ai_engagement_reply')) {
+            $ai = ai_engagement_reply($name, $lang);
+            if ($ai['ok'] && strlen(trim($ai['reply'])) > 25) {
+                return trim($ai['reply']);
+            }
+        }
+    }
+
     $messages = get_random_engagement_messages($lang);
-    $randomMessage = $messages[array_rand($messages)];
-    
-    send_patient_message($patientId, 'engagement_boost', $randomMessage);
+    return $messages[array_rand($messages)];
 }
 
 function send_appointment_bundle_messages(

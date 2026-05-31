@@ -47,9 +47,10 @@ function process_due_appointment_reminders(): array
                 'provider_name' => $r['provider_name'],
                 'location' => $r['location'],
             ], (string) ($r['latest_reason'] ?? ''), $ordinal, 3, $lang);
-            send_patient_message((int) $r['patient_id'], 'appointment_reminder', $msg);
-            mark_reminder_sent((int) $r['id'], $cfg['column']);
-            $sent[$key]++;
+            if (send_patient_message((int) $r['patient_id'], 'appointment_reminder', $msg)) {
+                mark_reminder_sent((int) $r['id'], $cfg['column']);
+                $sent[$key]++;
+            }
         }
     }
 
@@ -79,12 +80,13 @@ function process_random_engagement_messages(): array
     foreach ($patients as $patient) {
         $patientId = (int) $patient['id'];
         try {
-            send_random_engagement_message($patientId);
-            $sent++;
+            if (send_random_engagement_message($patientId)) {
+                $sent++;
+            }
         } catch (Throwable $e) {
             error_log("Engagement message error for patient {$patientId}: " . $e->getMessage());
         }
     }
     
-    return ['engagement_boost' => $sent];
+    return ['sent' => $sent];
 }

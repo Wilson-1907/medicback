@@ -92,7 +92,8 @@ function ai_system_prompt(string $lang = 'en'): string
             . 'USItambue magonjwa mapya. USIbadilishe dawa. USITOE ushauri hatari. '
             . 'Kila wakati sisitiza kwa upole kwamba mgonjwa atembelee ' . HOSPITAL_NAME . ' kwa uchunguzi na matibabu sahihi. '
             . 'Dalili za dharura: mwambie kutafuta daktari mara moja. '
-            . 'Mwisho wa kila jibu, uliza: "Je, una swali lingine?"';
+            . 'Mwisho wa kila jibu, uliza swali la kumhusisha kama "Unajisikiaje leo?" au "Je, una swali lingine?" '
+            . 'Wakati inafaa, toa kidokezo kifupi cha HPV au afya ili kumtia moyo mgonjwa.';
     }
 
     return 'You are a broad medical and hospital support assistant for ' . HOSPITAL_NAME . '. '
@@ -106,7 +107,8 @@ function ai_system_prompt(string $lang = 'en'): string
         . 'NEVER diagnose a new disease. NEVER change or prescribe medications. NEVER give dangerous advice. '
         . 'Always gently insist that the patient visits ' . HOSPITAL_NAME . ' for proper examination and treatment. '
         . 'If symptoms suggest emergency (chest pain, difficulty breathing, severe bleeding, sudden confusion, suicidal thoughts), say: "Seek urgent care immediately." '
-        . 'At the end of every answer, ask: "Do you have another question?"';
+        . 'At the end of every answer, ask a warm engaging question like "How are you feeling today?" or "Do you have another question?" '
+        . 'When appropriate, share a brief HPV or wellness tip to keep the patient informed and encouraged.';
 }
 
 /**
@@ -163,6 +165,72 @@ function ai_quick_reply(string $patientText, string $lang = 'en'): array
     $reply = trim((string) ($json['choices'][0]['message']['content'] ?? ''));
     if ($reply === '') {
         return ['ok' => false, 'reply' => '', 'error' => 'Groq returned empty content'];
+    }
+    return ['ok' => true, 'reply' => $reply, 'error' => null];
+}
+
+/**
+ * Short warm engagement SMS for 3-day patient check-ins (HPV program).
+ * Returns ['ok'=>bool, 'reply'=>string, 'error'=>?string]
+ */
+function ai_engagement_reply(string $patientName, string $lang = 'en'): array
+{
+    if (!ai_enabled()) {
+        return ['ok' => false, 'reply' => '', 'error' => 'GROQ_API_KEY is empty'];
+    }
+
+    $topics = [
+        'HPV vaccination or screening encouragement',
+        'a simple daily wellness habit',
+        'cervical health awareness',
+        'staying positive on their care journey',
+    ];
+    $topic = $topics[array_rand($topics)];
+    $greeting = $patientName !== '' ? $patientName : ($lang === 'sw' ? 'rafiki' : 'friend');
+
+    $system = $lang === 'sw'
+        ? 'Wewe ni msaidizi wa afya wa programu ya HPV kwa ' . HOSPITAL_NAME . '. Andika ujumbe mfupi wa SMS (herufi 280 tu). Mtie moyo, toa kidokezo kimoja cha afya, mwisho uliza swali la kumhusisha. Usitumie HTML.'
+        : 'You are a warm HPV care assistant for ' . HOSPITAL_NAME . '. Write a short SMS (max 280 chars). Be encouraging, include one health tip, end with an engaging question. No HTML.';
+
+    $user = $lang === 'sw'
+        ? "Andika ujumbe wa kumtia moyo mgonjwa {$greeting} kuhusu: {$topic}."
+        : "Write an encouraging message for patient {$greeting} about: {$topic}.";
+
+    $payload = [
+        'model' => GROQ_MODEL,
+        'messages' => [
+            ['role' => 'system', 'content' => $system],
+            ['role' => 'user', 'content' => $user],
+        ],
+        'temperature' => 0.85,
+        'max_tokens' => 180,
+    ];
+
+    $ch = curl_init(GROQ_BASE_URL);
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . GROQ_API_KEY,
+            'Content-Type: application/json',
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_TIMEOUT => 30,
+    ]);
+    $raw = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+
+    if ($raw === false || $code < 200 || $code >= 300) {
+        return ['ok' => false, 'reply' => '', 'error' => 'Groq engagement HTTP ' . $code];
+    }
+    $json = json_decode($raw, true);
+    $reply = trim((string) ($json['choices'][0]['message']['content'] ?? ''));
+    if ($reply === '') {
+        return ['ok' => false, 'reply' => '', 'error' => 'Empty engagement reply'];
+    }
+    if (strlen($reply) > 320) {
+        $reply = substr($reply, 0, 317) . '...';
     }
     return ['ok' => true, 'reply' => $reply, 'error' => null];
 }

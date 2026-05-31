@@ -6,6 +6,6 @@ services:
     dockerfilePath: ./deploy/render/Dockerfile
     envVars:
       - key: APP_NAME
-        value: PHV Hospital Console
+        value: HPV Hospital Console
       - key: HOSPITAL_NAME
-        value: PHV Pilot Hospital
+        value: Nyeri Level 4 Hospital

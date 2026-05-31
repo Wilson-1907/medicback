@@ -11,6 +11,9 @@ try {
         $rows = $pdo->query(
             "SELECT a.id, a.patient_id, p.full_name, a.department, a.provider_name,
                     a.scheduled_start, a.scheduled_end, a.location, a.status,
+                    a.reminder_7d_sent_at, a.reminder_3d_sent_at, a.reminder_night_sent_at,
+                    (SELECT cc.channel FROM contact_channels cc
+                     WHERE cc.patient_id = p.id AND cc.is_primary = 1 LIMIT 1) AS contact_channel,
                     (SELECT e.reason FROM appointment_reschedule_events e
                      WHERE e.appointment_id = a.id
                      ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS reason

@@ -39,14 +39,14 @@ function process_due_appointment_reminders(): array
         $rows = reminder_dispatch_query($cfg['column'], $cfg['when']);
         foreach ($rows as $r) {
             $ordinal = $key === '7d' ? 1 : ($key === '3d' ? 2 : 3);
-            $rLang = strtolower((string) ($r['preferred_language'] ?? 'en')) === 'sw' ? 'sw' : 'en';
+            $lang = in_array($r['preferred_language'], ['en', 'sw']) ? $r['preferred_language'] : 'en';
             $msg = build_appointment_reminder_message((string) $r['full_name'], [
                 'scheduled_start' => $r['scheduled_start'],
                 'scheduled_end' => $r['scheduled_end'],
                 'department' => $r['department'],
                 'provider_name' => $r['provider_name'],
                 'location' => $r['location'],
-            ], (string) ($r['latest_reason'] ?? ''), $ordinal, 3, $rLang);
+            ], (string) ($r['latest_reason'] ?? ''), $ordinal, 3, $lang);
             send_patient_message((int) $r['patient_id'], 'appointment_reminder', $msg);
             mark_reminder_sent((int) $r['id'], $cfg['column']);
             $sent[$key]++;
@@ -54,4 +54,37 @@ function process_due_appointment_reminders(): array
     }
 
     return $sent;
+}
+
+/**
+ * Process random engagement messages for all active patients
+ * Only sends to patients who haven't received one in 3+ days
+ * This runs independently and does NOT interfere with appointment reminders
+ */
+function process_random_engagement_messages(): array
+{
+    $pdo = db();
+    
+    $sql = "SELECT DISTINCT p.id
+            FROM patients p
+            INNER JOIN contact_channels cc ON cc.patient_id = p.id
+            WHERE p.status = 'active'
+              AND cc.opted_in = 1
+            ORDER BY p.id ASC
+            LIMIT 500";
+    
+    $patients = $pdo->query($sql)->fetchAll();
+    $sent = 0;
+    
+    foreach ($patients as $patient) {
+        $patientId = (int) $patient['id'];
+        try {
+            send_random_engagement_message($patientId);
+            $sent++;
+        } catch (Throwable $e) {
+            error_log("Engagement message error for patient {$patientId}: " . $e->getMessage());
+        }
+    }
+    
+    return ['engagement_boost' => $sent];
 }

@@ -6,7 +6,7 @@ require_once __DIR__ . '/layout.php';
 require_login();
 
 $q = trim((string) ($_GET['q'] ?? ''));
-$sql = 'SELECT p.id, p.full_name, p.status, p.registration_at,
+$sql = 'SELECT p.id, p.full_name, p.preferred_language, p.status, p.registration_at,
         (SELECT cc.channel FROM contact_channels cc WHERE cc.patient_id = p.id AND cc.is_primary = 1 LIMIT 1) AS primary_channel
         FROM patients p';
 $args = [];
@@ -21,6 +21,16 @@ $st = db()->prepare($sql);
 $st->execute($args);
 $rows = $st->fetchAll();
 $removedMsg = trim((string) ($_GET['removed'] ?? ''));
+
+/** Get language label and flag */
+function get_language_display(string $lang): string {
+    $languages = [
+        'en' => '🇬🇧 English',
+        'sw' => '🇹🇿 Kiswahili',
+        'fr' => '🇫🇷 Français'
+    ];
+    return $languages[$lang] ?? '🇬🇧 English';
+}
 
 layout_header('Patients');
 ?>
@@ -49,6 +59,7 @@ layout_header('Patients');
         <tr>
           <th>ID</th>
           <th>Name</th>
+          <th>Language</th>
           <th>Channel</th>
           <th>Status</th>
           <th></th>
@@ -59,6 +70,7 @@ layout_header('Patients');
           <tr>
             <td><?= (int) $r['id'] ?></td>
             <td><?= h($r['full_name']) ?></td>
+            <td><?= get_language_display($r['preferred_language'] ?? 'en') ?></td>
             <td><?= h($r['primary_channel'] ?? '—') ?></td>
             <td><?= h($r['status']) ?></td>
             <td><a href="patient_view.php?id=<?= (int) $r['id'] ?>">Open</a></td>

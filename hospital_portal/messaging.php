@@ -25,17 +25,6 @@ function patient_primary_contact(int $patientId): ?array
     return $row ?: null;
 }
 
-/**
- * Returns the patient preferred language code ('sw' or 'en').
- */
-function patient_language(int $patientId): string
-{
-    $st = db()->prepare('SELECT preferred_language FROM patients WHERE id = ? LIMIT 1');
-    $st->execute([$patientId]);
-    $lang = strtolower((string) ($st->fetchColumn() ?: 'en'));
-    return $lang === 'sw' ? 'sw' : 'en';
-}
-
 function log_outbound_message(int $patientId, string $channel, string $type, string $body): int
 {
     $st = db()->prepare(
@@ -115,7 +104,6 @@ function africastalking_send(string $channel, string $to, string $message): arra
         $retryableSslError = str_contains(strtolower($err), 'wrong version number')
             || str_contains(strtolower($err), 'ssl routines');
         if ($retryableSslError) {
-            // Retry once with default SSL negotiation in case host/client TLS settings mismatch.
             [$rawRetry, $errRetry, $codeRetry] = $request([CURLOPT_SSLVERSION => CURL_SSLVERSION_DEFAULT]);
             if ($rawRetry !== false) {
                 $raw = $rawRetry;
@@ -152,13 +140,19 @@ function send_patient_message(int $patientId, string $messageType, string $body)
 {
     $contact = patient_primary_contact($patientId);
     if (!$contact) {
+        error_log("SEND_PATIENT_MESSAGE FAILED: No contact channel found for patient $patientId (message: '$messageType')");
         return;
     }
 
     $channel = (string) $contact['channel'];
     $address = (string) $contact['address'];
+    
+    error_log("SEND_PATIENT_MESSAGE: Patient=$patientId, Channel=$channel, Address=$address, Type=$messageType");
+
     $outboundId = log_outbound_message($patientId, $channel, $messageType, $body);
     $result = africastalking_send($channel, $address, $body);
+
+    error_log("AFRICASTALKING_RESULT: outboundId=$outboundId, ok=" . ($result['ok'] ? 'true' : 'false') . ", error=" . ($result['error'] ?? 'none'));
 
     if ($result['ok']) {
         update_outbound_status($outboundId, 'sent', $result['message_id'], null);
@@ -167,37 +161,92 @@ function send_patient_message(int $patientId, string $messageType, string $body)
     update_outbound_status($outboundId, 'failed', $result['message_id'], $result['error']);
 }
 
-function is_sw(string $lang): bool
+/**
+ * Get patient's preferred language
+ */
+function get_patient_language(int $patientId): string
 {
-    return strtolower($lang) === 'sw';
+    $st = db()->prepare('SELECT preferred_language FROM patients WHERE id = ? LIMIT 1');
+    $st->execute([$patientId]);
+    $row = $st->fetch();
+    $lang = $row ? ((string) $row['preferred_language'] ?: 'en') : 'en';
+    return in_array($lang, ['en', 'sw']) ? $lang : 'en';
 }
 
+/**
+ * AFYA RAFIKI - Welcome message with full intro
+ */
 function build_welcome_message(string $patientName, string $lang = 'en'): string
 {
-    if (is_sw($lang)) {
-        return "Habari {$patientName}, karibu " . HOSPITAL_NAME . ". "
-            . "Tunafurahi kukuwa nawe - furahia huduma zetu. "
-            . "Tutaendelea kukutumia vidokezo vya afya ya PHV na taarifa za miadi. "
-            . "Jibu MSAADA wakati wowote kupata mwongozo.";
+    if ($lang === 'sw') {
+        return "Karibu kwenye Afya Rafiki, {$patientName}! 🏥\n"
+            . "Tuko hapa kukusaidia baada ya majibu yako ya uchaguzi wa saratani ya Kila mwezi.\n\n"
+            . "Huduma hii itakutumia:\n"
+            . "✓ Taarifa za afya kamili\n"
+            . "✓ Vikumbusho vya miadi\n"
+            . "✓ Mwongozo wa huduma ya ufuatiliaji\n\n"
+            . "Taarifa zako zitahifadhiwa Kwa siri. Tupo hapa kwako!\n"
+            . "Jibu HELP kwa huduma zaidi.";
     }
-    return "Hello {$patientName}, welcome to " . HOSPITAL_NAME . ". "
-        . "We are happy to have you on board - enjoy our services. "
-        . "We will keep sharing helpful PHV care tips and appointment updates. "
-        . "Reply HELP any time for guidance.";
+    
+    return "Welcome to Afya Rafiki, {$patientName}! 🏥\n"
+        . "We are here to support you after your screening results.\n\n"
+        . "This service will provide:\n"
+        . "✓ Health information\n"
+        . "✓ Appointment reminders\n"
+        . "✓ Follow-up care guidance\n\n"
+        . "Your information will remain confidential. We are here for you!\n"
+        . "Reply HELP for more support.";
+}
+
+function build_appointment_message(string $patientName, array $appointment, string $lang = 'en'): string
+{
+    $parts = [];
+    
+    if ($lang === 'sw') {
+        $parts[] = "Habari {$patientName}, miadi yako katika " . HOSPITAL_NAME . " imepangwa.";
+        $parts[] = 'Tarehe/Saa: ' . ($appointment['scheduled_start'] ?? 'TBD');
+        if (!empty($appointment['department'])) {
+            $parts[] = 'Idara: ' . $appointment['department'];
+        }
+        if (!empty($appointment['provider_name'])) {
+            $parts[] = 'Mtoa huduma: ' . $appointment['provider_name'];
+        }
+        if (!empty($appointment['location'])) {
+            $parts[] = 'Mahali: ' . $appointment['location'];
+        }
+        $parts[] = 'Tupo haka kwako. Jibu HELP kwa mwongozo wa afya au DOCTOR kwa mawasiliano ya moja kwa moja na hospitali.';
+    } else {
+        $parts[] = "Hello {$patientName}, your appointment at " . HOSPITAL_NAME . " is scheduled.";
+        $parts[] = 'Date/Time: ' . ($appointment['scheduled_start'] ?? 'TBD');
+        if (!empty($appointment['department'])) {
+            $parts[] = 'Department: ' . $appointment['department'];
+        }
+        if (!empty($appointment['provider_name'])) {
+            $parts[] = 'Provider: ' . $appointment['provider_name'];
+        }
+        if (!empty($appointment['location'])) {
+            $parts[] = 'Location: ' . $appointment['location'];
+        }
+        $parts[] = 'We are here for you. Reply HELP for health guidance or DOCTOR for direct hospital contact.';
+    }
+    
+    return implode("\n", $parts);
 }
 
 function build_appointment_change_message(string $patientName, array $appointment, string $reason, bool $isUpdate, string $lang = 'en'): string
 {
     $parts = [];
-    if (is_sw($lang)) {
+    
+    if ($lang === 'sw') {
         if ($isUpdate) {
-            $parts[] = "Habari {$patientName}, miadi yako " . HOSPITAL_NAME . " imebadilishwa.";
+            $parts[] = "Habari {$patientName}, miadi yako katika " . HOSPITAL_NAME . " imebadilishwa.";
         } else {
-            $parts[] = "Habari {$patientName}, miadi yako " . HOSPITAL_NAME . " imewekwa.";
+            $parts[] = "Habari {$patientName}, miadi yako katika " . HOSPITAL_NAME . " imepangwa.";
         }
-        $parts[] = 'Tarehe/Saa: ' . ($appointment['scheduled_start'] ?? 'Itajulishwa');
+        $parts[] = 'Tarehe/Saa: ' . ($appointment['scheduled_start'] ?? 'TBD');
         if (!empty($appointment['scheduled_end'])) {
-            $parts[] = 'Saa ya kumaliza: ' . $appointment['scheduled_end'];
+            $parts[] = 'Wakati wa mwisho: ' . $appointment['scheduled_end'];
         }
         if (!empty($appointment['department'])) {
             $parts[] = 'Idara: ' . $appointment['department'];
@@ -209,44 +258,45 @@ function build_appointment_change_message(string $patientName, array $appointmen
             $parts[] = 'Mahali: ' . $appointment['location'];
         }
         $parts[] = 'Sababu: ' . $reason;
-        $parts[] = 'Tupo nawe. Jibu MSAADA kupata vidokezo vya PHV, au DAKTARI kuwasiliana moja kwa moja na hospitali.';
-        return implode("\n", $parts);
-    }
-
-    if ($isUpdate) {
-        $parts[] = "Hello {$patientName}, your appointment at " . HOSPITAL_NAME . " has been updated.";
+        $parts[] = 'Tupo hapa kwako. Jibu HELP kwa mwongozo wa afya au DOCTOR kwa msaada wa hospitali.';
     } else {
-        $parts[] = "Hello {$patientName}, your appointment at " . HOSPITAL_NAME . " is booked.";
+        if ($isUpdate) {
+            $parts[] = "Hello {$patientName}, your appointment at " . HOSPITAL_NAME . " has been updated.";
+        } else {
+            $parts[] = "Hello {$patientName}, your appointment at " . HOSPITAL_NAME . " is booked.";
+        }
+        $parts[] = 'Date/Time: ' . ($appointment['scheduled_start'] ?? 'TBD');
+        if (!empty($appointment['scheduled_end'])) {
+            $parts[] = 'End time: ' . $appointment['scheduled_end'];
+        }
+        if (!empty($appointment['department'])) {
+            $parts[] = 'Department: ' . $appointment['department'];
+        }
+        if (!empty($appointment['provider_name'])) {
+            $parts[] = 'Provider: ' . $appointment['provider_name'];
+        }
+        if (!empty($appointment['location'])) {
+            $parts[] = 'Location: ' . $appointment['location'];
+        }
+        $parts[] = 'Reason: ' . $reason;
+        $parts[] = 'We are here for you. Reply HELP for health guidance or DOCTOR for direct hospital contact.';
     }
-    $parts[] = 'Date/Time: ' . ($appointment['scheduled_start'] ?? 'TBD');
-    if (!empty($appointment['scheduled_end'])) {
-        $parts[] = 'End time: ' . $appointment['scheduled_end'];
-    }
-    if (!empty($appointment['department'])) {
-        $parts[] = 'Department: ' . $appointment['department'];
-    }
-    if (!empty($appointment['provider_name'])) {
-        $parts[] = 'Provider: ' . $appointment['provider_name'];
-    }
-    if (!empty($appointment['location'])) {
-        $parts[] = 'Location: ' . $appointment['location'];
-    }
-    $parts[] = 'Reason: ' . $reason;
-    $parts[] = 'We are here for you. Reply HELP for PHV signs & prevention tips, or DOCTOR for direct hospital contact.';
+    
     return implode("\n", $parts);
 }
 
 function build_engagement_menu_message(string $lang = 'en'): string
 {
-    if (is_sw($lang)) {
-        return "Endelea kushiriki katika matunzo yako " . HOSPITAL_NAME . ":\n"
-            . "1) Dalili za hatari za PHV\n"
-            . "2) Vidokezo vya kuzuia\n"
+    if ($lang === 'sw') {
+        return "Kuendelea na huduma yako katika " . HOSPITAL_NAME . ":\n"
+            . "1) Dalili za onyo za afya\n"
+            . "2) Vidokezo vya kujaga afya\n"
             . "3) Msaada wa miadi\n"
-            . "4) Ongea na timu ya hospitali";
+            . "4) Sema na timu ya hospitali";
     }
+    
     return "Stay active with your care at " . HOSPITAL_NAME . ":\n"
-        . "1) PHV warning signs\n"
+        . "1) Health warning signs\n"
         . "2) Prevention tips\n"
         . "3) Appointment help\n"
         . "4) Talk to hospital team";
@@ -260,11 +310,11 @@ function build_appointment_reminder_message(
     int $totalReminders = 3,
     string $lang = 'en'
 ): string {
-    $parts = [];
-    if (is_sw($lang)) {
-        $prefix = $reminderNumber === 1 ? 'Taarifa za miadi' : ('Kumbusho la miadi ' . $reminderNumber . '/' . $totalReminders);
+    if ($lang === 'sw') {
+        $prefix = $reminderNumber === 1 ? 'Maelezo ya miadi' : ('Ukumbusho wa miadi ' . $reminderNumber . '/' . $totalReminders);
+        $parts = [];
         $parts[] = "Habari {$patientName}, {$prefix} kutoka " . HOSPITAL_NAME . ".";
-        $parts[] = 'Tarehe/Saa: ' . ($appointment['scheduled_start'] ?? 'Itajulishwa');
+        $parts[] = 'Tarehe/Saa: ' . ($appointment['scheduled_start'] ?? 'TBD');
         if (!empty($appointment['department'])) {
             $parts[] = 'Idara: ' . $appointment['department'];
         }
@@ -277,11 +327,12 @@ function build_appointment_reminder_message(
         if ($reason !== '') {
             $parts[] = 'Sababu: ' . $reason;
         }
-        $parts[] = 'Jibu MSAADA kupata mwongozo wa PHV au DAKTARI kwa msaada wa hospitali.';
+        $parts[] = 'Jibu HELP kwa mwongozo wa afya au DOCTOR kwa msaada wa hospitali.';
         return implode("\n", $parts);
     }
-
+    
     $prefix = $reminderNumber === 1 ? 'Appointment details' : ('Appointment reminder ' . $reminderNumber . '/' . $totalReminders);
+    $parts = [];
     $parts[] = "Hello {$patientName}, {$prefix} from " . HOSPITAL_NAME . ".";
     $parts[] = 'Date/Time: ' . ($appointment['scheduled_start'] ?? 'TBD');
     if (!empty($appointment['department'])) {
@@ -296,6 +347,110 @@ function build_appointment_reminder_message(
     if ($reason !== '') {
         $parts[] = 'Reason: ' . $reason;
     }
-    $parts[] = 'Reply HELP for PHV guidance or DOCTOR for direct hospital support.';
+    $parts[] = 'Reply HELP for health guidance or DOCTOR for direct hospital support.';
     return implode("\n", $parts);
+}
+
+/**
+ * Random Engagement Messages - AI Generated to encourage interaction
+ * Sends every 3 days to keep patients engaged and informed
+ */
+function get_random_engagement_messages(string $lang = 'en'): array
+{
+    if ($lang === 'sw') {
+        return [
+            "Habari! 👋 Tunakamatiana na wewe. Je, unajisikia vizuri? Tupo hapa ikiwa una maswali au haja ya msaada. Jibu HELP.",
+            "💪 Dakika 5 ya stretching kila asubuhi inaweza kuboresha afya yako. Je, unajaribu? Tusifu za kujaza! 🌟",
+            "🥗 Kula vyakula vya kumata kuna chuma na vitamini. Hii husaidia katika kujaga macho na afya. Unakula vizuri?",
+            "😴 Usingizi wa saa 7-8 kila usiku ni muhimu. Je, unajipata usingizi wa kutosha? Jibu naye.",
+            "🚶 Tengeneza wakati wa kutembea kila siku. Hii inaboresha moyo na akili. Karibu kusambaza mafanikio!",
+            "💧 Kunua maji mengi (lita 8-10) kila siku inaboresha ndoto. Je, unakumbuka kunua?",
+            "🌞 Jua la asubuhi linaboresha vitamin D. Njia nzuri na salama. Kusimama majumbani kwa dakika 15-20?",
+            "😊 Kujaza akili kwa ujinga ni vyema. Je, una filamu, kitabu au muziki unayopenda? Fanya hivi leo!",
+            "❤️ Afya yako ni muhimu sana kwetu. Tupo hapa wakati wowote. Lolote ulilowajua, karibu sana kuuliza.",
+            "🎯 Kuwa na madhumuni mazuri kila siku kunaboresha moyo. Nini madhumuni yako kwa kila siku?",
+        ];
+    }
+    
+    return [
+        "Hi there! 👋 We're checking in on you. How are you feeling? We're here to help. Reply HELP if you need anything.",
+        "💪 Just 5 minutes of stretching every morning can boost your health. How about trying today? You've got this! 🌟",
+        "🥗 Eating nutrient-rich foods strengthens your immunity. What's your favorite healthy meal?",
+        "😴 Getting 7-8 hours of sleep is key to wellness. Are you getting enough rest? Let us know!",
+        "🚶 Take a 20-minute walk daily—it's great for your heart and mind. Share your progress with us!",
+        "💧 Drinking 8-10 glasses of water daily keeps you hydrated and healthy. Remember to drink up today!",
+        "🌞 Morning sunlight boosts vitamin D naturally. Spend 15-20 minutes outside safely. Feel the difference!",
+        "😊 It's okay to take mental breaks. Watch something you love, read a book, or listen to music today!",
+        "❤️ Your health matters to us. We're here anytime you need support. Ask us anything—no question is too small.",
+        "🎯 Set one small health goal for today and celebrate it! What will it be? Share with us!",
+    ];
+}
+
+/**
+ * Check if patient needs engagement message today
+ * Returns true if 3+ days have passed since last engagement message
+ */
+function should_send_engagement_message(int $patientId): bool
+{
+    $st = db()->prepare(
+        'SELECT MAX(created_at) as last_sent
+         FROM outbound_messages
+         WHERE patient_id = ? AND message_type = ?'
+    );
+    $st->execute([$patientId, 'engagement_boost']);
+    $row = $st->fetch();
+    
+    if (!$row || !$row['last_sent']) {
+        return true;
+    }
+    
+    $lastSent = strtotime($row['last_sent']);
+    $now = time();
+    $daysSince = ($now - $lastSent) / (24 * 3600);
+    
+    return $daysSince >= 3;
+}
+
+/**
+ * Send random engagement message to patient
+ */
+function send_random_engagement_message(int $patientId): void
+{
+    if (!should_send_engagement_message($patientId)) {
+        return;
+    }
+    
+    $lang = get_patient_language($patientId);
+    $messages = get_random_engagement_messages($lang);
+    $randomMessage = $messages[array_rand($messages)];
+    
+    send_patient_message($patientId, 'engagement_boost', $randomMessage);
+}
+
+function send_appointment_bundle_messages(
+    int $patientId,
+    string $patientName,
+    array $appointment,
+    string $reason,
+    bool $isUpdate
+): void
+{
+    $lang = get_patient_language($patientId);
+    
+    send_patient_message(
+        $patientId,
+        'appointment_reminder',
+        build_appointment_change_message($patientName, $appointment, $reason, $isUpdate, $lang)
+    );
+    send_patient_message(
+        $patientId,
+        'appointment_reminder',
+        build_appointment_reminder_message($patientName, $appointment, $reason, 2, 3, $lang)
+    );
+    send_patient_message(
+        $patientId,
+        'appointment_reminder',
+        build_appointment_reminder_message($patientName, $appointment, $reason, 3, 3, $lang)
+    );
+    send_patient_message($patientId, 'education_menu', build_engagement_menu_message($lang));
 }

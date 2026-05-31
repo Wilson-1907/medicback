@@ -31,7 +31,7 @@ try {
             api_json(['ok' => false, 'error' => 'Patient not found'], 404);
         }
         $patientName = (string) $nameRow['full_name'];
-        $patientLang = strtolower((string) ($nameRow['preferred_language'] ?? 'en')) === 'sw' ? 'sw' : 'en';
+        $lang = in_array($nameRow['preferred_language'], ['en', 'sw']) ? $nameRow['preferred_language'] : 'en';
 
         $startSql = api_dt($start);
         $endSql = $end === '' ? null : api_dt($end);
@@ -74,9 +74,9 @@ try {
                 'department' => $department === '' ? null : $department,
                 'provider_name' => $provider === '' ? null : $provider,
                 'location' => $location === '' ? null : $location,
-            ], $reason, false, $patientLang)
+            ], $reason, false, $lang)
         );
-        send_patient_message($patientId, 'education_menu', build_engagement_menu_message($patientLang));
+        send_patient_message($patientId, 'education_menu', build_engagement_menu_message($lang));
         api_json(['ok' => true, 'appointment_id' => $appointmentId], 201);
     }
 
@@ -103,7 +103,8 @@ try {
         if (!$row) {
             api_json(['ok' => false, 'error' => 'Appointment not found'], 404);
         }
-        $patientLang = strtolower((string) ($row['preferred_language'] ?? 'en')) === 'sw' ? 'sw' : 'en';
+
+        $lang = in_array($row['preferred_language'], ['en', 'sw']) ? $row['preferred_language'] : 'en';
 
         $pdo->beginTransaction();
         try {
@@ -144,9 +145,9 @@ try {
                 'department' => $row['department'],
                 'provider_name' => $row['provider_name'],
                 'location' => $row['location'],
-            ], $reason, true, $patientLang)
+            ], $reason, true, $lang)
         );
-        send_patient_message((int) $row['patient_id'], 'education_menu', build_engagement_menu_message($patientLang));
+        send_patient_message((int) $row['patient_id'], 'education_menu', build_engagement_menu_message($lang));
         api_json(['ok' => true, 'appointment_id' => $appointmentId]);
     }
 

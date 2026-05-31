@@ -8,6 +8,9 @@ require_once __DIR__ . '/openai_assistant.php';
 /**
  * Africa's Talking inbound webhook handler.
  * Configure this URL in AT dashboard for both SMS and WhatsApp callbacks.
+ * 
+ * FLOW: Patient message → Save to DB → Route to AI for response
+ * Special keywords (DOCTOR, HELP) are handled AFTER AI tries
  */
 header('Content-Type: text/plain; charset=UTF-8');
 
@@ -91,8 +94,9 @@ function find_patient_by_phone(string $phone): ?array
         'SELECT p.id, p.full_name, p.preferred_language
          FROM contact_channels c
          INNER JOIN patients p ON p.id = c.patient_id
-         WHERE c.address = ?
-            OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(c.address, \'+\', \'\'), \' \', \'\'), \'-\', \'\'), \'(\', \'\'), \')\', \'\') = ?
+         WHERE c.opted_in = 1
+            AND (c.address = ?
+             OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(c.address, \'+\', \'\'), \' \', \'\'), \'-\', \'\'), \'(\', \'\'), \')\', \'\') = ?)
          ORDER BY c.is_primary DESC, c.id ASC
          LIMIT 1'
     );
@@ -110,11 +114,12 @@ function save_inbound(?int $patientId, string $channel, string $from, string $bo
     $st->execute([$patientId, $channel, $from, $body, json_encode($payload)]);
 }
 
-function upsert_escalation(int $patientId, string $reason): void
+function create_doctor_call_request(int $patientId, string $reason): void
 {
+    // Logged as an escalation so it surfaces in the Message Center for staff follow-up.
     $st = db()->prepare(
         'INSERT INTO escalations (patient_id, reason, urgency, status)
-         VALUES (?,?,?,?)'
+         VALUES (?, ?, ?, ?)'
     );
     $st->execute([$patientId, $reason, 'same_day', 'open']);
 }
@@ -127,26 +132,40 @@ function send_unlinked_reply(string $channel, string $to, string $body): void
     africastalking_send($channel, $to, $body);
 }
 
+error_log("=== WEBHOOK RECEIVED ===");
+error_log("OPENAI_API_KEY configured: " . (openai_enabled() ? 'YES' : 'NO'));
+error_log("AFRICASTALKING_API_KEY configured: " . (messaging_enabled() ? 'YES' : 'NO'));
+
 $payload = request_payload();
+error_log("WEBHOOK_PAYLOAD: " . json_encode($payload));
+
 $from = normalize_inbound_phone(payload_value($payload, ['from', 'fromNumber', 'source', 'sender']));
 $body = payload_value($payload, ['text', 'message', 'body', 'content']);
 $channel = channel_from_payload($payload);
+
+error_log("PARSED: from=$from, channel=$channel, body=$body");
+
 $patient = find_patient_by_phone($from);
 $patientId = $patient ? (int) $patient['id'] : null;
 $lang = $patient && strtolower((string) ($patient['preferred_language'] ?? 'en')) === 'sw' ? 'sw' : 'en';
 
+error_log("PATIENT_LOOKUP: patientId=$patientId, lang=$lang, name=" . ($patient['full_name'] ?? 'N/A'));
+
 save_inbound($patientId, $channel, $from, $body, $payload);
 
 if ($body === '') {
+    error_log("WEBHOOK_EXIT: Empty body");
     echo 'OK';
     exit;
 }
 
+// Unlinked patient (not registered)
 if (!$patientId) {
+    error_log("WEBHOOK_EXIT: Unlinked patient, sending unlinked reply");
     send_unlinked_reply(
         $channel,
         $from,
-        'Hi. To help you with PHV updates, please register your number with the hospital first. If this is urgent, contact the hospital directly.'
+        'Hi. To get personalized health support, please register your number with the hospital. If this is urgent, contact the hospital directly.'
     );
     echo 'OK';
     exit;
@@ -154,38 +173,40 @@ if (!$patientId) {
 
 $msg = strtoupper(trim($body));
 
-// Still log an escalation request so staff are notified, but the patient reply
-// itself is always produced by the AI assistant (see below).
+// Side-effect: when a patient asks for a doctor/call, log a call request so staff can
+// follow up. The patient still receives an AI-generated reply below.
 if (str_contains($msg, 'DOCTOR') || str_contains($msg, 'DAKTARI')) {
-    upsert_escalation($patientId, 'Patient requested direct doctor contact via messaging channel.');
+    error_log("WEBHOOK_ACTION: Doctor request detected, logging call request");
+    create_doctor_call_request($patientId, 'Patient requested direct doctor contact via ' . $channel);
 }
 
 // Every received message from a patient is answered by the AI assistant.
+error_log("WEBHOOK_ACTION: Routing to AI");
 $ai = ai_generate_reply($patientId, $channel, $body, $lang);
-if ($ai['ok']) {
+error_log("AI_RESPONSE: ok=" . ($ai['ok'] ? 'true' : 'false') . ", error=" . ($ai['error'] ?? 'none'));
+
+if ($ai['ok'] && !empty($ai['reply'])) {
+    error_log("WEBHOOK_ACTION: Sending AI reply: " . substr($ai['reply'], 0, 100) . "...");
     send_patient_message($patientId, 'system', $ai['reply']);
+    error_log("WEBHOOK_EXIT: AI reply sent");
     echo 'OK';
     exit;
 }
 
 // Fallback only when AI is unavailable (no key / cURL): never leave a patient unanswered.
-$greetings = ['HI', 'HELLO', 'HEY', 'HELLO!', 'HABARI', 'MAMBO', 'SAWA', 'NIAJE', 'JAMBO'];
-$isGreeting = in_array($msg, $greetings, true);
-foreach ($greetings as $g) {
-    if (str_starts_with($msg, $g . ' ')) {
-        $isGreeting = true;
-        break;
-    }
-}
-
-if ($isGreeting) {
-    $reply = $lang === 'sw'
-        ? 'Habari! Karibu ' . HOSPITAL_NAME . '. Ungependa kujua nini kuhusu PHV leo? Unaweza kuuliza kuhusu dalili, kuzuia, au miadi, au ujibu DAKTARI kupata msaada wa moja kwa moja wa hospitali.'
-        : 'Hi! Welcome to ' . HOSPITAL_NAME . '. What would you like to know about PHV today? You can ask about signs, prevention, or appointments, or reply DOCTOR for direct hospital support.';
+error_log("WEBHOOK_ACTION: Using fallback reply");
+if ($lang === 'sw') {
+    send_patient_message(
+        $patientId,
+        'system',
+        'Asante kwa ujumbe wako. Tupo hapa kwako. Kwa swali lolote la kiafya, tafadhali tembelea ' . HOSPITAL_NAME . '. Jibu DOCTOR kuongea na daktari au HELP kwa mwongozo zaidi.'
+    );
 } else {
-    $reply = $lang === 'sw'
-        ? 'Asante kwa ujumbe wako. Tupo nawe. Kwa swali lolote la kiafya, tafadhali tembelea ' . HOSPITAL_NAME . '. Jibu MSAADA kupata mwongozo au DAKTARI kupata msaada wa moja kwa moja.'
-        : 'Thank you for your message. We are here for you. For any medical question, please visit ' . HOSPITAL_NAME . '. Reply HELP for guidance or DOCTOR for direct hospital support.';
+    send_patient_message(
+        $patientId,
+        'system',
+        'Thank you for your message. We are here for you. For any medical question, please visit ' . HOSPITAL_NAME . '. Reply DOCTOR to speak with a doctor or HELP for more options.'
+    );
 }
-send_patient_message($patientId, 'system', $reply);
+error_log("WEBHOOK_EXIT: Fallback reply sent");
 echo 'OK';

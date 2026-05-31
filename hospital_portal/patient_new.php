@@ -71,8 +71,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $pdo->commit();
                 if ($optIn) {
-                    send_patient_message($pid, 'welcome', build_welcome_message($name));
-                    send_patient_message($pid, 'education_menu', build_engagement_menu_message());
+                    send_patient_message($pid, 'welcome', build_welcome_message($name, $lang));
+                    send_patient_message($pid, 'education_menu', build_engagement_menu_message($lang));
                 }
                 header('Location: patient_view.php?id=' . $pid . '&saved=1');
                 exit;

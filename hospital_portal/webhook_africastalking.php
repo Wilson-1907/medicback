@@ -88,7 +88,7 @@ function find_patient_by_phone(string $phone): ?array
     }
     $digits = preg_replace('/\D+/', '', $phone) ?? '';
     $st = db()->prepare(
-        'SELECT p.id, p.full_name
+        'SELECT p.id, p.full_name, p.preferred_language
          FROM contact_channels c
          INNER JOIN patients p ON p.id = c.patient_id
          WHERE c.address = ?
@@ -133,6 +133,7 @@ $body = payload_value($payload, ['text', 'message', 'body', 'content']);
 $channel = channel_from_payload($payload);
 $patient = find_patient_by_phone($from);
 $patientId = $patient ? (int) $patient['id'] : null;
+$lang = $patient && strtolower((string) ($patient['preferred_language'] ?? 'en')) === 'sw' ? 'sw' : 'en';
 
 save_inbound($patientId, $channel, $from, $body, $payload);
 
@@ -151,78 +152,40 @@ if (!$patientId) {
     exit;
 }
 
-$msg = strtoupper($body);
-if (in_array($msg, ['HI', 'HELLO', 'HEY', 'MAMBO', 'SAWA'], true)) {
-    send_patient_message(
-        $patientId,
-        'system',
-        'Hi. What do you want to know about PHV today? You can ask about signs, prevention, appointments, or reply DOCTOR for direct hospital support.'
-    );
-    echo 'OK';
-    exit;
-}
+$msg = strtoupper(trim($body));
 
-if ($msg === 'HELP' || $msg === 'MENU' || $msg === '0') {
-    send_patient_message($patientId, 'education_menu', build_engagement_menu_message());
-    echo 'OK';
-    exit;
-}
-
-if ($msg === '1') {
-    send_patient_message(
-        $patientId,
-        'system',
-        'PHV signs to watch: sudden severe symptoms, high fever, persistent pain, worsening breathing, or unusual bleeding. '
-        . 'If symptoms are severe, seek emergency care immediately.'
-    );
-    echo 'OK';
-    exit;
-}
-
-if ($msg === '2') {
-    send_patient_message(
-        $patientId,
-        'system',
-        'PHV prevention tips: take prescribed medication, keep follow-up visits, stay hydrated, rest, and report any worsening signs early. '
-        . 'Reply HELP for more options.'
-    );
-    echo 'OK';
-    exit;
-}
-
-if ($msg === 'DOCTOR' || $msg === '4') {
+// Still log an escalation request so staff are notified, but the patient reply
+// itself is always produced by the AI assistant (see below).
+if (str_contains($msg, 'DOCTOR') || str_contains($msg, 'DAKTARI')) {
     upsert_escalation($patientId, 'Patient requested direct doctor contact via messaging channel.');
-    send_patient_message(
-        $patientId,
-        'escalation_notice',
-        'Thank you. Your request has been sent to ' . HOSPITAL_NAME . '. A care team member will contact you shortly.'
-    );
-    echo 'OK';
-    exit;
 }
 
-if (str_contains($msg, 'PHV')) {
-    send_patient_message(
-        $patientId,
-        'system',
-        'PHV is a health condition that needs close follow-up, early symptom reporting, and prevention support. '
-        . 'At ' . HOSPITAL_NAME . ', we help you with appointment reminders, warning signs, and practical prevention guidance. '
-        . 'If you feel worse or have severe symptoms, seek urgent care immediately. Reply DOCTOR for direct hospital contact.'
-    );
-    echo 'OK';
-    exit;
-}
-
-$ai = ai_generate_reply($patientId, $channel, $body);
+// Every received message from a patient is answered by the AI assistant.
+$ai = ai_generate_reply($patientId, $channel, $body, $lang);
 if ($ai['ok']) {
     send_patient_message($patientId, 'system', $ai['reply']);
     echo 'OK';
     exit;
 }
 
-send_patient_message(
-    $patientId,
-    'system',
-    'Thank you for your message. We are here for you. Reply HELP for PHV guidance or DOCTOR for direct hospital support.'
-);
+// Fallback only when AI is unavailable (no key / cURL): never leave a patient unanswered.
+$greetings = ['HI', 'HELLO', 'HEY', 'HELLO!', 'HABARI', 'MAMBO', 'SAWA', 'NIAJE', 'JAMBO'];
+$isGreeting = in_array($msg, $greetings, true);
+foreach ($greetings as $g) {
+    if (str_starts_with($msg, $g . ' ')) {
+        $isGreeting = true;
+        break;
+    }
+}
+
+if ($isGreeting) {
+    $reply = $lang === 'sw'
+        ? 'Habari! Karibu ' . HOSPITAL_NAME . '. Ungependa kujua nini kuhusu PHV leo? Unaweza kuuliza kuhusu dalili, kuzuia, au miadi, au ujibu DAKTARI kupata msaada wa moja kwa moja wa hospitali.'
+        : 'Hi! Welcome to ' . HOSPITAL_NAME . '. What would you like to know about PHV today? You can ask about signs, prevention, or appointments, or reply DOCTOR for direct hospital support.';
+} else {
+    $reply = $lang === 'sw'
+        ? 'Asante kwa ujumbe wako. Tupo nawe. Kwa swali lolote la kiafya, tafadhali tembelea ' . HOSPITAL_NAME . '. Jibu MSAADA kupata mwongozo au DAKTARI kupata msaada wa moja kwa moja.'
+        : 'Thank you for your message. We are here for you. For any medical question, please visit ' . HOSPITAL_NAME . '. Reply HELP for guidance or DOCTOR for direct hospital support.';
+}
+send_patient_message($patientId, 'system', $reply);
 echo 'OK';

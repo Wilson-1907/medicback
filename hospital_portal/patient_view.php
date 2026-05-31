@@ -29,11 +29,15 @@ function dt_html(?string $mysql): string
 
 $pdo = db();
 $patientNameForMsgs = 'Patient';
-$nameQuery = $pdo->prepare('SELECT full_name FROM patients WHERE id = ? LIMIT 1');
+$patientLangForMsgs = 'en';
+$nameQuery = $pdo->prepare('SELECT full_name, preferred_language FROM patients WHERE id = ? LIMIT 1');
 $nameQuery->execute([$id]);
 $nameRow = $nameQuery->fetch();
 if ($nameRow && !empty($nameRow['full_name'])) {
     $patientNameForMsgs = (string) $nameRow['full_name'];
+}
+if ($nameRow && strtolower((string) ($nameRow['preferred_language'] ?? 'en')) === 'sw') {
+    $patientLangForMsgs = 'sw';
 }
 $errors = [];
 $flash = isset($_GET['saved']) ? 'Patient saved. Add an appointment below.' : '';
@@ -91,9 +95,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'department' => $department,
                             'provider_name' => $providerName,
                             'location' => $location,
-                        ], $reason, false)
+                        ], $reason, false, $patientLangForMsgs)
                     );
-                    send_patient_message($id, 'education_menu', build_engagement_menu_message());
+                    send_patient_message($id, 'education_menu', build_engagement_menu_message($patientLangForMsgs));
                     $flash = 'Appointment added.';
                 }
             } elseif ($action === 'confirm_appt') {
@@ -103,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         "UPDATE appointments SET status = 'confirmed', confirmation_at = NOW(3) WHERE id = ? AND patient_id = ?"
                     );
                     $u->execute([$aid, $id]);
-                    send_patient_message($id, 'education_menu', build_engagement_menu_message());
+                    send_patient_message($id, 'education_menu', build_engagement_menu_message($patientLangForMsgs));
                     $flash = 'Appointment marked confirmed.';
                 }
             } elseif ($action === 'reschedule_appt') {
@@ -161,9 +165,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 'department' => $current['department'],
                                 'provider_name' => $current['provider_name'],
                                 'location' => $current['location'],
-                            ], $newReason, true)
+                            ], $newReason, true, $patientLangForMsgs)
                         );
-                        send_patient_message($id, 'education_menu', build_engagement_menu_message());
+                        send_patient_message($id, 'education_menu', build_engagement_menu_message($patientLangForMsgs));
                         $flash = 'Appointment rescheduled and patient notified.';
                     }
                 }

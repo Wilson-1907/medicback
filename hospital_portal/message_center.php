@@ -3,9 +3,58 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/layout.php';
+require_once __DIR__ . '/messaging.php';
 require_login();
 
 $pdo = db();
+
+$sendFlash = '';
+$sendErrors = [];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'send_custom') {
+    if (!csrf_verify($_POST['_csrf'] ?? null)) {
+        $sendErrors[] = 'Invalid session token. Please retry.';
+    } else {
+        $target = (string) ($_POST['target'] ?? 'one');
+        $messageText = trim((string) ($_POST['message_text'] ?? ''));
+        if ($messageText === '') {
+            $sendErrors[] = 'Message text is required.';
+        }
+
+        if ($sendErrors === []) {
+            if ($target === 'broadcast') {
+                $recipients = $pdo->query(
+                    "SELECT DISTINCT p.id
+                     FROM patients p
+                     INNER JOIN contact_channels c ON c.patient_id = p.id
+                     WHERE p.status = 'active' AND c.opted_in = 1"
+                )->fetchAll();
+                $count = 0;
+                foreach ($recipients as $r) {
+                    send_patient_message((int) $r['id'], 'system', $messageText);
+                    $count++;
+                }
+                $sendFlash = 'Custom message sent to ' . $count . ' patient(s).';
+            } else {
+                $targetId = (int) ($_POST['patient_id'] ?? 0);
+                if ($targetId < 1) {
+                    $sendErrors[] = 'Select a patient to message.';
+                } else {
+                    send_patient_message($targetId, 'system', $messageText);
+                    $sendFlash = 'Custom message sent.';
+                }
+            }
+        }
+    }
+}
+
+$patientChoices = $pdo->query(
+    "SELECT DISTINCT p.id, p.full_name
+     FROM patients p
+     INNER JOIN contact_channels c ON c.patient_id = p.id
+     WHERE p.status = 'active' AND c.opted_in = 1
+     ORDER BY p.full_name ASC"
+)->fetchAll();
 
 $stats = [
     'outbound_24h' => 0,
@@ -60,6 +109,59 @@ layout_header('Message center');
   <div class="actions">
     <a class="btn btn-secondary" href="message_center.php">Refresh</a>
   </div>
+</div>
+
+<div class="card">
+  <h2>Send a custom message</h2>
+  <p style="color:var(--muted);margin-top:-0.5rem">Send a specific message to one patient or broadcast to all active, opted-in patients.</p>
+  <?php if ($sendFlash !== ''): ?>
+    <div class="alert alert-success"><?= h($sendFlash) ?></div>
+  <?php endif; ?>
+  <?php if ($sendErrors !== []): ?>
+    <div class="alert alert-error">
+      <?php foreach ($sendErrors as $e): ?>
+        <div><?= h($e) ?></div>
+      <?php endforeach; ?>
+    </div>
+  <?php endif; ?>
+  <form method="post" action="message_center.php">
+    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="action" value="send_custom">
+    <div class="field">
+      <label>Recipients</label>
+      <select name="target" id="customTarget">
+        <option value="one">A specific patient</option>
+        <option value="broadcast">All active, opted-in patients</option>
+      </select>
+    </div>
+    <div class="field" id="patientPickerField">
+      <label>Patient</label>
+      <select name="patient_id">
+        <option value="">Select patient...</option>
+        <?php foreach ($patientChoices as $pc): ?>
+          <option value="<?= (int) $pc['id'] ?>"><?= h($pc['full_name']) ?> (#<?= (int) $pc['id'] ?>)</option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="field">
+      <label>Message</label>
+      <textarea name="message_text" rows="3" placeholder="Type the message to send..."></textarea>
+    </div>
+    <div class="actions">
+      <button type="submit" class="btn">Send message</button>
+    </div>
+  </form>
+  <script>
+    (function () {
+      var target = document.getElementById('customTarget');
+      var pickerField = document.getElementById('patientPickerField');
+      function sync() {
+        pickerField.style.display = target.value === 'broadcast' ? 'none' : '';
+      }
+      target.addEventListener('change', sync);
+      sync();
+    })();
+  </script>
 </div>
 
 <div class="grid-2" style="margin-bottom:1.25rem">

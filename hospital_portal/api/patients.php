@@ -75,8 +75,8 @@ try {
         $pdo->commit();
 
         if ($optIn) {
-            send_patient_message($pid, 'welcome', build_welcome_message($name));
-            send_patient_message($pid, 'education_menu', build_engagement_menu_message());
+            send_patient_message($pid, 'welcome', build_welcome_message($name, $lang));
+            send_patient_message($pid, 'education_menu', build_engagement_menu_message($lang));
         }
         api_json(['ok' => true, 'patient_id' => $pid], 201);
     } catch (Throwable $e) {

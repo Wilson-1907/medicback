@@ -25,9 +25,9 @@ function ai_get_or_create_conversation(int $patientId, string $channel): int
 
     $insert = db()->prepare(
         'INSERT INTO ai_conversations (patient_id, channel, context_json)
-         VALUES (?, ?, JSON_OBJECT("source", "africastalking-webhook"))'
+         VALUES (?, ?, ?)'
     );
-    $insert->execute([$patientId, $channel]);
+    $insert->execute([$patientId, $channel, json_encode(['source' => 'africastalking-webhook'])]);
     return (int) db()->lastInsertId();
 }
 
@@ -68,12 +68,23 @@ function ai_recent_messages(int $conversationId, int $limit = 10): array
     return $messages;
 }
 
-function ai_system_prompt(): string
+function ai_system_prompt(string $lang = 'en'): string
 {
+    if (strtolower($lang) === 'sw') {
+        return 'Wewe ni msaidizi mwenye huruma wa wagonjwa wa PHV kwa ' . HOSPITAL_NAME . '. '
+            . 'Lazima ujibu kwa Kiswahili pekee. '
+            . 'Sauti yako iwe ya joto, yenye kutia moyo, yenye matumaini, na ya vitendo. '
+            . 'Jibu KILA swali la kiafya analoliuliza mgonjwa kwa maelezo mafupi, rahisi na yenye msaada. '
+            . 'USITOE uchunguzi mpya wa magonjwa, USIANDIKE mabadiliko ya dawa, na USITOE ushauri hatari. '
+            . 'Kila wakati sisitiza kwa upole kwamba mgonjwa atembelee ' . HOSPITAL_NAME . ' kwa uchunguzi na matibabu sahihi. '
+            . 'Ikiwa dalili zinaweza kuwa kali au za dharura, mwambie mgonjwa atafute huduma za dharura mara moja na awasiliane na hospitali. '
+            . 'Inapofaa, mkumbushe mgonjwa anaweza kujibu DAKTARI kupata mawasiliano ya moja kwa moja na timu ya hospitali.';
+    }
     return 'You are a caring PHV patient support assistant for ' . HOSPITAL_NAME . '. '
         . 'Tone must be warm, reassuring, hopeful, and practical. '
-        . 'Give short actionable guidance and encouragement. '
+        . 'Answer EVERY medical question the patient asks with short, simple, helpful guidance. '
         . 'Do NOT diagnose new diseases, do NOT prescribe medication changes, and do NOT provide unsafe advice. '
+        . 'Always gently insist that the patient visits ' . HOSPITAL_NAME . ' for proper examination and treatment. '
         . 'If symptoms may be severe or emergency-like, tell patient to seek urgent care immediately and contact the hospital. '
         . 'When relevant, remind patients they can reply DOCTOR for direct staff contact.';
 }
@@ -81,7 +92,7 @@ function ai_system_prompt(): string
 /**
  * Returns ['ok'=>bool, 'reply'=>string, 'error'=>?string]
  */
-function ai_generate_reply(int $patientId, string $channel, string $patientText): array
+function ai_generate_reply(int $patientId, string $channel, string $patientText, string $lang = 'en'): array
 {
     if (!openai_enabled()) {
         return ['ok' => false, 'reply' => '', 'error' => 'OPENAI_API_KEY is empty'];
@@ -93,7 +104,7 @@ function ai_generate_reply(int $patientId, string $channel, string $patientText)
     $conversationId = ai_get_or_create_conversation($patientId, $channel);
     ai_log_turn($conversationId, 'user', $patientText, null);
 
-    $messages = [['role' => 'system', 'content' => ai_system_prompt()]];
+    $messages = [['role' => 'system', 'content' => ai_system_prompt($lang)]];
     foreach (ai_recent_messages($conversationId, 12) as $m) {
         $messages[] = $m;
     }

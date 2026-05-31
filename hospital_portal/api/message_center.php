@@ -5,6 +5,39 @@ require_once __DIR__ . '/_bootstrap.php';
 
 try {
     $pdo = db();
+
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+        $body = api_body();
+        if ((string) ($body['action'] ?? '') !== 'send_custom') {
+            api_json(['ok' => false, 'error' => 'Unknown action'], 422);
+        }
+        $messageText = trim((string) ($body['message_text'] ?? ''));
+        if ($messageText === '') {
+            api_json(['ok' => false, 'error' => 'message_text is required'], 422);
+        }
+        $target = (string) ($body['target'] ?? 'one');
+        if ($target === 'broadcast') {
+            $recipients = $pdo->query(
+                "SELECT DISTINCT p.id
+                 FROM patients p
+                 INNER JOIN contact_channels c ON c.patient_id = p.id
+                 WHERE p.status = 'active' AND c.opted_in = 1"
+            )->fetchAll();
+            $count = 0;
+            foreach ($recipients as $r) {
+                send_patient_message((int) $r['id'], 'system', $messageText);
+                $count++;
+            }
+            api_json(['ok' => true, 'sent' => $count]);
+        }
+        $patientId = (int) ($body['patient_id'] ?? 0);
+        if ($patientId < 1) {
+            api_json(['ok' => false, 'error' => 'patient_id is required'], 422);
+        }
+        send_patient_message($patientId, 'system', $messageText);
+        api_json(['ok' => true, 'sent' => 1]);
+    }
+
     $stats = [
         'outbound_24h' => (int) $pdo->query(
             "SELECT COUNT(*) c FROM outbound_messages WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)"

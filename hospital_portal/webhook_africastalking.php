@@ -116,12 +116,22 @@ function save_inbound(?int $patientId, string $channel, string $from, string $bo
 
 function create_doctor_call_request(int $patientId, string $reason): void
 {
-    // Logged as an escalation so it surfaces in the Message Center for staff follow-up.
-    $st = db()->prepare(
+    $pdo = db();
+
+    // Dedicated record of the call request (one active request per patient).
+    $st = $pdo->prepare(
+        'INSERT INTO doctor_call_requests (patient_id, reason, status, requested_at)
+         VALUES (?, ?, ?, NOW(3))
+         ON DUPLICATE KEY UPDATE reason = VALUES(reason), status = ?, requested_at = NOW(3)'
+    );
+    $st->execute([$patientId, $reason, 'pending', 'pending']);
+
+    // Also raise an escalation so it surfaces in the Message Center for staff follow-up.
+    $esc = $pdo->prepare(
         'INSERT INTO escalations (patient_id, reason, urgency, status)
          VALUES (?, ?, ?, ?)'
     );
-    $st->execute([$patientId, $reason, 'same_day', 'open']);
+    $esc->execute([$patientId, $reason, 'same_day', 'open']);
 }
 
 function send_unlinked_reply(string $channel, string $to, string $body): void

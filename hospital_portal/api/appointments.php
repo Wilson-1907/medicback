@@ -4,11 +4,29 @@ declare(strict_types=1);
 require_once __DIR__ . '/_bootstrap.php';
 
 try {
+    $pdo = db();
+
+    // List booked appointments (for the hospital console appointments viewer).
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+        $rows = $pdo->query(
+            "SELECT a.id, a.patient_id, p.full_name, a.department, a.provider_name,
+                    a.scheduled_start, a.scheduled_end, a.location, a.status,
+                    (SELECT e.reason FROM appointment_reschedule_events e
+                     WHERE e.appointment_id = a.id
+                     ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS reason
+             FROM appointments a
+             INNER JOIN patients p ON p.id = a.patient_id
+             WHERE a.status IN ('proposed','confirmed','completed')
+             ORDER BY a.scheduled_start DESC
+             LIMIT 300"
+        )->fetchAll();
+        api_json(['ok' => true, 'items' => $rows]);
+    }
+
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
         api_json(['ok' => false, 'error' => 'Method not allowed'], 405);
     }
 
-    $pdo = db();
     $body = api_body();
     $action = (string) ($body['action'] ?? 'add');
 

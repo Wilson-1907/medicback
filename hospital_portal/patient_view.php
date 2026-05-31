@@ -331,7 +331,7 @@ layout_header($patient['full_name']);
       </div>
       <div class="field">
         <label for="department">Department / clinic</label>
-        <input id="department" name="department" type="text" placeholder="e.g. PHV clinic">
+        <input id="department" name="department" type="text" placeholder="e.g. HPV clinic">
       </div>
       <div class="field">
         <label for="provider_name">Provider</label>

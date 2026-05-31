@@ -109,7 +109,7 @@ define('DB_CHARSET', env_value('DB_CHARSET', 'utf8mb4'));
 define('DB_SSL_MODE', strtolower(env_value('DB_SSL_MODE', 'preferred'))); // disable|preferred|required
 define('DB_SSL_CA', env_value('DB_SSL_CA', ''));
 
-define('APP_NAME', env_value('APP_NAME', 'PHV Hospital Console'));
+define('APP_NAME', env_value('APP_NAME', 'HPV Hospital Console'));
 define('HOSPITAL_NAME', env_value('HOSPITAL_NAME', 'Your Hospital'));
 define('AFRICASTALKING_MODE', env_value('AFRICASTALKING_MODE', 'sandbox'));
 define('AFRICASTALKING_USERNAME', env_by_mode(

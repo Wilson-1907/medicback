@@ -7,11 +7,19 @@ try {
     $pdo = db();
     $stats = [
         'patients' => (int) $pdo->query('SELECT COUNT(*) c FROM patients')->fetch()['c'],
+        'registered_today' => (int) $pdo->query(
+            'SELECT COUNT(*) c FROM patients WHERE DATE(registration_at)=CURDATE()'
+        )->fetch()['c'],
         'appointments_today' => (int) $pdo->query(
             "SELECT COUNT(*) c FROM appointments WHERE DATE(scheduled_start)=CURDATE() AND status IN ('proposed','confirmed')"
         )->fetch()['c'],
         'upcoming' => (int) $pdo->query(
             "SELECT COUNT(*) c FROM appointments WHERE scheduled_start >= NOW() AND status IN ('proposed','confirmed')"
+        )->fetch()['c'],
+        'open_escalations' => (int) $pdo->query(
+            "SELECT COUNT(*) c FROM escalations e
+             INNER JOIN patients p ON p.id = e.patient_id
+             WHERE e.status IN ('open','triaged')"
         )->fetch()['c'],
     ];
 

@@ -49,7 +49,9 @@ try {
             "SELECT COUNT(*) c FROM inbound_messages WHERE received_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)"
         )->fetch()['c'],
         'open_escalations' => (int) $pdo->query(
-            "SELECT COUNT(*) c FROM escalations WHERE status IN ('open','triaged')"
+            "SELECT COUNT(*) c FROM escalations e
+             INNER JOIN patients p ON p.id = e.patient_id
+             WHERE e.status IN ('open','triaged')"
         )->fetch()['c'],
     ];
 
@@ -77,7 +79,8 @@ try {
          FROM escalations e
          INNER JOIN patients p ON p.id = e.patient_id
          LEFT JOIN doctor_call_requests dcr ON dcr.patient_id = e.patient_id
-         ORDER BY e.created_at DESC, e.id DESC
+         WHERE e.status IN ('open','triaged')
+         ORDER BY FIELD(e.urgency, 'high', 'medium', 'low'), e.created_at DESC, e.id DESC
          LIMIT 60"
     )->fetchAll();
 

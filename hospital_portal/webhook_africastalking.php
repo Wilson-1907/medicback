@@ -172,12 +172,8 @@ if ($body === '') {
 
 // Unlinked patient (not registered)
 if (!$patientId) {
-    error_log("WEBHOOK_EXIT: Unlinked patient, sending unlinked reply");
-    send_unlinked_reply(
-        $channel,
-        $from,
-        'Hi. To get personalized health support, please register your number with the hospital. If this is urgent, contact the hospital directly.'
-    );
+    error_log("WEBHOOK_EXIT: Unlinked patient, sending unlinked reply (lang=$lang)");
+    send_unlinked_reply($channel, $from, ai_unlinked_reply($lang));
     echo 'OK';
     exit;
 }

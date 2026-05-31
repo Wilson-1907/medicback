@@ -92,22 +92,27 @@ function ai_detect_message_language(string $text, string $fallback = 'en'): stri
     }
 
     $swWords = [
-        'habari', 'jambo', 'asante', 'sana', 'nina', 'nime', 'sijui', 'daktari', 'homa', 'pole', 'niko',
+        'habari', 'jambo', 'hujambo', 'asante', 'sana', 'nina', 'nime', 'sijui', 'daktari', 'homa', 'pole', 'niko',
         'mimi', 'wewe', 'tafadhali', 'sawa', 'ndio', 'hapana', 'leo', 'kesho', 'maumivu', 'afya', 'chanjo',
         'hospitali', 'msaada', 'kwani', 'bado', 'kidogo', 'mambo', 'vizuri', 'una', 'yako', 'najisikia',
-        'naskia', 'mguu', 'kichwa', 'tumbo', 'dawa', 'mgonjwa', 'mama', 'baba', 'mtoto', 'simu', 'sijui',
+        'naskia', 'mguu', 'kichwa', 'tumbo', 'dawa', 'mgonjwa', 'mama', 'baba', 'mtoto', 'simu',
         'naweza', 'tunaweza', 'je', 'lakini', 'pia', 'sasa', 'hivi', 'hapa', 'wapi', 'nini', 'kwa', 'na',
+        'nataka', 'naweza', 'unasema', 'eleza', 'nisaidie', 'msichana', 'mwanamke', 'mwanamume', 'umekuwa',
+        'umewahi', 'nimekuwa', 'nimepata', 'nimechelewa', 'sijisikii', 'najisikia', 'hali', 'dalili', 'ugonjwa',
+        'saratani', 'uchunguzi', 'chanjo', 'kinga', 'lishe', 'usingizi', 'maumivu', 'damu', 'joto', 'baridi',
     ];
     $shengWords = [
         'niaje', 'msee', 'poa', 'fiti', 'sai', 'buda', 'bana', 'maze', 'arafu', 'vipi', 'nde', 'bro',
-        'mami', 'dem', 'form', 'score', 'kuwa', 'mbogi', 'sonko', 'mflow', 'tufanye', 'mrenga', 'mhenga',
-        'naskia', 'sasa', 'msee', 'mambo', 'poa', 'safi', 'chanuka', 'msee', 'budaa', 'msee', 'oya',
+        'mami', 'dem', 'form', 'score', 'mbogi', 'sonko', 'mflow', 'safi', 'chanuka', 'budaa', 'oya',
+        'done', 'sort', 'mathaga', 'deng', 'sharo', 'genje', 'kuchapa', 'mrogi', 'msee', 'sasa',
     ];
     $enWords = [
         'the', 'and', 'is', 'are', 'have', 'what', 'how', 'when', 'where', 'please', 'thank', 'thanks',
         'you', 'help', 'doctor', 'pain', 'feel', 'feeling', 'today', 'hello', 'hi', 'hey', 'my', 'can',
         'could', 'would', 'need', 'want', 'got', 'getting', 'about', 'with', 'for', 'this', 'that', 'very',
+        'pls', 'plz', 'ur', 'u', 'im', 'ive', 'dont', 'cant', 'wanna', 'gonna', 'thx', 'coz', 'bcuz', 'wat',
     ];
+    $swPrefixes = ['na', 'ni', 'nime', 'nina', 'sija', 'sisi', 'kwa', 'mna', 'tuna', 'una', 'ana', 'hapa', 'hapo'];
 
     $sw = $sheng = $en = 0;
     foreach ($tokens as $token) {
@@ -120,6 +125,20 @@ function ai_detect_message_language(string $text, string $fallback = 'en'): stri
         if (in_array($token, $enWords, true)) {
             $en++;
         }
+        foreach ($swPrefixes as $prefix) {
+            if (str_starts_with($token, $prefix) && mb_strlen($token) > mb_strlen($prefix) + 1) {
+                $sw++;
+                break;
+            }
+        }
+    }
+
+    // Common full-phrase shortcuts
+    if (preg_match('/\b(habari\s+yako|hujambo|niaje|mambo\s+vipi|poa\s+sana|asante\s+sana)\b/u', $text)) {
+        if (preg_match('/\b(niaje|msee|poa|safi|maze|buda)\b/u', $text)) {
+            return 'sheng';
+        }
+        return 'sw';
     }
 
     if ($sheng >= 1 && ($sw >= 1 || $en >= 1)) {
@@ -150,18 +169,19 @@ function ai_detect_message_language(string $text, string $fallback = 'en'): stri
 function ai_language_instructions(string $detectedLang): string
 {
     $hints = [
-        'sw' => 'The patient wrote in Kiswahili. Reply entirely in natural, warm Kiswahili.',
-        'en' => 'The patient wrote in English. Reply in clear, friendly English (simple words if they used simple English).',
-        'sheng' => 'The patient is using Sheng or Kenyan street slang. Reply in the same Sheng style — informal, relatable, mix Swahili and English naturally like a local would. Examples: "poa", "sawa", "niaje" vibe.',
-        'mixed' => 'The patient is code-switching (mixing Swahili and English). Reply in the same mixed style — do NOT force pure English or pure Swahili.',
+        'sw' => 'The patient wrote in Kiswahili (may include spelling mistakes). Reply entirely in natural, warm Kiswahili — same level of formality as them.',
+        'en' => 'The patient wrote in English (may be simple, broken, or informal). Reply in clear, friendly English at the SAME level — simple words, short sentences. Do not use academic or overly formal English.',
+        'sheng' => 'The patient is using Sheng (Kenyan street slang mixing Swahili + English). Reply in the same Sheng style — informal, relatable, local. Use words like "poa", "sawa", "niaje", "msee" naturally. Do NOT reply in pure formal English or pure textbook Swahili.',
+        'mixed' => 'The patient is code-switching (mixing Swahili and English in one message). Reply in the SAME mixed style — blend both languages naturally like Kenyans do in everyday chat.',
     ];
     $hint = $hints[$detectedLang] ?? $hints['mixed'];
 
     return 'CRITICAL — LANGUAGE (follow this first): ' . $hint
         . ' Always mirror the language, tone, slang, and formality of the patient\'s LATEST message. '
-        . 'If they switch to Swahili, English, Sheng, or broken/mixed text, switch with them immediately. '
-        . 'Do not correct their grammar. Keep replies short enough for SMS/WhatsApp. '
-        . 'Never reply in a different language unless the patient explicitly asks.';
+        . 'If they switch to Swahili, English, Sheng, broken text, or a mix — switch with them immediately on your next reply. '
+        . 'Never correct their grammar or spelling. Never reply in a different language unless they explicitly ask. '
+        . 'If you cannot tell the language, use the same words and style they used. '
+        . 'Keep replies short enough for SMS/WhatsApp (under ~300 characters when possible).';
 }
 
 /**
@@ -186,6 +206,23 @@ function ai_system_prompt(string $lang = 'en', ?string $latestUserMessage = null
         . 'When helpful, add a brief HPV or wellness tip.';
 
     return $languageBlock . "\n\n" . $core;
+}
+
+/**
+ * Reply for unknown/unregistered numbers — matches detected language.
+ */
+function ai_unlinked_reply(string $detectedLang): string
+{
+    if ($detectedLang === 'sw') {
+        return 'Habari. Ili kupata msaada wa kiafya, tafadhali sajili nambari yako kwenye hospitali. '
+            . 'Ikiwa ni dharura, wasiliana na hospitali moja kwa moja.';
+    }
+    if ($detectedLang === 'sheng' || $detectedLang === 'mixed') {
+        return 'Mambo! Ili uweze kupata msaada wa afya, register nambari yako na hospitali kwanza. '
+            . 'Kama ni emergency, contact hospital direct.';
+    }
+    return 'Hi. To get personalized health support, please register your number with the hospital. '
+        . 'If this is urgent, contact the hospital directly.';
 }
 
 /**
@@ -356,8 +393,8 @@ function ai_generate_reply(int $patientId, string $channel, string $patientText,
     $payload = [
         'model' => GROQ_MODEL,
         'messages' => $messages,
-        'temperature' => 0.7,
-        'max_tokens' => 220,
+        'temperature' => 0.75,
+        'max_tokens' => 280,
     ];
 
     $ch = curl_init(GROQ_BASE_URL);

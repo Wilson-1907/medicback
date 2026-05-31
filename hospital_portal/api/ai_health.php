@@ -19,6 +19,13 @@ try {
         'model' => GROQ_MODEL,
         'base_url' => GROQ_BASE_URL,
         'curl_enabled' => function_exists('curl_init'),
+        'language_matching' => 'AI mirrors Swahili, English, Sheng, broken text, and mixed messages per inbound SMS/WhatsApp',
+        'language_detection_samples' => [
+            'niaje msee naskia homa' => ai_detect_message_language('niaje msee naskia homa', 'en'),
+            'I hav pain in head pls help' => ai_detect_message_language('I hav pain in head pls help', 'en'),
+            'Nina maumivu ya tumbo' => ai_detect_message_language('Nina maumivu ya tumbo', 'en'),
+            'poa doc nimechelewa appointment' => ai_detect_message_language('poa doc nimechelewa appointment', 'en'),
+        ],
     ];
 
     if ($key === '') {

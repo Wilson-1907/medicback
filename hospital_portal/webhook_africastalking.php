@@ -143,7 +143,7 @@ function send_unlinked_reply(string $channel, string $to, string $body): void
 }
 
 error_log("=== WEBHOOK RECEIVED ===");
-error_log("OPENAI_API_KEY configured: " . (openai_enabled() ? 'YES' : 'NO'));
+error_log("GROQ_API_KEY configured: " . (ai_enabled() ? 'YES' : 'NO'));
 error_log("AFRICASTALKING_API_KEY configured: " . (messaging_enabled() ? 'YES' : 'NO'));
 
 $payload = request_payload();

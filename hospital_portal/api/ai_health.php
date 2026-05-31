@@ -2,28 +2,29 @@
 declare(strict_types=1);
 
 /**
- * Safe OpenAI connectivity check (does not expose the full API key).
+ * Safe Groq AI connectivity check (does not expose the full API key).
  * GET /api/ai_health.php
  */
 require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../openai_assistant.php';
 
 try {
-    $key = OPENAI_API_KEY;
+    $key = GROQ_API_KEY;
     $payload = [
         'ok' => true,
-        'openai_configured' => $key !== '',
+        'provider' => 'groq',
+        'ai_configured' => $key !== '',
         'key_length' => strlen($key),
         'key_prefix' => $key !== '' ? substr($key, 0, 8) . '...' : '',
-        'model' => OPENAI_MODEL,
-        'base_url' => OPENAI_BASE_URL,
+        'model' => GROQ_MODEL,
+        'base_url' => GROQ_BASE_URL,
         'curl_enabled' => function_exists('curl_init'),
     ];
 
     if ($key === '') {
         $payload['test'] = [
             'ok' => false,
-            'error' => 'OPENAI_API_KEY is empty on the server. Set it in Render → Environment → OPENAI_API_KEY, then redeploy.',
+            'error' => 'GROQ_API_KEY is empty on the server. Set it in Render → Environment → GROQ_API_KEY, then redeploy.',
         ];
         api_json($payload);
     }

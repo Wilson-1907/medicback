@@ -1,8 +1,9 @@
 <?php
-// AI Configuration
+// AI Configuration (Groq)
 return [
-    'openai_api_key' => getenv('OPENAI_API_KEY') ?: '',
-    'use_openai' => !empty(getenv('OPENAI_API_KEY')),
+    'groq_api_key' => getenv('GROQ_API_KEY') ?: '',
+    'use_groq' => !empty(getenv('GROQ_API_KEY')),
+    'model' => getenv('GROQ_MODEL') ?: 'llama-3.3-70b-versatile',
     'max_tokens' => 500,
     'temperature' => 0.7,
     'supported_languages' => ['en', 'sw'],
@@ -13,4 +14,3 @@ return [
         'location' => 'Nyeri Town, Kenya'
     ]
 ];
-?>

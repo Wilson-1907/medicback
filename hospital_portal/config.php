@@ -155,6 +155,6 @@ define('AFRICASTALKING_WHATSAPP_URL', env_by_mode(
     'https://api.africastalking.com/version1/whatsapp/message'
 ));
 
-define('OPENAI_API_KEY', env_value('OPENAI_API_KEY', ''));
-define('OPENAI_MODEL', env_value('OPENAI_MODEL', 'gpt-4o-mini'));
-define('OPENAI_BASE_URL', env_value('OPENAI_BASE_URL', 'https://api.openai.com/v1/chat/completions'));
+define('GROQ_API_KEY', env_value('GROQ_API_KEY', ''));
+define('GROQ_MODEL', env_value('GROQ_MODEL', 'llama-3.3-70b-versatile'));
+define('GROQ_BASE_URL', env_value('GROQ_BASE_URL', 'https://api.groq.com/openai/v1/chat/completions'));

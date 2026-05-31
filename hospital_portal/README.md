@@ -13,8 +13,8 @@ Backend and staff UI for the PHV engagement pilot.
    - Sandbox: `AFRICASTALKING_SANDBOX_*`
    - Production: `AFRICASTALKING_PROD_*`
 5. Set OpenAI:
-   - `OPENAI_API_KEY`
-   - `OPENAI_MODEL` (`gpt-4o-mini` default)
+   - `GROQ_API_KEY` — from [console.groq.com](https://console.groq.com)
+   - `GROQ_MODEL` (`llama-3.3-70b-versatile` default; fast alternative: `llama-3.1-8b-instant`)
 
 ## 2) Database
 
@@ -73,7 +73,7 @@ In Render, create a Cron Job that calls this URL regularly.
 
 ## 6) AI behavior
 
-When `OPENAI_API_KEY` is configured:
+When `GROQ_API_KEY` is configured:
 
 - Inbound messages are logged in `ai_turns`
 - AI sends caring, hopeful, safety-guarded responses

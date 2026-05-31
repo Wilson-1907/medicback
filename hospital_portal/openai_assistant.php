@@ -3,9 +3,15 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 
+function ai_enabled(): bool
+{
+    return GROQ_API_KEY !== '';
+}
+
+/** @deprecated Use ai_enabled() */
 function openai_enabled(): bool
 {
-    return OPENAI_API_KEY !== '';
+    return ai_enabled();
 }
 
 function ai_get_or_create_conversation(int $patientId, string $channel): int
@@ -27,7 +33,7 @@ function ai_get_or_create_conversation(int $patientId, string $channel): int
         'INSERT INTO ai_conversations (patient_id, channel, context_json)
          VALUES (?, ?, ?)'
     );
-    $insert->execute([$patientId, $channel, json_encode(['source' => 'africastalking-webhook'])]);
+    $insert->execute([$patientId, $channel, json_encode(['source' => 'africastalking-webhook', 'provider' => 'groq'])]);
     return (int) db()->lastInsertId();
 }
 
@@ -41,7 +47,7 @@ function ai_log_turn(int $conversationId, string $role, string $content, ?string
 }
 
 /**
- * Returns latest turns as OpenAI chat format.
+ * Returns latest turns as chat-completions format.
  */
 function ai_recent_messages(int $conversationId, int $limit = 10): array
 {
@@ -104,38 +110,34 @@ function ai_system_prompt(string $lang = 'en'): string
 }
 
 /**
+ * Single-turn Groq call without conversation logging (for API probes).
  * Returns ['ok'=>bool, 'reply'=>string, 'error'=>?string]
  */
-function ai_generate_reply(int $patientId, string $channel, string $patientText, string $lang = 'en'): array
+function ai_quick_reply(string $patientText, string $lang = 'en'): array
 {
-    if (!openai_enabled()) {
-        return ['ok' => false, 'reply' => '', 'error' => 'OPENAI_API_KEY is empty'];
+    if (!ai_enabled()) {
+        return ['ok' => false, 'reply' => '', 'error' => 'GROQ_API_KEY is empty'];
     }
     if (!function_exists('curl_init')) {
         return ['ok' => false, 'reply' => '', 'error' => 'PHP cURL extension is not enabled'];
     }
 
-    $conversationId = ai_get_or_create_conversation($patientId, $channel);
-    ai_log_turn($conversationId, 'user', $patientText, null);
-
-    $messages = [['role' => 'system', 'content' => ai_system_prompt($lang)]];
-    foreach (ai_recent_messages($conversationId, 12) as $m) {
-        $messages[] = $m;
-    }
-
     $payload = [
-        'model' => OPENAI_MODEL,
-        'messages' => $messages,
+        'model' => GROQ_MODEL,
+        'messages' => [
+            ['role' => 'system', 'content' => ai_system_prompt($lang)],
+            ['role' => 'user', 'content' => $patientText],
+        ],
         'temperature' => 0.7,
         'max_tokens' => 220,
     ];
 
-    $ch = curl_init(OPENAI_BASE_URL);
+    $ch = curl_init(GROQ_BASE_URL);
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . OPENAI_API_KEY,
+            'Authorization: Bearer ' . GROQ_API_KEY,
             'Content-Type: application/json',
         ],
         CURLOPT_POSTFIELDS => json_encode($payload),
@@ -155,7 +157,69 @@ function ai_generate_reply(int $patientId, string $channel, string $patientText,
     $json = json_decode($raw, true);
     if ($code < 200 || $code >= 300) {
         $error = is_array($json) ? json_encode($json) : (string) $raw;
-        return ['ok' => false, 'reply' => '', 'error' => 'OpenAI HTTP ' . $code . ': ' . $error];
+        return ['ok' => false, 'reply' => '', 'error' => 'Groq HTTP ' . $code . ': ' . $error];
+    }
+
+    $reply = trim((string) ($json['choices'][0]['message']['content'] ?? ''));
+    if ($reply === '') {
+        return ['ok' => false, 'reply' => '', 'error' => 'Groq returned empty content'];
+    }
+    return ['ok' => true, 'reply' => $reply, 'error' => null];
+}
+
+/**
+ * Returns ['ok'=>bool, 'reply'=>string, 'error'=>?string]
+ */
+function ai_generate_reply(int $patientId, string $channel, string $patientText, string $lang = 'en'): array
+{
+    if (!ai_enabled()) {
+        return ['ok' => false, 'reply' => '', 'error' => 'GROQ_API_KEY is empty'];
+    }
+    if (!function_exists('curl_init')) {
+        return ['ok' => false, 'reply' => '', 'error' => 'PHP cURL extension is not enabled'];
+    }
+
+    $conversationId = ai_get_or_create_conversation($patientId, $channel);
+    ai_log_turn($conversationId, 'user', $patientText, null);
+
+    $messages = [['role' => 'system', 'content' => ai_system_prompt($lang)]];
+    foreach (ai_recent_messages($conversationId, 12) as $m) {
+        $messages[] = $m;
+    }
+
+    $payload = [
+        'model' => GROQ_MODEL,
+        'messages' => $messages,
+        'temperature' => 0.7,
+        'max_tokens' => 220,
+    ];
+
+    $ch = curl_init(GROQ_BASE_URL);
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . GROQ_API_KEY,
+            'Content-Type: application/json',
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_TIMEOUT => 45,
+        CURLOPT_CONNECTTIMEOUT => 15,
+    ]);
+
+    $raw = curl_exec($ch);
+    $err = curl_error($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+
+    if ($raw === false) {
+        return ['ok' => false, 'reply' => '', 'error' => $err !== '' ? $err : 'Unknown cURL error'];
+    }
+
+    $json = json_decode($raw, true);
+    if ($code < 200 || $code >= 300) {
+        $error = is_array($json) ? json_encode($json) : (string) $raw;
+        return ['ok' => false, 'reply' => '', 'error' => 'Groq HTTP ' . $code . ': ' . $error];
     }
 
     $reply = '';
@@ -170,6 +234,6 @@ function ai_generate_reply(int $patientId, string $channel, string $patientText,
         }
     }
 
-    ai_log_turn($conversationId, 'assistant', $reply, OPENAI_MODEL);
+    ai_log_turn($conversationId, 'assistant', $reply, GROQ_MODEL);
     return ['ok' => true, 'reply' => $reply, 'error' => null];
 }

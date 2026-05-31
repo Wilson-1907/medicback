@@ -84,57 +84,18 @@ function detectLanguage($text) {
     return 'en';
 }
 
-// Get AI response using OpenAI or fallback logic
+// Get AI response using Groq (OpenAI-compatible API)
 function getAIResponse($message, $language) {
-    // Try to use OpenAI API if configured
-    $openaiKey = getenv('OPENAI_API_KEY');
-    
-    if ($openaiKey && function_exists('curl_init')) {
-        return getOpenAIResponse($message, $language, $openaiKey);
+    if (!function_exists('ai_generate_reply')) {
+        require_once __DIR__ . '/../openai_assistant.php';
     }
-    
-    // Fallback to rule-based responses
+    if (ai_enabled()) {
+        $result = ai_quick_reply($message, $language);
+        if ($result['ok'] && $result['reply'] !== '') {
+            return $result['reply'];
+        }
+    }
     return getRuleBasedResponse($message, $language);
-}
-
-// OpenAI integration
-function getOpenAIResponse($message, $language, $apiKey) {
-    $systemPrompt = ($language === 'sw') 
-        ? "Wewe ni msaidizi wa afya wa hospitali ya Nyeri Level 4. Jibu maswali kuhusu afya, miadi, dalili, na huduma za hospitali. Jibu kwa Kiswahili kwa urahisi na kitaalamu."
-        : "You are a health assistant for Nyeri Level 4 Hospital. Answer questions about health, appointments, symptoms, and hospital services. Be helpful, professional, and concise.";
-    
-    $data = [
-        'model' => 'gpt-3.5-turbo',
-        'messages' => [
-            ['role' => 'system', 'content' => $systemPrompt],
-            ['role' => 'user', 'content' => $message]
-        ],
-        'temperature' => 0.7,
-        'max_tokens' => 500,
-        'presence_penalty' => 0.6
-    ];
-    
-    $ch = curl_init('https://api.openai.com/v1/chat/completions');
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json',
-        'Authorization: Bearer ' . $apiKey
-    ]);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    
-    if ($httpCode === 200) {
-        $result = json_decode($response, true);
-        return $result['choices'][0]['message']['content'] ?? getFallbackResponse($language);
-    }
-    
-    error_log("OpenAI API error: HTTP $httpCode - $response");
-    return getFallbackResponse($language);
 }
 
 // Rule-based responses (fallback when OpenAI not available)

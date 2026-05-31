@@ -49,8 +49,8 @@ For production go-live, keep sandbox values unused and fill only `AFRICASTALKING
 
 Set:
 
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL` (default `gpt-4o-mini`)
+- `GROQ_API_KEY` — Groq API key from [console.groq.com](https://console.groq.com)
+- `GROQ_MODEL` (default `llama-3.3-70b-versatile`)
 
 If key is empty, system falls back to predefined supportive responses.
 

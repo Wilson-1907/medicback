@@ -75,40 +75,134 @@ function ai_recent_messages(int $conversationId, int $limit = 10): array
 }
 
 /**
- * Get language-aware system prompt for AI
+ * Detect language/style from the patient's message text.
+ * Returns: sw | en | sheng | mixed
  */
-function ai_system_prompt(string $lang = 'en'): string
+function ai_detect_message_language(string $text, string $fallback = 'en'): string
 {
-    if (strtolower($lang) === 'sw') {
-        return 'Wewe ni msaidizi wa afya kwa ' . HOSPITAL_NAME . '. '
-            . 'Lazima ujibu kwa Kiswahili pekee. '
-            . 'KANUNI MKUU: Jibu SWALI LOLOTE linaloulizwa na mgonjwa. '
-            . 'Hakuna swali la afya lisilo sahihi. Hakuna swali "nje ya mada". '
-            . 'Magonjwa yoyote: HPV, malaria, kisukari, homa, mimba, kuumwa kichwa, maumivu ya tumbo, afya ya akili, lishe, kinga, dawa za kawaida. '
-            . 'Pia maswali kuhusu hospitali: saa za kufunguliwa, bei, taratibu, rufaa, daktari wa nani. '
-            . 'Ikiwa swali halina ugonjwa mahususi (k.m. "how can I prevent myself"), elezea kinga kwa ujumla kisha uliza: "Unataka kuzuia ugonjwa gani hasa?" '
-            . 'Ikiwa unahitaji maelezo zaidi ili kujibu vizuri, uliza maswali mafupi ya kufafanua. '
-            . 'Jibu kwa mpangilio: kwanza jibu moja kwa moja, kisha hatua za kuchukua, kisha maswali ya ziada. '
-            . 'USItambue magonjwa mapya. USIbadilishe dawa. USITOE ushauri hatari. '
-            . 'Kila wakati sisitiza kwa upole kwamba mgonjwa atembelee ' . HOSPITAL_NAME . ' kwa uchunguzi na matibabu sahihi. '
-            . 'Dalili za dharura: mwambie kutafuta daktari mara moja. '
-            . 'Mwisho wa kila jibu, uliza swali la kumhusisha kama "Unajisikiaje leo?" au "Je, una swali lingine?" '
-            . 'Wakati inafaa, toa kidokezo kifupi cha HPV au afya ili kumtia moyo mgonjwa.';
+    $text = mb_strtolower(trim($text));
+    if ($text === '') {
+        return in_array($fallback, ['sw', 'en'], true) ? $fallback : 'en';
     }
 
-    return 'You are a broad medical and hospital support assistant for ' . HOSPITAL_NAME . '. '
-        . 'MAIN RULE: Answer ANY question the patient asks — medical or hospital-related. '
-        . 'No question is out of scope. No question is wrong. '
-        . 'Topics include but are not limited to: HPV (Human Papillomavirus), cervical cancer prevention, HPV vaccination, malaria, diabetes, fever, pregnancy, headaches, stomach pain, injuries, mental health, nutrition, prevention, common medications, first aid, lab results interpretation, vaccine schedules, hygiene, symptoms of ANY disease. '
-        . 'Also hospital questions: opening hours, costs, referral process, how to see a doctor, appointment booking, which department for which problem. '
-        . 'If the question is vague (e.g., "how can I prevent myself"), explain general prevention (hygiene, safe sex, vaccination, avoid infection sources), then ask: "Which disease do you want to prevent specifically?" '
-        . 'If you need more details to give a good answer, ask 1–2 short clarifying questions (e.g., "How long?", "Any fever?", "Any other symptoms?"). '
-        . 'Answer in order: first direct answer, then actionable steps, then ask for more questions. '
-        . 'NEVER diagnose a new disease. NEVER change or prescribe medications. NEVER give dangerous advice. '
-        . 'Always gently insist that the patient visits ' . HOSPITAL_NAME . ' for proper examination and treatment. '
-        . 'If symptoms suggest emergency (chest pain, difficulty breathing, severe bleeding, sudden confusion, suicidal thoughts), say: "Seek urgent care immediately." '
-        . 'At the end of every answer, ask a warm engaging question like "How are you feeling today?" or "Do you have another question?" '
-        . 'When appropriate, share a brief HPV or wellness tip to keep the patient informed and encouraged.';
+    $tokens = preg_split('/\s+/u', preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $text) ?? '') ?: [];
+    $tokens = array_values(array_filter($tokens, static fn ($t) => mb_strlen($t) > 1));
+    if ($tokens === []) {
+        return in_array($fallback, ['sw', 'en'], true) ? $fallback : 'en';
+    }
+
+    $swWords = [
+        'habari', 'jambo', 'asante', 'sana', 'nina', 'nime', 'sijui', 'daktari', 'homa', 'pole', 'niko',
+        'mimi', 'wewe', 'tafadhali', 'sawa', 'ndio', 'hapana', 'leo', 'kesho', 'maumivu', 'afya', 'chanjo',
+        'hospitali', 'msaada', 'kwani', 'bado', 'kidogo', 'mambo', 'vizuri', 'una', 'yako', 'najisikia',
+        'naskia', 'mguu', 'kichwa', 'tumbo', 'dawa', 'mgonjwa', 'mama', 'baba', 'mtoto', 'simu', 'sijui',
+        'naweza', 'tunaweza', 'je', 'lakini', 'pia', 'sasa', 'hivi', 'hapa', 'wapi', 'nini', 'kwa', 'na',
+    ];
+    $shengWords = [
+        'niaje', 'msee', 'poa', 'fiti', 'sai', 'buda', 'bana', 'maze', 'arafu', 'vipi', 'nde', 'bro',
+        'mami', 'dem', 'form', 'score', 'kuwa', 'mbogi', 'sonko', 'mflow', 'tufanye', 'mrenga', 'mhenga',
+        'naskia', 'sasa', 'msee', 'mambo', 'poa', 'safi', 'chanuka', 'msee', 'budaa', 'msee', 'oya',
+    ];
+    $enWords = [
+        'the', 'and', 'is', 'are', 'have', 'what', 'how', 'when', 'where', 'please', 'thank', 'thanks',
+        'you', 'help', 'doctor', 'pain', 'feel', 'feeling', 'today', 'hello', 'hi', 'hey', 'my', 'can',
+        'could', 'would', 'need', 'want', 'got', 'getting', 'about', 'with', 'for', 'this', 'that', 'very',
+    ];
+
+    $sw = $sheng = $en = 0;
+    foreach ($tokens as $token) {
+        if (in_array($token, $swWords, true)) {
+            $sw++;
+        }
+        if (in_array($token, $shengWords, true)) {
+            $sheng++;
+        }
+        if (in_array($token, $enWords, true)) {
+            $en++;
+        }
+    }
+
+    if ($sheng >= 1 && ($sw >= 1 || $en >= 1)) {
+        return 'sheng';
+    }
+    if ($sheng >= 2) {
+        return 'sheng';
+    }
+    if ($sw >= 1 && $en >= 1) {
+        return 'mixed';
+    }
+    if ($sw >= 2 || ($sw >= 1 && count($tokens) <= 4)) {
+        return 'sw';
+    }
+    if ($en >= 1) {
+        return 'en';
+    }
+    if ($sw >= 1) {
+        return 'sw';
+    }
+
+    return in_array($fallback, ['sw', 'en'], true) ? $fallback : 'en';
+}
+
+/**
+ * Language-matching instructions injected into every AI system prompt.
+ */
+function ai_language_instructions(string $detectedLang): string
+{
+    $hints = [
+        'sw' => 'The patient wrote in Kiswahili. Reply entirely in natural, warm Kiswahili.',
+        'en' => 'The patient wrote in English. Reply in clear, friendly English (simple words if they used simple English).',
+        'sheng' => 'The patient is using Sheng or Kenyan street slang. Reply in the same Sheng style — informal, relatable, mix Swahili and English naturally like a local would. Examples: "poa", "sawa", "niaje" vibe.',
+        'mixed' => 'The patient is code-switching (mixing Swahili and English). Reply in the same mixed style — do NOT force pure English or pure Swahili.',
+    ];
+    $hint = $hints[$detectedLang] ?? $hints['mixed'];
+
+    return 'CRITICAL — LANGUAGE (follow this first): ' . $hint
+        . ' Always mirror the language, tone, slang, and formality of the patient\'s LATEST message. '
+        . 'If they switch to Swahili, English, Sheng, or broken/mixed text, switch with them immediately. '
+        . 'Do not correct their grammar. Keep replies short enough for SMS/WhatsApp. '
+        . 'Never reply in a different language unless the patient explicitly asks.';
+}
+
+/**
+ * Get language-aware system prompt for AI
+ */
+function ai_system_prompt(string $lang = 'en', ?string $latestUserMessage = null): string
+{
+    if ($latestUserMessage !== null && trim($latestUserMessage) !== '') {
+        $lang = ai_detect_message_language($latestUserMessage, $lang);
+    }
+
+    $languageBlock = ai_language_instructions($lang);
+
+    $core = 'You are a warm medical and hospital support assistant for ' . HOSPITAL_NAME . ' (HPV patient engagement program). '
+        . 'MAIN RULE: Answer ANY health or hospital question the patient asks. No question is wrong or out of scope. '
+        . 'Topics: HPV, cervical cancer prevention, vaccination, malaria, diabetes, fever, pregnancy, pain, mental health, nutrition, appointments, hospital services. '
+        . 'Answer in order: direct answer → simple actionable steps → warm follow-up question. '
+        . 'NEVER diagnose new conditions, change medications, or give dangerous advice. '
+        . 'Gently encourage visiting ' . HOSPITAL_NAME . ' for examination when needed. '
+        . 'Emergency symptoms (chest pain, severe bleeding, can\'t breathe): tell them to seek urgent care now. '
+        . 'End every reply with a friendly engaging question to keep the conversation going. '
+        . 'When helpful, add a brief HPV or wellness tip.';
+
+    return $languageBlock . "\n\n" . $core;
+}
+
+/**
+ * Fallback SMS when Groq is unavailable — matches detected language.
+ */
+function ai_fallback_reply(string $detectedLang): string
+{
+    if ($detectedLang === 'sw') {
+        return 'Asante kwa ujumbe wako. Tupo hapa kwako. Kwa swali lolote la kiafya, tembelea '
+            . HOSPITAL_NAME . '. Jibu DOCTOR kuongea na daktari au HELP kwa mwongozo zaidi.';
+    }
+    if ($detectedLang === 'sheng' || $detectedLang === 'mixed') {
+        return 'Poa, asante kwa kutuchat! Tuko hapa kukusupport. Kwa msaada wa afya tembelea '
+            . HOSPITAL_NAME . '. Reply DOCTOR kuongea na daktari ama HELP kwa options zaidi.';
+    }
+    return 'Thank you for your message. We are here for you. For any medical question, please visit '
+        . HOSPITAL_NAME . '. Reply DOCTOR to speak with a doctor or HELP for more options.';
 }
 
 /**
@@ -124,10 +218,12 @@ function ai_quick_reply(string $patientText, string $lang = 'en'): array
         return ['ok' => false, 'reply' => '', 'error' => 'PHP cURL extension is not enabled'];
     }
 
+    $detectedLang = ai_detect_message_language($patientText, $lang);
+
     $payload = [
         'model' => GROQ_MODEL,
         'messages' => [
-            ['role' => 'system', 'content' => ai_system_prompt($lang)],
+            ['role' => 'system', 'content' => ai_system_prompt($lang, $patientText)],
             ['role' => 'user', 'content' => $patientText],
         ],
         'temperature' => 0.7,
@@ -247,10 +343,12 @@ function ai_generate_reply(int $patientId, string $channel, string $patientText,
         return ['ok' => false, 'reply' => '', 'error' => 'PHP cURL extension is not enabled'];
     }
 
+    $detectedLang = ai_detect_message_language($patientText, $lang);
+
     $conversationId = ai_get_or_create_conversation($patientId, $channel);
     ai_log_turn($conversationId, 'user', $patientText, null);
 
-    $messages = [['role' => 'system', 'content' => ai_system_prompt($lang)]];
+    $messages = [['role' => 'system', 'content' => ai_system_prompt($lang, $patientText)]];
     foreach (ai_recent_messages($conversationId, 12) as $m) {
         $messages[] = $m;
     }
@@ -295,11 +393,7 @@ function ai_generate_reply(int $patientId, string $channel, string $patientText,
         $reply = trim((string) $json['choices'][0]['message']['content']);
     }
     if ($reply === '') {
-        if ($lang === 'sw') {
-            $reply = 'Asante kwa kuitikia. Tupo hapa kwako. Jibu DOCTOR kwa msaada wa hospitali.';
-        } else {
-            $reply = 'Thank you for reaching out. We are here for you. Reply DOCTOR for direct hospital support.';
-        }
+        $reply = ai_fallback_reply($detectedLang);
     }
 
     ai_log_turn($conversationId, 'assistant', $reply, GROQ_MODEL);

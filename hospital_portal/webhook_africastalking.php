@@ -157,9 +157,10 @@ error_log("PARSED: from=$from, channel=$channel, body=$body");
 
 $patient = find_patient_by_phone($from);
 $patientId = $patient ? (int) $patient['id'] : null;
-$lang = $patient && strtolower((string) ($patient['preferred_language'] ?? 'en')) === 'sw' ? 'sw' : 'en';
+$registeredLang = $patient && strtolower((string) ($patient['preferred_language'] ?? 'en')) === 'sw' ? 'sw' : 'en';
+$lang = ai_detect_message_language($body, $registeredLang);
 
-error_log("PATIENT_LOOKUP: patientId=$patientId, lang=$lang, name=" . ($patient['full_name'] ?? 'N/A'));
+error_log("PATIENT_LOOKUP: patientId=$patientId, registeredLang=$registeredLang, detectedLang=$lang, name=" . ($patient['full_name'] ?? 'N/A'));
 
 save_inbound($patientId, $channel, $from, $body, $payload);
 
@@ -191,8 +192,8 @@ if (str_contains($msg, 'DOCTOR') || str_contains($msg, 'DAKTARI')) {
 }
 
 // Every received message from a patient is answered by the AI assistant.
-error_log("WEBHOOK_ACTION: Routing to AI");
-$ai = ai_generate_reply($patientId, $channel, $body, $lang);
+error_log("WEBHOOK_ACTION: Routing to AI (detected lang=$lang)");
+$ai = ai_generate_reply($patientId, $channel, $body, $registeredLang);
 error_log("AI_RESPONSE: ok=" . ($ai['ok'] ? 'true' : 'false') . ", error=" . ($ai['error'] ?? 'none'));
 
 if ($ai['ok'] && !empty($ai['reply'])) {
@@ -205,18 +206,6 @@ if ($ai['ok'] && !empty($ai['reply'])) {
 
 // Fallback only when AI is unavailable (no key / API error): never leave a patient unanswered.
 error_log("WEBHOOK_ACTION: Using fallback reply; AI error=" . ($ai['error'] ?? 'unknown'));
-if ($lang === 'sw') {
-    send_patient_message(
-        $patientId,
-        'system',
-        'Asante kwa ujumbe wako. Tupo hapa kwako. Kwa swali lolote la kiafya, tafadhali tembelea ' . HOSPITAL_NAME . '. Jibu DOCTOR kuongea na daktari au HELP kwa mwongozo zaidi.'
-    );
-} else {
-    send_patient_message(
-        $patientId,
-        'system',
-        'Thank you for your message. We are here for you. For any medical question, please visit ' . HOSPITAL_NAME . '. Reply DOCTOR to speak with a doctor or HELP for more options.'
-    );
-}
+send_patient_message($patientId, 'system', ai_fallback_reply($lang));
 error_log("WEBHOOK_EXIT: Fallback reply sent");
 echo 'OK';

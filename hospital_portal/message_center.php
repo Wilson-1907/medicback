@@ -206,7 +206,7 @@ layout_header('Message center');
             <td><?= h($m['created_at']) ?></td>
             <td><?= h($m['full_name']) ?></td>
             <td><?= h($m['channel']) ?></td>
-            <td><?= h($m['message_type']) ?></td>
+            <td><?= h($m['message_type'] === 'ai_reply' ? 'AI' : $m['message_type']) ?></td>
             <td><?= h($m['status']) ?></td>
             <td><?= nl2br(h((string) $m['body'])) ?></td>
             <td><?= h((string) ($m['error_detail'] ?? '')) ?></td>

@@ -129,6 +129,7 @@ CREATE TABLE outbound_messages (
                       'appointment_reminder',
                       'education_menu',
                       'system',
+                      'ai_reply',
                       'escalation_notice'
                     ) NOT NULL,
   body            TEXT NOT NULL,

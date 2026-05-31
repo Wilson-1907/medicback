@@ -16,13 +16,26 @@ try {
     ];
 
     $recent = $pdo->query(
-        'SELECT id, full_name, status, registration_at
+        'SELECT id, full_name, status, preferred_language, registration_at
          FROM patients
          ORDER BY registration_at DESC
          LIMIT 10'
     )->fetchAll();
 
-    api_json(['ok' => true, 'stats' => $stats, 'recent' => $recent]);
+    $appointments = $pdo->query(
+        "SELECT a.id, a.patient_id, p.full_name, a.department, a.provider_name,
+                a.scheduled_start, a.scheduled_end, a.location, a.status,
+                (SELECT e.reason FROM appointment_reschedule_events e
+                 WHERE e.appointment_id = a.id ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS reason
+         FROM appointments a
+         INNER JOIN patients p ON p.id = a.patient_id
+         WHERE a.status IN ('proposed','confirmed')
+           AND a.scheduled_start >= NOW()
+         ORDER BY a.scheduled_start ASC
+         LIMIT 12"
+    )->fetchAll();
+
+    api_json(['ok' => true, 'stats' => $stats, 'recent' => $recent, 'appointments' => $appointments]);
 } catch (Throwable $e) {
     api_json(['ok' => false, 'error' => $e->getMessage()], 500);
 }

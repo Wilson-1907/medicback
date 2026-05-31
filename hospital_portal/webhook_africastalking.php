@@ -197,7 +197,7 @@ error_log("AI_RESPONSE: ok=" . ($ai['ok'] ? 'true' : 'false') . ", error=" . ($a
 
 if ($ai['ok'] && !empty($ai['reply'])) {
     error_log("WEBHOOK_ACTION: Sending AI reply: " . substr($ai['reply'], 0, 100) . "...");
-    send_patient_message($patientId, 'system', $ai['reply']);
+    send_patient_message($patientId, 'ai_reply', $ai['reply']);
     error_log("WEBHOOK_EXIT: AI reply sent");
     echo 'OK';
     exit;

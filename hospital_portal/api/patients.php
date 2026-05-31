@@ -8,8 +8,58 @@ try {
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
     if ($method === 'GET') {
+        $id = (int) ($_GET['id'] ?? 0);
+        if ($id > 0) {
+            $st = $pdo->prepare(
+                'SELECT id, full_name, date_of_birth, preferred_language, external_mrn, notes, status, registration_at
+                 FROM patients WHERE id = ? LIMIT 1'
+            );
+            $st->execute([$id]);
+            $patient = $st->fetch();
+            if (!$patient) {
+                api_json(['ok' => false, 'error' => 'Patient not found'], 404);
+            }
+
+            $contacts = $pdo->prepare(
+                'SELECT channel, address, is_primary, opted_in
+                 FROM contact_channels WHERE patient_id = ? ORDER BY is_primary DESC, id ASC'
+            );
+            $contacts->execute([$id]);
+            $patient['contacts'] = $contacts->fetchAll();
+
+            $appts = $pdo->prepare(
+                "SELECT a.id, a.department, a.provider_name, a.scheduled_start, a.scheduled_end,
+                        a.location, a.status,
+                        (SELECT e.reason FROM appointment_reschedule_events e
+                         WHERE e.appointment_id = a.id ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS reason
+                 FROM appointments a
+                 WHERE a.patient_id = ?
+                 ORDER BY a.scheduled_start DESC
+                 LIMIT 20"
+            );
+            $appts->execute([$id]);
+            $patient['appointments'] = $appts->fetchAll();
+
+            $esc = $pdo->prepare(
+                'SELECT id, reason, urgency, status, created_at
+                 FROM escalations WHERE patient_id = ? ORDER BY created_at DESC LIMIT 10'
+            );
+            $esc->execute([$id]);
+            $patient['escalations'] = $esc->fetchAll();
+
+            $dcr = $pdo->prepare(
+                'SELECT id, reason, status, requested_at, updated_at
+                 FROM doctor_call_requests WHERE patient_id = ? LIMIT 1'
+            );
+            $dcr->execute([$id]);
+            $patient['doctor_call_request'] = $dcr->fetch() ?: null;
+
+            api_json(['ok' => true, 'patient' => $patient]);
+        }
+
         $q = trim((string) ($_GET['q'] ?? ''));
-        $sql = 'SELECT p.id, p.full_name, p.status, p.registration_at,
+        $sql = 'SELECT p.id, p.full_name, p.status, p.registration_at, p.preferred_language,
+                (SELECT cc.address FROM contact_channels cc WHERE cc.patient_id = p.id AND cc.is_primary = 1 LIMIT 1) AS phone,
                 (SELECT cc.channel FROM contact_channels cc WHERE cc.patient_id = p.id AND cc.is_primary = 1 LIMIT 1) AS primary_channel
                 FROM patients p';
         $args = [];

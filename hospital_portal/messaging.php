@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/afya_rafiki_content.php';
 
 function messaging_enabled(): bool
 {
@@ -181,30 +182,10 @@ function get_patient_language(int $patientId): string
     return in_array($lang, ['en', 'sw']) ? $lang : 'en';
 }
 
-/**
- * AFYA RAFIKI - Welcome message with full intro
- */
-function build_welcome_message(string $patientName, string $lang = 'en'): string
+function send_afya_enrollment_messages(int $patientId, string $patientName, string $lang = 'en'): void
 {
-    if ($lang === 'sw') {
-        return "Karibu kwenye Afya Rafiki, {$patientName}! 🏥\n"
-            . "Tuko hapa kukusaidia baada ya majibu yako ya uchaguzi wa saratani ya Kila mwezi.\n\n"
-            . "Huduma hii itakutumia:\n"
-            . "✓ Taarifa za afya kamili\n"
-            . "✓ Vikumbusho vya miadi\n"
-            . "✓ Mwongozo wa huduma ya ufuatiliaji\n\n"
-            . "Taarifa zako zitahifadhiwa Kwa siri. Tupo hapa kwako!\n"
-            . "Jibu HELP kwa huduma zaidi.";
-    }
-    
-    return "Welcome to Afya Rafiki, {$patientName}! 🏥\n"
-        . "We are here to support you after your screening results.\n\n"
-        . "This service will provide:\n"
-        . "✓ Health information\n"
-        . "✓ Appointment reminders\n"
-        . "✓ Follow-up care guidance\n\n"
-        . "Your information will remain confidential. We are here for you!\n"
-        . "Reply HELP for more support.";
+    send_patient_message($patientId, 'welcome', build_welcome_message($patientName, $lang));
+    send_patient_message($patientId, 'system', build_consent_message($lang));
 }
 
 function build_appointment_message(string $patientName, array $appointment, string $lang = 'en'): string
@@ -295,19 +276,7 @@ function build_appointment_change_message(string $patientName, array $appointmen
 
 function build_engagement_menu_message(string $lang = 'en'): string
 {
-    if ($lang === 'sw') {
-        return "Kuendelea na huduma yako katika " . HOSPITAL_NAME . ":\n"
-            . "1) Dalili za onyo za afya\n"
-            . "2) Vidokezo vya kujaga afya\n"
-            . "3) Msaada wa miadi\n"
-            . "4) Sema na timu ya hospitali";
-    }
-    
-    return "Stay active with your care at " . HOSPITAL_NAME . ":\n"
-        . "1) Health warning signs\n"
-        . "2) Prevention tips\n"
-        . "3) Appointment help\n"
-        . "4) Talk to hospital team";
+    return build_help_menu_message($lang);
 }
 
 function build_appointment_reminder_message(
@@ -316,8 +285,16 @@ function build_appointment_reminder_message(
     string $reason,
     int $reminderNumber,
     int $totalReminders = 3,
-    string $lang = 'en'
+    string $lang = 'en',
+    string $reminderKind = ''
 ): string {
+    if ($reminderKind === '7d') {
+        return build_reminder_7d_message($patientName, $appointment, $lang);
+    }
+    if ($reminderKind === 'night' || $reminderKind === '1d') {
+        return build_reminder_1d_message($lang);
+    }
+
     if ($lang === 'sw') {
         $prefix = $reminderNumber === 1 ? 'Maelezo ya miadi' : ('Ukumbusho wa miadi ' . $reminderNumber . '/' . $totalReminders);
         $parts = [];
@@ -424,12 +401,18 @@ function should_send_engagement_message(int $patientId): bool
  */
 function send_random_engagement_message(int $patientId): bool
 {
+    if (!patient_has_confirmed_consent($patientId)) {
+        return false;
+    }
     if (!should_send_engagement_message($patientId)) {
         return false;
     }
 
+    $lang = get_patient_language($patientId);
+    $counseling = get_next_counseling_message($patientId, $lang);
+    $type = $counseling !== null ? 'education_menu' : 'engagement_boost';
     $body = build_engagement_boost_message($patientId);
-    return send_patient_message($patientId, 'engagement_boost', $body);
+    return send_patient_message($patientId, $type, $body);
 }
 
 /**
@@ -438,6 +421,12 @@ function send_random_engagement_message(int $patientId): bool
 function build_engagement_boost_message(int $patientId): string
 {
     $lang = get_patient_language($patientId);
+
+    $counseling = get_next_counseling_message($patientId, $lang);
+    if ($counseling !== null) {
+        return $counseling;
+    }
+
     $st = db()->prepare('SELECT full_name FROM patients WHERE id = ? LIMIT 1');
     $st->execute([$patientId]);
     $name = (string) ($st->fetch()['full_name'] ?? '');

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/messaging.php';
+require_once __DIR__ . '/afya_rafiki_content.php';
 require_once __DIR__ . '/openai_assistant.php';
 
 /**
@@ -179,15 +180,65 @@ if (!$patientId) {
 }
 
 $msg = strtoupper(trim($body));
+$replyLang = $lang === 'sw' ? 'sw' : 'en';
 
-// Side-effect: when a patient asks for a doctor/call, log a call request so staff can
-// follow up. The patient still receives an AI-generated reply below.
-if (str_contains($msg, 'DOCTOR') || str_contains($msg, 'DAKTARI')) {
-    error_log("WEBHOOK_ACTION: Doctor request detected, logging call request");
-    create_doctor_call_request($patientId, 'Patient requested direct doctor contact via ' . $channel);
+// --- Consent confirmation (Afya Rafiki enrollment) ---
+if (patient_awaiting_consent($patientId)) {
+    if (is_consent_yes_reply($body)) {
+        record_consent_yes($patientId, $channel);
+        $counseling = get_next_counseling_message($patientId, $replyLang);
+        if ($counseling !== null) {
+            send_patient_message($patientId, 'education_menu', $counseling);
+        }
+        $ack = $replyLang === 'sw'
+            ? 'Asante. Utaendelea kupokea ujumbe wa Afya Rafiki. Jibu HELP kwa maswali au DOCTOR kwa mhudumu wa afya.'
+            : 'Thank you. You will continue receiving Afya Rafiki messages. Reply HELP for questions or DOCTOR for a provider.';
+        send_patient_message($patientId, 'system', $ack);
+        echo 'OK';
+        exit;
+    }
+    if (is_consent_no_reply($body)) {
+        record_consent_no($patientId, $channel);
+        $ack = $replyLang === 'sw'
+            ? 'Umechagua kusitopokea ujumbe. Unaweza kuwasiliana na kliniki yako moja kwa moja wakati wowote.'
+            : 'You have chosen not to receive messages. You can contact your clinic directly anytime.';
+        send_patient_message($patientId, 'system', $ack);
+        echo 'OK';
+        exit;
+    }
 }
 
-// Every received message from a patient is answered by the AI assistant.
+// --- Rule-based FAQ / HELP menu ---
+$faqReply = afya_faq_reply($body, $replyLang);
+if ($faqReply !== null) {
+    send_patient_message($patientId, 'system', $faqReply);
+    echo 'OK';
+    exit;
+}
+
+// --- Escalation triggers (symptoms, distress, missed visit, complex clinical) ---
+$escalation = afya_escalation_check($body);
+if ($escalation['escalate']) {
+    create_escalation($patientId, $escalation['reason'], $escalation['urgency']);
+    if (preg_match('/\b(missed|sikuhudhuria|nilikosa)\b/ui', $body)) {
+        send_patient_message($patientId, 'escalation_notice', build_missed_appointment_message($replyLang));
+    } else {
+        send_patient_message($patientId, 'escalation_notice', build_escalation_reply($replyLang));
+    }
+    echo 'OK';
+    exit;
+}
+
+// Side-effect: when a patient asks for a doctor/call, log a call request so staff can follow up.
+if (str_contains($msg, 'DOCTOR') || str_contains($msg, 'DAKTARI') || $msg === '5') {
+    error_log("WEBHOOK_ACTION: Doctor request detected, logging call request");
+    create_doctor_call_request($patientId, 'Patient requested direct provider contact via ' . $channel);
+    send_patient_message($patientId, 'escalation_notice', build_escalation_reply($replyLang));
+    echo 'OK';
+    exit;
+}
+
+// --- AI conversational support (mirrors patient language) ---
 error_log("WEBHOOK_ACTION: Routing to AI (detected lang=$lang)");
 $ai = ai_generate_reply($patientId, $channel, $body, $registeredLang);
 error_log("AI_RESPONSE: ok=" . ($ai['ok'] ? 'true' : 'false') . ", error=" . ($ai['error'] ?? 'none'));

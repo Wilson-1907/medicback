@@ -46,7 +46,7 @@ function process_due_appointment_reminders(): array
                 'department' => $r['department'],
                 'provider_name' => $r['provider_name'],
                 'location' => $r['location'],
-            ], (string) ($r['latest_reason'] ?? ''), $ordinal, 3, $lang);
+            ], (string) ($r['latest_reason'] ?? ''), $ordinal, 3, $lang, $key);
             if (send_patient_message((int) $r['patient_id'], 'appointment_reminder', $msg)) {
                 mark_reminder_sent((int) $r['id'], $cfg['column']);
                 $sent[$key]++;

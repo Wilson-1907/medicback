@@ -54,14 +54,17 @@ Backend and staff UI for the PHV engagement pilot.
 - Delivery reports:
   - `/webhook_delivery_report.php`
 
-Supported inbound patient keywords:
+**Afya Rafiki** patient SMS/WhatsApp flow:
 
-- `HELP` / `MENU` / `0` -> education menu
-- `1` -> PHV warning signs
-- `2` -> prevention tips
-- `DOCTOR` / `4` -> escalation to hospital team
-- Messages containing `PHV` -> direct PHV explanation
-- `HI` / `HELLO` -> guided PHV prompt
+1. Welcome message on enrollment
+2. Consent (`1` YES / `2` NO)
+3. HPV counseling sequence (9 messages, dripped every 3+ days)
+4. Appointment reminders (7 days and night-before)
+5. FAQ menu via `HELP` (`1`–`3` HPV questions, `4` appointments, `5`/`DOCTOR` provider)
+6. Auto-escalation for urgent symptoms, distress, missed visits, complex clinical questions
+7. Groq AI for open conversation (matches Swahili, English, Sheng, mixed)
+
+Env: `AFYA_RAFIKI_NAME`, `CLINIC_SITE_NAME` (default: Nyeri town health center)
 
 ## 5.1) Reminder scheduler endpoint
 

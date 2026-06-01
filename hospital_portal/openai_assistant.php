@@ -195,15 +195,14 @@ function ai_system_prompt(string $lang = 'en', ?string $latestUserMessage = null
 
     $languageBlock = ai_language_instructions($lang);
 
-    $core = 'You are a warm medical and hospital support assistant for ' . HOSPITAL_NAME . ' (HPV patient engagement program). '
-        . 'MAIN RULE: Answer ANY health or hospital question the patient asks. No question is wrong or out of scope. '
-        . 'Topics: HPV, cervical cancer prevention, vaccination, malaria, diabetes, fever, pregnancy, pain, mental health, nutrition, appointments, hospital services. '
-        . 'Answer in order: direct answer → simple actionable steps → warm follow-up question. '
-        . 'NEVER diagnose new conditions, change medications, or give dangerous advice. '
-        . 'Gently encourage visiting ' . HOSPITAL_NAME . ' for examination when needed. '
-        . 'Emergency symptoms (chest pain, severe bleeding, can\'t breathe): tell them to seek urgent care now. '
-        . 'End every reply with a friendly engaging question to keep the conversation going. '
-        . 'When helpful, add a brief HPV or wellness tip.';
+    if (!function_exists('afya_ai_personality_block')) {
+        require_once __DIR__ . '/afya_rafiki_content.php';
+    }
+
+    $core = afya_ai_personality_block()
+        . ' Answer the patient\'s health question in order: direct answer → simple actionable steps → warm follow-up question. '
+        . 'Topics include HPV, VIA, Thermal Ablation, follow-up screening, appointments at ' . afya_clinic_site() . ', and general wellness. '
+        . 'End with a short encouraging question when appropriate.';
 
     return $languageBlock . "\n\n" . $core;
 }
@@ -230,16 +229,14 @@ function ai_unlinked_reply(string $detectedLang): string
  */
 function ai_fallback_reply(string $detectedLang): string
 {
+    $bot = defined('AFYA_RAFIKI_NAME') ? AFYA_RAFIKI_NAME : 'Afya Rafiki';
     if ($detectedLang === 'sw') {
-        return 'Asante kwa ujumbe wako. Tupo hapa kwako. Kwa swali lolote la kiafya, tembelea '
-            . HOSPITAL_NAME . '. Jibu DOCTOR kuongea na daktari au HELP kwa mwongozo zaidi.';
+        return "Asante kwa ujumbe wako. {$bot} iko hapa kukusaidia. Jibu HELP kwa maswali au DOCTOR kwa mhudumu wa afya.";
     }
     if ($detectedLang === 'sheng' || $detectedLang === 'mixed') {
-        return 'Poa, asante kwa kutuchat! Tuko hapa kukusupport. Kwa msaada wa afya tembelea '
-            . HOSPITAL_NAME . '. Reply DOCTOR kuongea na daktari ama HELP kwa options zaidi.';
+        return "Poa, asante! {$bot} iko hapa. Reply HELP kwa maswali ama DOCTOR kwa mhudumu wa afya.";
     }
-    return 'Thank you for your message. We are here for you. For any medical question, please visit '
-        . HOSPITAL_NAME . '. Reply DOCTOR to speak with a doctor or HELP for more options.';
+    return "Thank you for your message. {$bot} is here for you. Reply HELP for questions or DOCTOR for a provider.";
 }
 
 /**
@@ -321,9 +318,13 @@ function ai_engagement_reply(string $patientName, string $lang = 'en'): array
     $topic = $topics[array_rand($topics)];
     $greeting = $patientName !== '' ? $patientName : ($lang === 'sw' ? 'rafiki' : 'friend');
 
+    if (!function_exists('afya_ai_personality_block')) {
+        require_once __DIR__ . '/afya_rafiki_content.php';
+    }
+    $personality = afya_ai_personality_block();
     $system = $lang === 'sw'
-        ? 'Wewe ni msaidizi wa afya wa programu ya HPV kwa ' . HOSPITAL_NAME . '. Andika ujumbe mfupi wa SMS (herufi 280 tu). Mtie moyo, toa kidokezo kimoja cha afya, mwisho uliza swali la kumhusisha. Usitumie HTML.'
-        : 'You are a warm HPV care assistant for ' . HOSPITAL_NAME . '. Write a short SMS (max 280 chars). Be encouraging, include one health tip, end with an engaging question. No HTML.';
+        ? $personality . ' Andika ujumbe mfupi wa SMS (herufi 280 tu). Mtie moyo kuhusu ufuatiliaji wa HPV. Usitumie HTML.'
+        : $personality . ' Write a short SMS (max 280 chars). Encourage HPV follow-up care. No HTML.';
 
     $user = $lang === 'sw'
         ? "Andika ujumbe wa kumtia moyo mgonjwa {$greeting} kuhusu: {$topic}."

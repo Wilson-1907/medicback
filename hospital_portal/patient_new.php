@@ -72,8 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->commit();
                 if ($optIn) {
                     try {
-                        send_patient_message($pid, 'welcome', build_welcome_message($name, $lang));
-                        send_patient_message($pid, 'education_menu', build_engagement_menu_message($lang));
+                        send_afya_enrollment_messages($pid, $name, $lang);
                     } catch (Throwable $msgErr) {
                         error_log('Warning: Failed to send welcome messages: ' . $msgErr->getMessage());
                         // Don't fail registration if messaging fails

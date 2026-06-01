@@ -58,7 +58,7 @@ Backend and staff UI for the PHV engagement pilot.
 
 1. Welcome message on enrollment
 2. Consent (`1` YES / `2` NO) → thank-you + “results will be sent here” → **3 minutes later** one neutral encouragement (no positive/negative yet)
-3. Staff records **HPV positive or negative**, then **Confirm & notify** → patient gets result SMS + pathway (9 messages if positive, 6 if negative, dripped every 3+ days)
+3. Staff records **HPV positive or negative**, then **Confirm & notify** → result SMS now; follow-up messages drip on a gentle timeline (**3 hours**, then **5 hours**, then **1 day** between each message — not all at once). Positive pathway: 12 steps; negative: 6 steps.
 
 Run migration: `sql/2026_05_31_hpv_result_workflow.sql`
 

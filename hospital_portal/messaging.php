@@ -401,20 +401,14 @@ function send_random_engagement_message(int $patientId): bool
     if (!patient_has_confirmed_consent($patientId)) {
         return false;
     }
+    require_once __DIR__ . '/hpv_results.php';
+    if (!hpv_counseling_pathway_complete($patientId)) {
+        return false;
+    }
     if (!should_send_engagement_message($patientId)) {
         return false;
     }
 
-    $lang = get_patient_language($patientId);
-    $counseling = get_next_counseling_message($patientId, $lang);
-    if ($counseling !== null) {
-        $ok = send_patient_message($patientId, 'education_menu', $counseling);
-        if ($ok && function_exists('advance_hpv_counseling_index')) {
-            require_once __DIR__ . '/hpv_results.php';
-            advance_hpv_counseling_index($patientId);
-        }
-        return $ok;
-    }
     $body = build_engagement_boost_message($patientId);
     return send_patient_message($patientId, 'engagement_boost', $body);
 }
@@ -425,11 +419,6 @@ function send_random_engagement_message(int $patientId): bool
 function build_engagement_boost_message(int $patientId): string
 {
     $lang = get_patient_language($patientId);
-
-    $counseling = get_next_counseling_message($patientId, $lang);
-    if ($counseling !== null) {
-        return $counseling;
-    }
 
     $st = db()->prepare('SELECT full_name FROM patients WHERE id = ? LIMIT 1');
     $st->execute([$patientId]);

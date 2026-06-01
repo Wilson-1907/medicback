@@ -74,6 +74,7 @@ function set_patient_hpv_result(int $patientId, string $result, string $recorded
          WHERE id = ?'
     );
     $st->execute([$result, $patientId]);
+    cancel_queued_counseling_schedule($patientId);
 
     $dx = db()->prepare(
         'INSERT INTO diagnosis_results (patient_id, diagnosis_label, severity, result_summary, recorded_by)
@@ -128,11 +129,7 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
         build_hpv_result_notification($name, $result, $lang)
     );
 
-    $first = get_next_counseling_message($patientId, $lang);
-    if ($first !== null) {
-        send_patient_message($patientId, 'education_menu', $first);
-        advance_hpv_counseling_index($patientId);
-    }
+    $scheduled = schedule_hpv_counseling_step($patientId, hpv_delay_before_counseling_index(0));
 
     $dx = db()->prepare(
         'INSERT INTO diagnosis_results (patient_id, diagnosis_label, severity, result_summary, recorded_by)
@@ -149,8 +146,108 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
     return [
         'ok' => true,
         'hpv_screening_result' => $result,
-        'counseling_started' => $first !== null,
+        'counseling_started' => $scheduled,
+        'first_followup_in' => hpv_delay_before_counseling_index(0),
     ];
+}
+
+/** Delay before sending counseling message at this index (0 = first message after confirm). */
+function hpv_delay_before_counseling_index(int $index): string
+{
+    return match ($index) {
+        0 => '+3 hours',
+        1 => '+5 hours',
+        default => '+1 day',
+    };
+}
+
+function hpv_counseling_message_count(int $patientId): int
+{
+    $row = get_patient_hpv_row($patientId);
+    if (!$row) {
+        return 0;
+    }
+    $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
+    $result = (string) ($row['hpv_screening_result'] ?? '');
+    if ($result === 'positive') {
+        return count(afya_counseling_messages_positive($lang));
+    }
+    if ($result === 'negative') {
+        return count(afya_counseling_messages_negative($lang));
+    }
+    return 0;
+}
+
+function hpv_counseling_pathway_complete(int $patientId): bool
+{
+    if (!patient_hpv_results_confirmed($patientId)) {
+        return false;
+    }
+    return get_hpv_counseling_index($patientId) >= hpv_counseling_message_count($patientId);
+}
+
+function get_counseling_message_at_index(int $patientId, int $index, ?string $lang = null): ?string
+{
+    if (!patient_hpv_results_confirmed($patientId)) {
+        return null;
+    }
+    $row = get_patient_hpv_row($patientId);
+    if (!$row) {
+        return null;
+    }
+    if ($lang === null) {
+        $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
+    }
+    $result = (string) ($row['hpv_screening_result'] ?? '');
+    $messages = $result === 'positive'
+        ? afya_counseling_messages_positive($lang)
+        : ($result === 'negative' ? afya_counseling_messages_negative($lang) : []);
+    return $messages[$index] ?? null;
+}
+
+function cancel_queued_counseling_schedule(int $patientId): void
+{
+    if (!scheduled_messages_has_counseling_chain_column()) {
+        return;
+    }
+    db()->prepare(
+        "UPDATE scheduled_messages SET status = 'cancelled'
+         WHERE patient_id = ? AND status = 'queued' AND triggers_counseling_chain = 1"
+    )->execute([$patientId]);
+}
+
+/** Schedule the counseling message at the patient's current index. */
+function schedule_hpv_counseling_step(int $patientId, string $delayExpression): bool
+{
+    if (!patient_hpv_results_confirmed($patientId)) {
+        return false;
+    }
+    if (hpv_counseling_pathway_complete($patientId)) {
+        return false;
+    }
+    $row = get_patient_hpv_row($patientId);
+    if (!$row) {
+        return false;
+    }
+    $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
+    $index = get_hpv_counseling_index($patientId);
+    $msg = get_counseling_message_at_index($patientId, $index, $lang);
+    if ($msg === null) {
+        return false;
+    }
+    schedule_patient_message($patientId, 'education_menu', $msg, $delayExpression, true);
+    return true;
+}
+
+/** Called by cron after each scheduled counseling SMS is sent. */
+function hpv_on_counseling_step_sent(int $patientId): void
+{
+    advance_hpv_counseling_index($patientId);
+    if (hpv_counseling_pathway_complete($patientId)) {
+        return;
+    }
+    $nextIndex = get_hpv_counseling_index($patientId);
+    schedule_hpv_counseling_step($patientId, hpv_delay_before_counseling_index($nextIndex));
 }
 
 function get_hpv_counseling_index(int $patientId): int

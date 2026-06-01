@@ -113,6 +113,7 @@ define('APP_NAME', env_value('APP_NAME', 'HPV Hospital Console'));
 define('HOSPITAL_NAME', env_value('HOSPITAL_NAME', 'Your Hospital'));
 define('AFYA_RAFIKI_NAME', env_value('AFYA_RAFIKI_NAME', 'Afya Rafiki'));
 define('CLINIC_SITE_NAME', env_value('CLINIC_SITE_NAME', 'Nyeri town health center'));
+define('WIPE_DATA_PASSWORD', env_value('WIPE_DATA_PASSWORD', 'Adminpass'));
 define('AFRICASTALKING_MODE', env_value('AFRICASTALKING_MODE', 'sandbox'));
 define('AFRICASTALKING_USERNAME', env_by_mode(
     AFRICASTALKING_MODE,

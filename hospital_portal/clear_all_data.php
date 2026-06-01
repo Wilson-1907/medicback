@@ -2,23 +2,33 @@
 declare(strict_types=1);
 
 /**
- * Wipe all rows from every table in the configured database.
- * Keeps schema intact. Requires CRON_SECRET when set on the server.
- *
- * GET /clear_all_data.php?key=<CRON_SECRET>&confirm=yes
+ * Wipe all rows from every table (schema kept).
+ * GET /clear_all_data.php?confirm=yes
+ * Auth: CRON_SECRET (if set) OR password=Adminpass (override via WIPE_DATA_PASSWORD env)
  */
-require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/data_wipe.php';
 
 header('Content-Type: application/json; charset=UTF-8');
+
+$authorized = false;
 
 $cronSecret = getenv('CRON_SECRET') ?: '';
 if ($cronSecret !== '') {
     $provided = (string) ($_GET['key'] ?? $_SERVER['HTTP_X_CRON_SECRET'] ?? '');
-    if (!hash_equals($cronSecret, $provided)) {
-        http_response_code(401);
-        echo json_encode(['ok' => false, 'error' => 'Unauthorized'], JSON_UNESCAPED_UNICODE);
-        exit;
+    if (hash_equals($cronSecret, $provided)) {
+        $authorized = true;
     }
+}
+
+$password = (string) ($_GET['password'] ?? $_POST['password'] ?? '');
+if (!$authorized && wipe_data_password_valid($password)) {
+    $authorized = true;
+}
+
+if (!$authorized) {
+    http_response_code(401);
+    echo json_encode(['ok' => false, 'error' => 'Unauthorized'], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 if (($_GET['confirm'] ?? '') !== 'yes') {
@@ -31,41 +41,9 @@ if (($_GET['confirm'] ?? '') !== 'yes') {
 }
 
 try {
-    $pdo = db();
-    $dbName = DB_NAME;
-
-    $tablesStmt = $pdo->query(
-        'SELECT TABLE_NAME FROM information_schema.TABLES
-         WHERE TABLE_SCHEMA = ' . $pdo->quote($dbName) . '
-         ORDER BY TABLE_NAME'
-    );
-    $tables = $tablesStmt->fetchAll(PDO::FETCH_COLUMN);
-
-    $before = [];
-    foreach ($tables as $table) {
-        $count = (int) $pdo->query('SELECT COUNT(*) FROM `' . str_replace('`', '``', $table) . '`')->fetchColumn();
-        $before[$table] = $count;
-    }
-
-    $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
-    foreach ($tables as $table) {
-        $pdo->exec('TRUNCATE TABLE `' . str_replace('`', '``', $table) . '`');
-    }
-    $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
-
-    $after = [];
-    foreach ($tables as $table) {
-        $after[$table] = (int) $pdo->query('SELECT COUNT(*) FROM `' . str_replace('`', '``', $table) . '`')->fetchColumn();
-    }
-
-    echo json_encode([
-        'ok' => true,
-        'database' => $dbName,
-        'tables_cleared' => count($tables),
-        'before' => $before,
-        'after' => $after,
-        'timestamp' => date('c'),
-    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $result = wipe_all_database_tables();
+    $result['timestamp'] = date('c');
+    echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (Throwable $e) {
     error_log('clear_all_data error: ' . $e->getMessage());
     http_response_code(500);

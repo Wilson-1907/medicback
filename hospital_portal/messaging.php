@@ -288,11 +288,8 @@ function build_appointment_reminder_message(
     string $lang = 'en',
     string $reminderKind = ''
 ): string {
-    if ($reminderKind === '7d') {
-        return build_reminder_7d_message($patientName, $appointment, $lang);
-    }
-    if ($reminderKind === 'night' || $reminderKind === '1d') {
-        return build_reminder_1d_message($lang);
+    if (in_array($reminderKind, ['7d', '3d', 'night', '1d'], true)) {
+        return build_afya_appointment_reminder($reminderKind, $patientName, $appointment, $lang);
     }
 
     if ($lang === 'sw') {
@@ -455,20 +452,10 @@ function send_appointment_bundle_messages(
 {
     $lang = get_patient_language($patientId);
     
+    // Booking confirmation only; 7d / 3d / night-before reminders are sent by cron_run_reminders.php.
     send_patient_message(
         $patientId,
         'appointment_reminder',
         build_appointment_change_message($patientName, $appointment, $reason, $isUpdate, $lang)
     );
-    send_patient_message(
-        $patientId,
-        'appointment_reminder',
-        build_appointment_reminder_message($patientName, $appointment, $reason, 2, 3, $lang)
-    );
-    send_patient_message(
-        $patientId,
-        'appointment_reminder',
-        build_appointment_reminder_message($patientName, $appointment, $reason, 3, 3, $lang)
-    );
-    send_patient_message($patientId, 'education_menu', build_engagement_menu_message($lang));
 }

@@ -59,7 +59,7 @@ Backend and staff UI for the PHV engagement pilot.
 1. Welcome message on enrollment
 2. Consent (`1` YES / `2` NO)
 3. HPV counseling sequence (9 messages, dripped every 3+ days)
-4. Appointment reminders (7 days and night-before)
+4. Appointment reminders (**7-day**, **3-day**, and **night-before / 1-day**) via `/cron_run_reminders.php`
 5. FAQ menu via `HELP` (`1`–`3` HPV questions, `4` appointments, `5`/`DOCTOR` provider)
 6. Auto-escalation for urgent symptoms, distress, missed visits, complex clinical questions
 7. Groq AI for open conversation (matches Swahili, English, Sheng, mixed)
@@ -68,11 +68,12 @@ Env: `AFYA_RAFIKI_NAME`, `CLINIC_SITE_NAME` (default: Nyeri town health center)
 
 ## 5.1) Reminder scheduler endpoint
 
-Run this endpoint on a schedule (recommended every 30-60 minutes):
+Run every **30–60 minutes** (see `deploy/render/CRON_REMINDERS.md`):
 
-- `/cron_run_reminders.php`
+- `GET /cron_run_reminders.php?key=<CRON_SECRET>`
 
-In Render, create a Cron Job that calls this URL regularly.
+Sends Afya Rafiki messages at **7 days**, **3 days**, and **night before** (8 PM) each appointment.
+Only patients who confirmed consent (`YES` / `NDIO`) receive reminders.
 
 ## 6) AI behavior
 

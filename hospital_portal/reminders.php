@@ -11,9 +11,15 @@ function reminder_dispatch_query(string $column, string $whenExpr): array
                    (SELECT e.reason FROM appointment_reschedule_events e WHERE e.appointment_id = a.id ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS latest_reason
             FROM appointments a
             INNER JOIN patients p ON p.id = a.patient_id
+            INNER JOIN contact_channels cc ON cc.patient_id = p.id AND cc.opted_in = 1
             WHERE a.status IN ('proposed','confirmed')
+              AND p.status = 'active'
               AND a.{$column} IS NULL
               AND NOW() >= {$whenExpr}
+              AND EXISTS (
+                SELECT 1 FROM contact_preference_events cpe
+                WHERE cpe.patient_id = p.id AND cpe.action = 'confirm_double_opt_in'
+              )
             ORDER BY a.scheduled_start ASC
             LIMIT 200";
     return $pdo->query($sql)->fetchAll();
@@ -38,15 +44,20 @@ function process_due_appointment_reminders(): array
     foreach ($types as $key => $cfg) {
         $rows = reminder_dispatch_query($cfg['column'], $cfg['when']);
         foreach ($rows as $r) {
-            $ordinal = $key === '7d' ? 1 : ($key === '3d' ? 2 : 3);
             $lang = in_array($r['preferred_language'], ['en', 'sw']) ? $r['preferred_language'] : 'en';
-            $msg = build_appointment_reminder_message((string) $r['full_name'], [
+            $appointment = [
                 'scheduled_start' => $r['scheduled_start'],
                 'scheduled_end' => $r['scheduled_end'],
                 'department' => $r['department'],
                 'provider_name' => $r['provider_name'],
                 'location' => $r['location'],
-            ], (string) ($r['latest_reason'] ?? ''), $ordinal, 3, $lang, $key);
+            ];
+            $msg = build_afya_appointment_reminder(
+                $key,
+                (string) $r['full_name'],
+                $appointment,
+                $lang
+            );
             if (send_patient_message((int) $r['patient_id'], 'appointment_reminder', $msg)) {
                 mark_reminder_sent((int) $r['id'], $cfg['column']);
                 $sent[$key]++;

@@ -219,16 +219,44 @@ function build_reminder_7d_message(string $patientName, array $appointment, stri
         . 'Attending follow-up care is important for your health.';
 }
 
+function build_reminder_3d_message(string $patientName, array $appointment, string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    $site = afya_clinic_site();
+    $date = afya_format_appointment_date($appointment['scheduled_start'] ?? null);
+    if ($lang === 'sw') {
+        return "Kikumbusho kutoka Afya Rafiki: Una miadi ya ufuatiliaji baada ya siku 3 ({$date}) katika {$site}. "
+            . 'Huduma ya ufuatiliaji husaidia kulinda afya yako — tafadhali jiandae kuhudhuria.';
+    }
+    return "Reminder from Afya Rafiki: Your follow-up appointment is in 3 days ({$date}) at {$site}. "
+        . 'Follow-up care helps protect your health — please plan to attend.';
+}
+
 function build_reminder_1d_message(string $lang = 'en'): string
 {
     $lang = afya_lang($lang);
     $site = afya_clinic_site();
     if ($lang === 'sw') {
-        return "Kikumbusho: Ziara yako ya ufuatiliaji kliniki {$site} ni kesho. "
+        return "Kikumbusho kutoka Afya Rafiki: Ziara yako ya ufuatiliaji kliniki {$site} ni kesho. "
             . 'Tafadhali hudhuria kama ulivyopangiwa au wasiliana na kliniki ikiwa unahitaji msaada.';
     }
-    return "Reminder: Your clinic follow-up visit at {$site} is tomorrow. "
+    return "Reminder from Afya Rafiki: Your clinic follow-up visit at {$site} is tomorrow. "
         . 'Please attend as scheduled or contact the facility if you need assistance.';
+}
+
+/** Cron-scheduled reminder: 7d, 3d, or night (night-before / 1-day). */
+function build_afya_appointment_reminder(
+    string $kind,
+    string $patientName,
+    array $appointment,
+    string $lang = 'en'
+): string {
+    return match ($kind) {
+        '7d' => build_reminder_7d_message($patientName, $appointment, $lang),
+        '3d' => build_reminder_3d_message($patientName, $appointment, $lang),
+        'night', '1d' => build_reminder_1d_message($lang),
+        default => build_reminder_3d_message($patientName, $appointment, $lang),
+    };
 }
 
 function build_help_menu_message(string $lang = 'en'): string

@@ -79,6 +79,26 @@ function ensure_hpv_workflow_schema(): bool
             );
         }
 
+        if (!db_table_exists('diagnosis_results')) {
+            $pdo->exec(
+                "CREATE TABLE diagnosis_results (
+                  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                  patient_id BIGINT UNSIGNED NOT NULL,
+                  appointment_id BIGINT UNSIGNED NULL,
+                  coded_diagnosis VARCHAR(64) NULL,
+                  diagnosis_label VARCHAR(512) NOT NULL,
+                  severity ENUM('unknown','mild','moderate','severe') NOT NULL DEFAULT 'unknown',
+                  result_summary TEXT NULL,
+                  recorded_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+                  recorded_by VARCHAR(128) NULL,
+                  KEY idx_dx_patient (patient_id),
+                  KEY idx_dx_appt (appointment_id),
+                  CONSTRAINT fk_dx_patient FOREIGN KEY (patient_id) REFERENCES patients(id)
+                    ON DELETE CASCADE ON UPDATE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+            );
+        }
+
         return true;
     } catch (Throwable $e) {
         error_log('ensure_hpv_workflow_schema: ' . $e->getMessage());
@@ -88,27 +108,20 @@ function ensure_hpv_workflow_schema(): bool
 
 function hpv_workflow_ready(): bool
 {
-    static $ready = null;
-    if ($ready === true) {
-        return true;
-    }
     try {
         db()->query('SELECT hpv_screening_result FROM patients LIMIT 1');
-        $ready = true;
         return true;
     } catch (Throwable $e) {
-        // Try once to create missing columns (production DB may not have had SQL run manually).
-        if (ensure_hpv_workflow_schema()) {
-            try {
-                db()->query('SELECT hpv_screening_result FROM patients LIMIT 1');
-                $ready = true;
-                return true;
-            } catch (Throwable $e2) {
-                error_log('hpv_workflow_ready after ensure: ' . $e2->getMessage());
-            }
+        if (!ensure_hpv_workflow_schema()) {
+            return false;
         }
-        $ready = false;
-        return false;
+        try {
+            db()->query('SELECT hpv_screening_result FROM patients LIMIT 1');
+            return true;
+        } catch (Throwable $e2) {
+            error_log('hpv_workflow_ready: ' . $e2->getMessage());
+            return false;
+        }
     }
 }
 
@@ -170,22 +183,39 @@ function set_patient_hpv_result(int $patientId, string $result, string $recorded
          WHERE id = ?'
     );
     $st->execute([$result, $patientId]);
-    cancel_queued_counseling_schedule($patientId);
+    if ($st->rowCount() < 1) {
+        return ['ok' => false, 'error' => 'Patient not found'];
+    }
 
-    $dx = db()->prepare(
-        'INSERT INTO diagnosis_results (patient_id, diagnosis_label, severity, result_summary, recorded_by)
-         VALUES (?,?,?,?,?)'
-    );
-    $label = $result === 'positive' ? 'HPV positive' : 'HPV negative';
-    $dx->execute([
-        $patientId,
-        $label,
-        'unknown',
-        'HPV screening result recorded (' . $result . '). Awaiting staff confirmation to notify patient.',
-        $recordedBy,
-    ]);
+    try {
+        cancel_queued_counseling_schedule($patientId);
+    } catch (Throwable $e) {
+        error_log('cancel_queued_counseling_schedule: ' . $e->getMessage());
+    }
 
-    return ['ok' => true, 'hpv_screening_result' => $result];
+    try {
+        ensure_hpv_workflow_schema();
+        $dx = db()->prepare(
+            'INSERT INTO diagnosis_results (patient_id, diagnosis_label, severity, result_summary, recorded_by)
+             VALUES (?,?,?,?,?)'
+        );
+        $label = $result === 'positive' ? 'HPV positive' : 'HPV negative';
+        $dx->execute([
+            $patientId,
+            $label,
+            'unknown',
+            'HPV screening result recorded (' . $result . '). Awaiting staff confirmation to notify patient.',
+            $recordedBy,
+        ]);
+    } catch (Throwable $e) {
+        error_log('diagnosis_results insert: ' . $e->getMessage());
+    }
+
+    return [
+        'ok' => true,
+        'message' => 'Recorded HPV ' . $result . '. You can now confirm to notify the patient.',
+        'hpv_screening_result' => $result,
+    ];
 }
 
 function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff'): array

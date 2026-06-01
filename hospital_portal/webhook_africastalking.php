@@ -181,6 +181,7 @@ if (!$patientId) {
 
 $msg = strtoupper(trim($body));
 $replyLang = $lang === 'sw' ? 'sw' : 'en';
+$patientFirstName = afya_first_name((string) ($patient['full_name'] ?? ''));
 
 // --- Consent confirmation (Afya Rafiki enrollment) ---
 if (patient_awaiting_consent($patientId)) {
@@ -190,9 +191,15 @@ if (patient_awaiting_consent($patientId)) {
         if ($counseling !== null) {
             send_patient_message($patientId, 'education_menu', $counseling);
         }
-        $ack = $replyLang === 'sw'
-            ? 'Asante. Utaendelea kupokea ujumbe wa Afya Rafiki. Jibu HELP kwa maswali au DOCTOR kwa mhudumu wa afya.'
-            : 'Thank you. You will continue receiving Afya Rafiki messages. Reply HELP for questions or DOCTOR for a provider.';
+        if ($replyLang === 'sw') {
+            $ack = $patientFirstName !== ''
+                ? "Asante {$patientFirstName}. Utaendelea kupokea ujumbe wa Afya Rafiki. Jibu HELP kwa maswali au DOCTOR kwa mhudumu wa afya."
+                : 'Asante. Utaendelea kupokea ujumbe wa Afya Rafiki. Jibu HELP kwa maswali au DOCTOR kwa mhudumu wa afya.';
+        } else {
+            $ack = $patientFirstName !== ''
+                ? "Thank you {$patientFirstName}. You will continue receiving Afya Rafiki messages. Reply HELP for questions or DOCTOR for a provider."
+                : 'Thank you. You will continue receiving Afya Rafiki messages. Reply HELP for questions or DOCTOR for a provider.';
+        }
         send_patient_message($patientId, 'system', $ack);
         echo 'OK';
         exit;

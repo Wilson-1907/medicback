@@ -187,7 +187,7 @@ function ai_language_instructions(string $detectedLang): string
 /**
  * Get language-aware system prompt for AI
  */
-function ai_system_prompt(string $lang = 'en', ?string $latestUserMessage = null): string
+function ai_system_prompt(string $lang = 'en', ?string $latestUserMessage = null, ?string $patientFirstName = null): string
 {
     if ($latestUserMessage !== null && trim($latestUserMessage) !== '') {
         $lang = ai_detect_message_language($latestUserMessage, $lang);
@@ -199,12 +199,30 @@ function ai_system_prompt(string $lang = 'en', ?string $latestUserMessage = null
         require_once __DIR__ . '/afya_rafiki_content.php';
     }
 
+    $nameBlock = '';
+    $first = $patientFirstName !== null ? trim($patientFirstName) : '';
+    if ($first !== '') {
+        $nameBlock = "The patient's first name is {$first}. Greet them by name when natural (e.g. Hello {$first} / Habari {$first}). ";
+    }
+
     $core = afya_ai_personality_block()
+        . $nameBlock
         . ' Answer the patient\'s health question in order: direct answer → simple actionable steps → warm follow-up question. '
         . 'Topics include HPV, VIA, Thermal Ablation, follow-up screening, appointments at ' . afya_clinic_site() . ', and general wellness. '
         . 'End with a short encouraging question when appropriate.';
 
     return $languageBlock . "\n\n" . $core;
+}
+
+function ai_patient_first_name(int $patientId): string
+{
+    if (!function_exists('afya_first_name')) {
+        require_once __DIR__ . '/afya_rafiki_content.php';
+    }
+    $st = db()->prepare('SELECT full_name FROM patients WHERE id = ? LIMIT 1');
+    $st->execute([$patientId]);
+    $row = $st->fetch();
+    return afya_first_name((string) ($row['full_name'] ?? ''));
 }
 
 /**
@@ -386,7 +404,8 @@ function ai_generate_reply(int $patientId, string $channel, string $patientText,
     $conversationId = ai_get_or_create_conversation($patientId, $channel);
     ai_log_turn($conversationId, 'user', $patientText, null);
 
-    $messages = [['role' => 'system', 'content' => ai_system_prompt($lang, $patientText)]];
+    $firstName = ai_patient_first_name($patientId);
+    $messages = [['role' => 'system', 'content' => ai_system_prompt($lang, $patientText, $firstName !== '' ? $firstName : null)]];
     foreach (ai_recent_messages($conversationId, 12) as $m) {
         $messages[] = $m;
     }

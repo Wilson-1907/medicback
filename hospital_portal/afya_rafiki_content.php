@@ -21,6 +21,18 @@ function afya_lang(string $lang): string
     return $lang === 'sw' ? 'sw' : 'en';
 }
 
+/** First word of full name for friendly SMS greetings. */
+function afya_first_name(string $fullName): string
+{
+    $fullName = trim($fullName);
+    if ($fullName === '') {
+        return '';
+    }
+    $parts = preg_split('/\s+/u', $fullName) ?: [];
+    $first = trim((string) ($parts[0] ?? ''));
+    return $first !== '' ? $first : $fullName;
+}
+
 function afya_format_appointment_date(?string $scheduledStart): string
 {
     if ($scheduledStart === null || trim($scheduledStart) === '') {
@@ -33,16 +45,19 @@ function afya_format_appointment_date(?string $scheduledStart): string
     return date('l, j M Y', $ts) . ' ' . date('g:i A', $ts);
 }
 
-/** Initial welcome (no personal name in approved script). */
+/** Initial welcome — greets patient by first name. */
 function build_welcome_message(string $patientName, string $lang = 'en'): string
 {
     $lang = afya_lang($lang);
+    $name = afya_first_name($patientName);
+    $greetingSw = $name !== '' ? "Habari {$name}." : 'Habari.';
+    $greetingEn = $name !== '' ? "Hello {$name}." : 'Hello.';
     if ($lang === 'sw') {
-        return 'Karibu kwenye Afya Rafiki. Tuko hapa kukusaidia baada ya majibu yako ya uchunguzi wa HPV. '
+        return "{$greetingSw} Karibu kwenye Afya Rafiki. Tuko hapa kukusaidia baada ya majibu yako ya uchunguzi wa HPV. "
             . 'Huduma hii itakutumia taarifa za afya, vikumbusho, na mwongozo wa huduma ya ufuatiliaji. '
             . 'Taarifa zako zitahifadhiwa kwa siri.';
     }
-    return 'Hello. Welcome to Afya Rafiki. We are here to support you after your HPV screening results. '
+    return "{$greetingEn} Welcome to Afya Rafiki. We are here to support you after your HPV screening results. "
         . 'This service will provide health information, reminders, and guidance for your follow-up care. '
         . 'Your information will remain confidential.';
 }
@@ -211,11 +226,14 @@ function build_reminder_7d_message(string $patientName, array $appointment, stri
     $lang = afya_lang($lang);
     $site = afya_clinic_site();
     $date = afya_format_appointment_date($appointment['scheduled_start'] ?? null);
+    $name = afya_first_name($patientName);
     if ($lang === 'sw') {
-        return "Kikumbusho kutoka Afya Rafiki: Una miadi ya ufuatiliaji wiki ijayo ({$date}) katika {$site}. "
+        $hello = $name !== '' ? "Habari {$name}. " : '';
+        return "{$hello}Kikumbusho kutoka Afya Rafiki: Una miadi ya ufuatiliaji wiki ijayo ({$date}) katika {$site}. "
             . 'Kuhudhuria huduma ya ufuatiliaji ni muhimu kwa afya yako.';
     }
-    return "Reminder from Afya Rafiki: You have a follow-up appointment scheduled next week ({$date}) at {$site}. "
+    $hello = $name !== '' ? "Hello {$name}. " : '';
+    return "{$hello}Reminder from Afya Rafiki: You have a follow-up appointment scheduled next week ({$date}) at {$site}. "
         . 'Attending follow-up care is important for your health.';
 }
 
@@ -224,23 +242,29 @@ function build_reminder_3d_message(string $patientName, array $appointment, stri
     $lang = afya_lang($lang);
     $site = afya_clinic_site();
     $date = afya_format_appointment_date($appointment['scheduled_start'] ?? null);
+    $name = afya_first_name($patientName);
     if ($lang === 'sw') {
-        return "Kikumbusho kutoka Afya Rafiki: Una miadi ya ufuatiliaji baada ya siku 3 ({$date}) katika {$site}. "
+        $hello = $name !== '' ? "Habari {$name}. " : '';
+        return "{$hello}Kikumbusho kutoka Afya Rafiki: Una miadi ya ufuatiliaji baada ya siku 3 ({$date}) katika {$site}. "
             . 'Huduma ya ufuatiliaji husaidia kulinda afya yako — tafadhali jiandae kuhudhuria.';
     }
-    return "Reminder from Afya Rafiki: Your follow-up appointment is in 3 days ({$date}) at {$site}. "
+    $hello = $name !== '' ? "Hello {$name}. " : '';
+    return "{$hello}Reminder from Afya Rafiki: Your follow-up appointment is in 3 days ({$date}) at {$site}. "
         . 'Follow-up care helps protect your health — please plan to attend.';
 }
 
-function build_reminder_1d_message(string $lang = 'en'): string
+function build_reminder_1d_message(string $patientName = '', string $lang = 'en'): string
 {
     $lang = afya_lang($lang);
     $site = afya_clinic_site();
+    $name = afya_first_name($patientName);
     if ($lang === 'sw') {
-        return "Kikumbusho kutoka Afya Rafiki: Ziara yako ya ufuatiliaji kliniki {$site} ni kesho. "
+        $hello = $name !== '' ? "Habari {$name}. " : '';
+        return "{$hello}Kikumbusho kutoka Afya Rafiki: Ziara yako ya ufuatiliaji kliniki {$site} ni kesho. "
             . 'Tafadhali hudhuria kama ulivyopangiwa au wasiliana na kliniki ikiwa unahitaji msaada.';
     }
-    return "Reminder from Afya Rafiki: Your clinic follow-up visit at {$site} is tomorrow. "
+    $hello = $name !== '' ? "Hello {$name}. " : '';
+    return "{$hello}Reminder from Afya Rafiki: Your clinic follow-up visit at {$site} is tomorrow. "
         . 'Please attend as scheduled or contact the facility if you need assistance.';
 }
 
@@ -254,7 +278,7 @@ function build_afya_appointment_reminder(
     return match ($kind) {
         '7d' => build_reminder_7d_message($patientName, $appointment, $lang),
         '3d' => build_reminder_3d_message($patientName, $appointment, $lang),
-        'night', '1d' => build_reminder_1d_message($lang),
+        'night', '1d' => build_reminder_1d_message($patientName, $lang),
         default => build_reminder_3d_message($patientName, $appointment, $lang),
     };
 }

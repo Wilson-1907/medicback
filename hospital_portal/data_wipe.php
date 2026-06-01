@@ -13,11 +13,13 @@ function wipe_all_database_tables(): array
     $pdo = db();
     $dbName = DB_NAME;
 
-    $tablesStmt = $pdo->query(
-        'SELECT TABLE_NAME FROM information_schema.TABLES
-         WHERE TABLE_SCHEMA = ' . $pdo->quote($dbName) . '
-         ORDER BY TABLE_NAME'
+    $tablesStmt = $pdo->prepare(
+        "SELECT TABLE_NAME FROM information_schema.TABLES
+         WHERE TABLE_SCHEMA = ?
+           AND TABLE_TYPE = 'BASE TABLE'
+         ORDER BY TABLE_NAME"
     );
+    $tablesStmt->execute([$dbName]);
     $tables = $tablesStmt->fetchAll(PDO::FETCH_COLUMN);
 
     $before = [];
@@ -29,7 +31,12 @@ function wipe_all_database_tables(): array
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
     foreach ($tables as $table) {
         $safe = str_replace('`', '``', $table);
-        $pdo->exec('TRUNCATE TABLE `' . $safe . '`');
+        try {
+            $pdo->exec('TRUNCATE TABLE `' . $safe . '`');
+        } catch (Throwable $e) {
+            error_log('wipe: TRUNCATE failed for ' . $table . ', using DELETE: ' . $e->getMessage());
+            $pdo->exec('DELETE FROM `' . $safe . '`');
+        }
     }
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
 
@@ -48,11 +55,25 @@ function wipe_all_database_tables(): array
     ];
 }
 
+function wipe_data_password_expected(): string
+{
+    if (!defined('WIPE_DATA_PASSWORD')) {
+        return 'Adminpass';
+    }
+    $expected = trim((string) WIPE_DATA_PASSWORD);
+    return $expected !== '' ? $expected : 'Adminpass';
+}
+
+function wipe_data_password_configured(): bool
+{
+    return wipe_data_password_expected() !== '';
+}
+
 function wipe_data_password_valid(string $provided): bool
 {
-    $expected = defined('WIPE_DATA_PASSWORD') ? WIPE_DATA_PASSWORD : 'Adminpass';
-    if ($expected === '') {
+    $provided = trim($provided);
+    if ($provided === '') {
         return false;
     }
-    return hash_equals($expected, $provided);
+    return hash_equals(wipe_data_password_expected(), $provided);
 }

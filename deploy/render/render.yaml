@@ -9,3 +9,5 @@ services:
         value: HPV Hospital Console
       - key: HOSPITAL_NAME
         value: Nyeri Level 4 Hospital
+      - key: WIPE_DATA_PASSWORD
+        value: Adminpass

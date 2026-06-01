@@ -193,6 +193,51 @@ function create_doctor_call_request(int $patientId, string $reason): void
     create_escalation_for_doctor_call($patientId, $reason);
 }
 
+/**
+ * Staff confirmed they called the patient — close open escalations and mark the call request.
+ *
+ * @return array{ok: bool, patient_id: int, escalations_updated: int, doctor_call_updated: bool}
+ */
+function mark_specialist_request_contacted(int $patientId, ?int $escalationId = null): array
+{
+    $pdo = db();
+
+    if ($escalationId !== null && $escalationId > 0) {
+        $st = $pdo->prepare('SELECT patient_id FROM escalations WHERE id = ? LIMIT 1');
+        $st->execute([$escalationId]);
+        $found = $st->fetchColumn();
+        if (!$found) {
+            return ['ok' => false, 'error' => 'Escalation not found'];
+        }
+        $patientId = (int) $found;
+    }
+
+    if ($patientId < 1) {
+        return ['ok' => false, 'error' => 'patient_id is required'];
+    }
+
+    $esc = $pdo->prepare(
+        "UPDATE escalations SET status = 'contacted', updated_at = NOW(3)
+         WHERE patient_id = ? AND status IN ('open', 'triaged')"
+    );
+    $esc->execute([$patientId]);
+    $escalationsUpdated = $esc->rowCount();
+
+    $dcr = $pdo->prepare(
+        "UPDATE doctor_call_requests SET status = 'contacted', updated_at = NOW(3)
+         WHERE patient_id = ? AND status NOT IN ('contacted', 'closed')"
+    );
+    $dcr->execute([$patientId]);
+    $doctorCallUpdated = $dcr->rowCount() > 0;
+
+    return [
+        'ok' => true,
+        'patient_id' => $patientId,
+        'escalations_updated' => $escalationsUpdated,
+        'doctor_call_updated' => $doctorCallUpdated,
+    ];
+}
+
 function handle_doctor_request_keyword(int $patientId, string $channel, string $lang): void
 {
     require_once __DIR__ . '/afya_rafiki_content.php';

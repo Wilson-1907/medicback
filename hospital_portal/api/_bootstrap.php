@@ -37,10 +37,23 @@ function api_phone(string $raw): string
     if ($t === '') {
         return '';
     }
-    if ($t[0] === '+') {
-        return '+' . preg_replace('/\D+/', '', substr($t, 1));
+    $digits = preg_replace('/\D+/', '', $t) ?? '';
+    if ($digits === '') {
+        return '';
     }
-    return '+' . preg_replace('/\D+/', '', $t);
+    if (str_starts_with($digits, '254')) {
+        return '+' . $digits;
+    }
+    if (str_starts_with($digits, '0')) {
+        $digits = substr($digits, 1);
+    }
+    if (strlen($digits) === 9) {
+        return '+254' . $digits;
+    }
+    if ($t[0] === '+') {
+        return '+' . $digits;
+    }
+    return '+' . $digits;
 }
 
 function api_dt(string $html): string

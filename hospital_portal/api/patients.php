@@ -91,8 +91,8 @@ try {
     if ($name === '') {
         api_json(['ok' => false, 'error' => 'Full name is required'], 422);
     }
-    if ($phone === '' || strlen($phone) < 8) {
-        api_json(['ok' => false, 'error' => 'Valid phone number is required'], 422);
+    if ($phone === '' || !preg_match('/^\+254\d{9}$/', $phone)) {
+        api_json(['ok' => false, 'error' => 'Enter 9 digits after +254 (e.g. 712345678)'], 422);
     }
 
     $pdo->beginTransaction();

@@ -16,10 +16,23 @@ function normalize_phone(string $raw): string
     if ($t === '') {
         return '';
     }
-    if ($t[0] === '+') {
-        return '+' . preg_replace('/\D+/', '', substr($t, 1));
+    $digits = preg_replace('/\D+/', '', $t) ?? '';
+    if ($digits === '') {
+        return '';
     }
-    return '+' . preg_replace('/\D+/', '', $t);
+    if (str_starts_with($digits, '254')) {
+        return '+' . $digits;
+    }
+    if (str_starts_with($digits, '0')) {
+        $digits = substr($digits, 1);
+    }
+    if (strlen($digits) === 9) {
+        return '+254' . $digits;
+    }
+    if ($t[0] === '+') {
+        return '+' . $digits;
+    }
+    return '+' . $digits;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -31,15 +44,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $lang = trim((string) ($_POST['preferred_language'] ?? 'en')) ?: 'en';
         $mrn = trim((string) ($_POST['external_mrn'] ?? ''));
         $notes = trim((string) ($_POST['notes'] ?? ''));
-        $phone = normalize_phone((string) ($_POST['phone'] ?? ''));
+        $phoneLocal = trim((string) ($_POST['phone_local'] ?? ''));
+        $phone = normalize_phone($phoneLocal !== '' ? $phoneLocal : (string) ($_POST['phone'] ?? ''));
         $channel = ($_POST['contact_channel'] ?? 'sms') === 'whatsapp' ? 'whatsapp' : 'sms';
         $optIn = isset($_POST['opt_in']);
 
         if ($name === '') {
             $errors[] = 'Full name is required.';
         }
-        if ($phone === '' || strlen($phone) < 8) {
-            $errors[] = 'Please enter a valid phone number with country code (e.g., +254712345678).';
+        if ($phone === '' || !preg_match('/^\+254\d{9}$/', $phone)) {
+            $errors[] = 'Please enter 9 digits after +254 (e.g., 712345678).';
         }
 
         if ($errors === []) {
@@ -142,9 +156,14 @@ layout_header('Register patient');
     </div>
 
     <div class="field">
-      <label for="phone">Mobile phone number *</label>
-      <input id="phone" name="phone" type="tel" required placeholder="+254712345678" value="<?= h($_POST['phone'] ?? '') ?>">
-      <div class="field-hint">Include country code (e.g., +254 for Kenya). Used for SMS and WhatsApp messages.</div>
+      <label for="phone_local">Mobile phone number *</label>
+      <div class="phone-input-group">
+        <span class="phone-prefix" aria-hidden="true">+254</span>
+        <input id="phone_local" name="phone_local" type="tel" required maxlength="9" inputmode="numeric"
+               pattern="[0-9]{9}" placeholder="712345678"
+               value="<?= h(preg_replace('/^\D*254/', '', preg_replace('/\D/', '', $_POST['phone_local'] ?? $_POST['phone'] ?? '')) ?: '') ?>">
+      </div>
+      <div class="field-hint">Enter 9 digits only (Kenya). Example: 712345678</div>
     </div>
 
     <div class="field">

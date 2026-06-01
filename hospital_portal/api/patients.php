@@ -11,6 +11,7 @@ try {
     if ($method === 'GET') {
         $id = (int) ($_GET['id'] ?? 0);
         if ($id > 0) {
+            ensure_hpv_workflow_schema();
             $hpvCols = hpv_workflow_ready()
                 ? 'hpv_screening_result, hpv_result_recorded_at, hpv_result_confirmed_at, hpv_counseling_index'
                 : 'NULL AS hpv_screening_result, NULL AS hpv_result_recorded_at, NULL AS hpv_result_confirmed_at, 0 AS hpv_counseling_index';

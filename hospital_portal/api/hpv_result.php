@@ -16,6 +16,8 @@ if ($patientId < 1) {
     api_json(['ok' => false, 'error' => 'patient_id is required'], 422);
 }
 
+ensure_hpv_workflow_schema();
+
 if ($action === 'set_result') {
     $result = (string) ($body['result'] ?? '');
     $out = set_patient_hpv_result($patientId, $result, 'hospital_console');

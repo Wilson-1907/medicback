@@ -6,19 +6,110 @@ require_once __DIR__ . '/messaging.php';
 require_once __DIR__ . '/afya_rafiki_content.php';
 require_once __DIR__ . '/scheduled_messages.php';
 
+function db_table_has_column(string $table, string $column): bool
+{
+    $st = db()->prepare(
+        "SELECT 1 FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?
+         LIMIT 1"
+    );
+    $st->execute([$table, $column]);
+    return (bool) $st->fetchColumn();
+}
+
+function db_table_exists(string $table): bool
+{
+    $st = db()->prepare(
+        "SELECT 1 FROM information_schema.TABLES
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+         LIMIT 1"
+    );
+    $st->execute([$table]);
+    return (bool) $st->fetchColumn();
+}
+
+/**
+ * Add HPV workflow columns/tables if missing (safe to call repeatedly).
+ */
+function ensure_hpv_workflow_schema(): bool
+{
+    try {
+        $pdo = db();
+
+        if (!db_table_has_column('patients', 'hpv_screening_result')) {
+            $pdo->exec(
+                "ALTER TABLE patients
+                 ADD COLUMN hpv_screening_result ENUM('unknown','pending','positive','negative') NOT NULL DEFAULT 'pending'"
+            );
+        }
+        if (!db_table_has_column('patients', 'hpv_result_recorded_at')) {
+            $pdo->exec('ALTER TABLE patients ADD COLUMN hpv_result_recorded_at DATETIME(3) NULL');
+        }
+        if (!db_table_has_column('patients', 'hpv_result_confirmed_at')) {
+            $pdo->exec('ALTER TABLE patients ADD COLUMN hpv_result_confirmed_at DATETIME(3) NULL');
+        }
+        if (!db_table_has_column('patients', 'hpv_counseling_index')) {
+            $pdo->exec('ALTER TABLE patients ADD COLUMN hpv_counseling_index INT UNSIGNED NOT NULL DEFAULT 0');
+        }
+
+        if (!db_table_exists('scheduled_messages')) {
+            $pdo->exec(
+                "CREATE TABLE scheduled_messages (
+                  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                  patient_id BIGINT UNSIGNED NOT NULL,
+                  message_type VARCHAR(32) NOT NULL DEFAULT 'system',
+                  body TEXT NOT NULL,
+                  send_at DATETIME(3) NOT NULL,
+                  sent_at DATETIME(3) NULL,
+                  status ENUM('queued','sent','failed','cancelled') NOT NULL DEFAULT 'queued',
+                  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+                  KEY idx_sched_patient (patient_id),
+                  KEY idx_sched_due (status, send_at),
+                  CONSTRAINT fk_sched_patient FOREIGN KEY (patient_id) REFERENCES patients(id)
+                    ON DELETE CASCADE ON UPDATE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+            );
+        }
+
+        if (db_table_exists('scheduled_messages')
+            && !db_table_has_column('scheduled_messages', 'triggers_counseling_chain')) {
+            $pdo->exec(
+                'ALTER TABLE scheduled_messages
+                 ADD COLUMN triggers_counseling_chain TINYINT(1) NOT NULL DEFAULT 0'
+            );
+        }
+
+        return true;
+    } catch (Throwable $e) {
+        error_log('ensure_hpv_workflow_schema: ' . $e->getMessage());
+        return false;
+    }
+}
+
 function hpv_workflow_ready(): bool
 {
     static $ready = null;
-    if ($ready !== null) {
-        return $ready;
+    if ($ready === true) {
+        return true;
     }
     try {
         db()->query('SELECT hpv_screening_result FROM patients LIMIT 1');
         $ready = true;
+        return true;
     } catch (Throwable $e) {
+        // Try once to create missing columns (production DB may not have had SQL run manually).
+        if (ensure_hpv_workflow_schema()) {
+            try {
+                db()->query('SELECT hpv_screening_result FROM patients LIMIT 1');
+                $ready = true;
+                return true;
+            } catch (Throwable $e2) {
+                error_log('hpv_workflow_ready after ensure: ' . $e2->getMessage());
+            }
+        }
         $ready = false;
+        return false;
     }
-    return $ready;
 }
 
 function hpv_workflow_unavailable_message(): string

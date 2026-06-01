@@ -58,6 +58,7 @@ try {
             );
             $dcr->execute([$id]);
             $patient['doctor_call_request'] = $dcr->fetch() ?: null;
+            $patient['hpv_workflow_enabled'] = hpv_workflow_ready();
 
             api_json(['ok' => true, 'patient' => $patient]);
         }

@@ -21,6 +21,11 @@ function hpv_workflow_ready(): bool
     return $ready;
 }
 
+function hpv_workflow_unavailable_message(): string
+{
+    return 'HPV result recording is not available right now. Please contact your system administrator.';
+}
+
 function get_patient_hpv_row(int $patientId): ?array
 {
     if (!hpv_workflow_ready()) {
@@ -58,7 +63,7 @@ function handle_consent_accepted(int $patientId, string $patientFullName, string
 function set_patient_hpv_result(int $patientId, string $result, string $recordedBy = 'staff'): array
 {
     if (!hpv_workflow_ready()) {
-        return ['ok' => false, 'error' => 'Run sql/2026_05_31_hpv_result_workflow.sql on the database first'];
+        return ['ok' => false, 'error' => hpv_workflow_unavailable_message()];
     }
     $result = strtolower(trim($result));
     if (!in_array($result, ['positive', 'negative'], true)) {
@@ -95,7 +100,7 @@ function set_patient_hpv_result(int $patientId, string $result, string $recorded
 function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff'): array
 {
     if (!hpv_workflow_ready()) {
-        return ['ok' => false, 'error' => 'Run sql/2026_05_31_hpv_result_workflow.sql on the database first'];
+        return ['ok' => false, 'error' => hpv_workflow_unavailable_message()];
     }
 
     $row = get_patient_hpv_row($patientId);

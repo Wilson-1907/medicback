@@ -364,6 +364,51 @@ function build_escalation_reply(string $lang = 'en'): string
         . 'Please contact your clinic or wait for a provider follow-up call.';
 }
 
+/** After patient replies DOCTOR / DAKTARI — ask why in their own words. */
+function build_doctor_reason_request_prompt(string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    if ($lang === 'sw') {
+        return 'Asante ' . AFYA_RAFIKI_NAME . '. Tungependa kukusaidia. '
+            . 'Tafadhali andika kwa ufupi kwa nini ungependa kuongea na mhudumu wa afya '
+            . '(mfano: maumivu, wasiwasi kuhusu matokeo, au kupanga miadi).';
+    }
+    return 'Thanks for reaching out to ' . AFYA_RAFIKI_NAME . '. We would like to help you. '
+        . 'Please reply in a short message with why you would like to speak with a health specialist '
+        . '(for example: pain, worry about your results, or booking a visit).';
+}
+
+function build_doctor_reason_reminder_prompt(string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    if ($lang === 'sw') {
+        return 'Tunasubiri ujumbe mfupi ukielezea kwa nini ungependa kuongea na mhudumu wa afya. '
+            . 'Andika kwa maneno yako — mfano: maumivu au wasiwasi.';
+    }
+    return 'We are still waiting for a short message explaining why you would like to speak with a health specialist. '
+        . 'Please reply in your own words — for example pain or a concern about your results.';
+}
+
+function build_doctor_reason_received_ack(string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    if ($lang === 'sw') {
+        return 'Asante — tumepokea ujumbe wako. Mhudumu wa afya atajaribu kuwasiliana nawe hivi karibuni. '
+            . 'Ikiwa hali yako ni dharura, nenda kliniki mara moja.';
+    }
+    return 'Thank you — we have received your message. A health specialist will try to reach you soon. '
+        . 'If this is an emergency, please go to the clinic right away.';
+}
+
+function build_doctor_request_already_logged_ack(string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    if ($lang === 'sw') {
+        return 'Tayari tumepokea ombi lako la kuongea na mhudumu wa afya. Tafadhali subiri simu au ujumbe kutoka kwao.';
+    }
+    return 'We already have your request to speak with a health specialist. Please wait for them to contact you.';
+}
+
 function build_missed_appointment_message(string $lang = 'en'): string
 {
     $lang = afya_lang($lang);

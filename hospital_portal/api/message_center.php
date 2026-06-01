@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/../doctor_call_requests.php';
 
 try {
     $pdo = db();
@@ -75,14 +76,30 @@ try {
                 (SELECT cc.channel FROM contact_channels cc WHERE cc.patient_id = p.id AND cc.is_primary = 1 LIMIT 1) AS channel,
                 dcr.status AS doctor_call_status,
                 dcr.requested_at AS doctor_call_requested_at,
-                dcr.reason AS doctor_call_reason
+                dcr.reason AS doctor_call_reason,
+                (SELECT i.body FROM inbound_messages i
+                 WHERE i.patient_id = p.id ORDER BY i.received_at DESC, i.id DESC LIMIT 1) AS last_inbound_body,
+                (SELECT i.received_at FROM inbound_messages i
+                 WHERE i.patient_id = p.id ORDER BY i.received_at DESC, i.id DESC LIMIT 1) AS last_inbound_at
          FROM escalations e
          INNER JOIN patients p ON p.id = e.patient_id
          LEFT JOIN doctor_call_requests dcr ON dcr.patient_id = e.patient_id
          WHERE e.status IN ('open','triaged')
-         ORDER BY FIELD(e.urgency, 'high', 'medium', 'low'), e.created_at DESC, e.id DESC
+         ORDER BY FIELD(e.urgency, 'same_day', 'urgent', 'routine'), e.created_at DESC, e.id DESC
          LIMIT 60"
     )->fetchAll();
+
+    foreach ($escalations as &$esc) {
+        $esc['awaiting_doctor_reason'] = is_awaiting_doctor_reason_row([
+            'status' => $esc['doctor_call_status'] ?? '',
+            'reason' => $esc['doctor_call_reason'] ?? '',
+        ]);
+        $esc['patient_stated_reason'] = patient_stated_call_reason(
+            ['reason' => $esc['doctor_call_reason'] ?? ''],
+            $esc['reason'] ?? ''
+        );
+    }
+    unset($esc);
 
     api_json([
         'ok' => true,

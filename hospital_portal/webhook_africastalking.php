@@ -6,6 +6,7 @@ require_once __DIR__ . '/messaging.php';
 require_once __DIR__ . '/afya_rafiki_content.php';
 require_once __DIR__ . '/hpv_results.php';
 require_once __DIR__ . '/openai_assistant.php';
+require_once __DIR__ . '/doctor_call_requests.php';
 
 /**
  * Africa's Talking inbound webhook handler.
@@ -116,26 +117,6 @@ function save_inbound(?int $patientId, string $channel, string $from, string $bo
     $st->execute([$patientId, $channel, $from, $body, json_encode($payload)]);
 }
 
-function create_doctor_call_request(int $patientId, string $reason): void
-{
-    $pdo = db();
-
-    // Dedicated record of the call request (one active request per patient).
-    $st = $pdo->prepare(
-        'INSERT INTO doctor_call_requests (patient_id, reason, status, requested_at)
-         VALUES (?, ?, ?, NOW(3))
-         ON DUPLICATE KEY UPDATE reason = VALUES(reason), status = ?, requested_at = NOW(3)'
-    );
-    $st->execute([$patientId, $reason, 'pending', 'pending']);
-
-    // Also raise an escalation so it surfaces in the Message Center for staff follow-up.
-    $esc = $pdo->prepare(
-        'INSERT INTO escalations (patient_id, reason, urgency, status)
-         VALUES (?, ?, ?, ?)'
-    );
-    $esc->execute([$patientId, $reason, 'same_day', 'open']);
-}
-
 function send_unlinked_reply(string $channel, string $to, string $body): void
 {
     if ($to === '') {
@@ -211,6 +192,14 @@ if ($faqReply !== null) {
     exit;
 }
 
+// --- Capture reason after patient replied DOCTOR / DAKTARI ---
+if (patient_awaiting_doctor_reason($patientId) && should_capture_as_doctor_reason($body, $msg)) {
+    error_log('WEBHOOK_ACTION: Doctor call reason received for patient ' . $patientId);
+    complete_doctor_call_with_patient_reason($patientId, $body, $channel, $replyLang);
+    echo 'OK';
+    exit;
+}
+
 // --- Escalation triggers (symptoms, distress, missed visit, complex clinical) ---
 $escalation = afya_escalation_check($body);
 if ($escalation['escalate']) {
@@ -224,11 +213,10 @@ if ($escalation['escalate']) {
     exit;
 }
 
-// Side-effect: when a patient asks for a doctor/call, log a call request so staff can follow up.
-if (str_contains($msg, 'DOCTOR') || str_contains($msg, 'DAKTARI') || $msg === '5') {
-    error_log("WEBHOOK_ACTION: Doctor request detected, logging call request");
-    create_doctor_call_request($patientId, 'Patient requested direct provider contact via ' . $channel);
-    send_patient_message($patientId, 'escalation_notice', build_escalation_reply($replyLang));
+// Patient asked to speak with a health specialist — ask why, then escalate when they reply.
+if (is_doctor_request_keyword($msg)) {
+    error_log('WEBHOOK_ACTION: Doctor request keyword — collecting reason from patient');
+    handle_doctor_request_keyword($patientId, $channel, $replyLang);
     echo 'OK';
     exit;
 }

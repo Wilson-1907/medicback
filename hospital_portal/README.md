@@ -57,8 +57,12 @@ Backend and staff UI for the PHV engagement pilot.
 **Afya Rafiki** patient SMS/WhatsApp flow:
 
 1. Welcome message on enrollment
-2. Consent (`1` YES / `2` NO)
-3. HPV counseling sequence (9 messages, dripped every 3+ days)
+2. Consent (`1` YES / `2` NO) → thank-you + “results will be sent here” → **3 minutes later** one neutral encouragement (no positive/negative yet)
+3. Staff records **HPV positive or negative**, then **Confirm & notify** → patient gets result SMS + pathway (9 messages if positive, 6 if negative, dripped every 3+ days)
+
+Run migration: `sql/2026_05_31_hpv_result_workflow.sql`
+
+4. HPV counseling sequence (after result confirmed)
 4. Appointment reminders (**7-day**, **3-day**, and **night-before / 1-day**) via `/cron_run_reminders.php`
 5. FAQ menu via `HELP` (`1`–`3` HPV questions, `4` appointments, `5`/`DOCTOR` provider)
 6. Auto-escalation for urgent symptoms, distress, missed visits, complex clinical questions

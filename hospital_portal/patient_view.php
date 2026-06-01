@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/layout.php';
 require_once __DIR__ . '/messaging.php';
+require_once __DIR__ . '/hpv_results.php';
 require_login();
 
 $id = (int) ($_GET['id'] ?? 0);
@@ -213,6 +214,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ]);
                     $flash = 'Diagnosis result recorded.';
                 }
+            } elseif ($action === 'hpv_set_positive') {
+                $out = set_patient_hpv_result($id, 'positive', (string) ($_SESSION['staff_username'] ?? 'staff'));
+                $flash = !empty($out['ok']) ? 'HPV result recorded as POSITIVE (not yet sent to patient).' : ($out['error'] ?? 'Failed');
+                if (empty($out['ok'])) {
+                    $errors[] = $flash;
+                }
+            } elseif ($action === 'hpv_set_negative') {
+                $out = set_patient_hpv_result($id, 'negative', (string) ($_SESSION['staff_username'] ?? 'staff'));
+                $flash = !empty($out['ok']) ? 'HPV result recorded as NEGATIVE (not yet sent to patient).' : ($out['error'] ?? 'Failed');
+                if (empty($out['ok'])) {
+                    $errors[] = $flash;
+                }
+            } elseif ($action === 'hpv_confirm') {
+                $out = confirm_patient_hpv_result($id, (string) ($_SESSION['staff_username'] ?? 'staff'));
+                $flash = !empty($out['ok'])
+                    ? 'Result confirmed and guidance messages sent to patient.'
+                    : ($out['error'] ?? 'Failed');
+                if (empty($out['ok'])) {
+                    $errors[] = $flash;
+                }
             }
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
@@ -348,6 +369,36 @@ layout_header($patient['full_name']);
       <button class="btn" type="submit">Save appointment</button>
     </form>
   </div>
+
+  <?php if (hpv_workflow_ready()): ?>
+  <div class="card" style="border-left:4px solid var(--accent);">
+    <h2>HPV screening result (Afya Rafiki)</h2>
+    <p class="field-hint">Step 1: Record positive or negative after lab review. Step 2: Confirm to notify the patient and start the right message pathway.</p>
+    <p><strong>Status:</strong>
+      <?= h(strtoupper((string) ($patient['hpv_screening_result'] ?? 'pending'))) ?>
+      <?php if (!empty($patient['hpv_result_confirmed_at'])): ?>
+        — <span style="color:var(--success)">Sent to patient <?= h($patient['hpv_result_confirmed_at']) ?></span>
+      <?php elseif (!empty($patient['hpv_result_recorded_at'])): ?>
+        — <span style="color:var(--muted)">Recorded <?= h($patient['hpv_result_recorded_at']) ?>, awaiting confirm</span>
+      <?php endif; ?>
+    </p>
+    <form method="post" style="display:inline" action="patient_view.php?id=<?= $id ?>">
+      <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+      <input type="hidden" name="action" value="hpv_set_positive">
+      <button class="btn" type="submit">Record POSITIVE</button>
+    </form>
+    <form method="post" style="display:inline;margin-left:8px" action="patient_view.php?id=<?= $id ?>">
+      <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+      <input type="hidden" name="action" value="hpv_set_negative">
+      <button class="btn btn-secondary" type="submit">Record NEGATIVE</button>
+    </form>
+    <form method="post" style="display:inline;margin-left:8px" action="patient_view.php?id=<?= $id ?>" onsubmit="return confirm('Send confirmed result and start guidance messages to this patient?');">
+      <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+      <input type="hidden" name="action" value="hpv_confirm">
+      <button class="btn" type="submit" style="background:#198754;color:#fff">Confirm &amp; notify patient</button>
+    </form>
+  </div>
+  <?php endif; ?>
 
   <div class="card">
     <h2>Record diagnosis result</h2>

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/../hpv_results.php';
 
 try {
     $pdo = db();
@@ -10,9 +11,13 @@ try {
     if ($method === 'GET') {
         $id = (int) ($_GET['id'] ?? 0);
         if ($id > 0) {
+            $hpvCols = hpv_workflow_ready()
+                ? 'hpv_screening_result, hpv_result_recorded_at, hpv_result_confirmed_at, hpv_counseling_index'
+                : 'NULL AS hpv_screening_result, NULL AS hpv_result_recorded_at, NULL AS hpv_result_confirmed_at, 0 AS hpv_counseling_index';
             $st = $pdo->prepare(
-                'SELECT id, full_name, date_of_birth, preferred_language, external_mrn, notes, status, registration_at
-                 FROM patients WHERE id = ? LIMIT 1'
+                "SELECT id, full_name, date_of_birth, preferred_language, external_mrn, notes, status, registration_at,
+                        {$hpvCols}
+                 FROM patients WHERE id = ? LIMIT 1"
             );
             $st->execute([$id]);
             $patient = $st->fetch();

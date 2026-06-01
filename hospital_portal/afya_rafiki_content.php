@@ -62,6 +62,71 @@ function build_welcome_message(string $patientName, string $lang = 'en'): string
         . 'Your information will remain confidential.';
 }
 
+function build_consent_thank_you_message(string $patientName, string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    $name = afya_first_name($patientName);
+    if ($lang === 'sw') {
+        $greet = $name !== '' ? "Asante sana {$name}." : 'Asante sana.';
+        return "{$greet} Tunashukuru kwa kukubali kupokea ujumbe kutoka Afya Rafiki. "
+            . 'Matokeo yako ya uchunguzi wa HPV yatatumwa kwako hapa mara tu yatakapothibitishwa na kliniki. '
+            . 'Tuko hapa kukusaidia.';
+    }
+    $greet = $name !== '' ? "Thank you {$name}." : 'Thank you.';
+    return "{$greet} We appreciate you agreeing to receive messages from Afya Rafiki. "
+        . 'Your HPV screening results will be sent to you here as soon as they are confirmed by the clinic. '
+        . 'We are here to support you.';
+}
+
+/** Neutral encouragement before result is known (positive or negative). */
+function build_random_generic_encouragement(string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    $pool = $lang === 'sw' ? [
+        'Afya yako ni muhimu. Endelea kujali mwili wako — lishe bora, usingizi, na maji ya kutosha husaidia.',
+        'Umechukua hatua nzuri kwa kufuatilia afya yako. Tupo hapa ukihitaji msaada.',
+        'Kumbuka: uchunguzi wa mara kwa mara husaidia kulinda afya yako. Jibu HELP ikiwa una swali.',
+        'Pole na safari yako ya afya — kila hatua ina maana. Tunakutakia nguvu.',
+        'Epuka wasiwasi kupita kiasi. Subiri matokeo kutoka kliniki; tutakujulisha hapa.',
+        'Tembea kidogo, kula vizuri, na pumzika — mambo madogo yanaimarisha afya.',
+        'Wewe si peke yako. Afya Rafiki iko pamoja nawe katika safari hii.',
+        'Ikiwa una wasiwasi, wasiliana na kliniki yako au jibu DOCTOR.',
+    ] : [
+        'Your health matters. Keep caring for yourself — good food, rest, and water all help.',
+        'You have taken a good step by following up on your health. We are here if you need support.',
+        'Remember: regular screening helps protect your health. Reply HELP if you have a question.',
+        'Be gentle with yourself on this journey — every step counts. We wish you strength.',
+        'Try not to worry too much. Wait for your results from the clinic; we will update you here.',
+        'A short walk, healthy meals, and rest can support your wellbeing.',
+        'You are not alone. Afya Rafiki is with you on this path.',
+        'If you are worried, contact your clinic or reply DOCTOR.',
+    ];
+    return $pool[array_rand($pool)];
+}
+
+function build_hpv_result_notification(string $patientName, string $result, string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    $name = afya_first_name($patientName);
+    $hello = $lang === 'sw'
+        ? ($name !== '' ? "Habari {$name}." : 'Habari.')
+        : ($name !== '' ? "Hello {$name}." : 'Hello.');
+
+    if ($result === 'positive') {
+        return $lang === 'sw'
+            ? "{$hello} Matokeo yako ya HPV yamethibitishwa: CHANYA. Hii inamaanisha virusi vya HPV vimegunduliwa. "
+                . 'Usiogope — HPV ni kawaida na ufuatiliaji husaidia sana. Tutakutumia mwongozo wa hatua zinazofuata.'
+            : "{$hello} Your HPV result is confirmed: POSITIVE. This means HPV was detected. "
+                . 'Do not be afraid — HPV is common and follow-up care helps a lot. We will guide you on next steps.';
+    }
+
+    return $lang === 'sw'
+        ? "{$hello} Matokeo yako ya HPV yamethibitishwa: HASI. Hii inamaanisha HPV haikugunduliwa katika sampuli yako kwa sasa. "
+            . 'Endelea na uchunguzi wa kawaida kama ulivyoelekezwa na kliniki.'
+        : "{$hello} Your HPV result is confirmed: NEGATIVE. HPV was not detected in your sample at this time. "
+            . 'Continue routine screening as advised by your clinic.';
+}
+
 function build_consent_message(string $lang = 'en'): string
 {
     $lang = afya_lang($lang);
@@ -73,8 +138,8 @@ function build_consent_message(string $lang = 'en'): string
         . "Reply:\n1. YES\n2. NO";
 }
 
-/** @return list<string> */
-function afya_counseling_messages(string $lang = 'en'): array
+/** @return list<string> Positive HPV pathway (after result confirmed). */
+function afya_counseling_messages_positive(string $lang = 'en'): array
 {
     $lang = afya_lang($lang);
     if ($lang === 'sw') {
@@ -201,14 +266,28 @@ function is_consent_no_reply(string $body): bool
     return in_array($msg, ['2', 'NO', 'HAPANA'], true);
 }
 
-function counseling_messages_sent_count(int $patientId): int
+/** @return list<string> Negative HPV pathway (after result confirmed). */
+function afya_counseling_messages_negative(string $lang = 'en'): array
 {
-    $st = db()->prepare(
-        "SELECT COUNT(*) FROM outbound_messages
-         WHERE patient_id = ? AND message_type = 'education_menu'"
-    );
-    $st->execute([$patientId]);
-    return (int) $st->fetchColumn();
+    $lang = afya_lang($lang);
+    if ($lang === 'sw') {
+        return [
+            'Matokeo yako ya HPV ni hasi — hii ni habari njema. HPV haikugunduliwa katika sampuli yako kwa sasa.',
+            'Hata kwa matokeo hasi, ni muhimu kuendelea na uchunguzi wa kawaida kama ulivyoelekezwa na mhudumu wa afya.',
+            'Wanawake wanaoishi na HIV: rudia kipimo cha HPV baada ya miaka 3. Wasio na HIV: baada ya miaka 5, au kama kliniki inavyopendekeza.',
+            'Endelea kujali afya yako: chanjo, lishe, na kuepuka sigara husaidia kuzuia saratani ya mlango wa kizazi.',
+            'Hudhuria miadi yako ya kliniki kwa uchunguzi wa kawaida na ushauri.',
+            'Ikiwa una dalili zinazokusumbua (damu isiyo ya kawaida, maumivu), wasiliana na kliniki mara moja.',
+        ];
+    }
+    return [
+        'Your HPV result is negative — this is reassuring news. HPV was not detected in your sample at this time.',
+        'Even with a negative result, keep attending routine screening as advised by your healthcare provider.',
+        'Women living with HIV: repeat HPV test after 3 years. Women without HIV: after 5 years, or as your clinic advises.',
+        'Continue healthy habits: vaccination where appropriate, good nutrition, and avoiding smoking support cervical health.',
+        'Attend your clinic visits for routine screening and advice.',
+        'If you have worrying symptoms (unusual bleeding, pain), contact your clinic right away.',
+    ];
 }
 
 function get_next_counseling_message(int $patientId, string $lang = 'en'): ?string
@@ -216,8 +295,27 @@ function get_next_counseling_message(int $patientId, string $lang = 'en'): ?stri
     if (!patient_has_confirmed_consent($patientId)) {
         return null;
     }
-    $messages = afya_counseling_messages($lang);
-    $index = counseling_messages_sent_count($patientId);
+    if (!function_exists('patient_hpv_results_confirmed') || !patient_hpv_results_confirmed($patientId)) {
+        return null;
+    }
+    if (!function_exists('get_patient_hpv_row')) {
+        require_once __DIR__ . '/hpv_results.php';
+    }
+    $row = get_patient_hpv_row($patientId);
+    if (!$row) {
+        return null;
+    }
+    $result = (string) ($row['hpv_screening_result'] ?? '');
+    if ($result === 'positive') {
+        $messages = afya_counseling_messages_positive($lang);
+    } elseif ($result === 'negative') {
+        $messages = afya_counseling_messages_negative($lang);
+    } else {
+        return null;
+    }
+    $index = function_exists('get_hpv_counseling_index')
+        ? get_hpv_counseling_index($patientId)
+        : 0;
     return $messages[$index] ?? null;
 }
 

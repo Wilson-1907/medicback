@@ -407,9 +407,16 @@ function send_random_engagement_message(int $patientId): bool
 
     $lang = get_patient_language($patientId);
     $counseling = get_next_counseling_message($patientId, $lang);
-    $type = $counseling !== null ? 'education_menu' : 'engagement_boost';
+    if ($counseling !== null) {
+        $ok = send_patient_message($patientId, 'education_menu', $counseling);
+        if ($ok && function_exists('advance_hpv_counseling_index')) {
+            require_once __DIR__ . '/hpv_results.php';
+            advance_hpv_counseling_index($patientId);
+        }
+        return $ok;
+    }
     $body = build_engagement_boost_message($patientId);
-    return send_patient_message($patientId, $type, $body);
+    return send_patient_message($patientId, 'engagement_boost', $body);
 }
 
 /**

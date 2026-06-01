@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/messaging.php';
+require_once __DIR__ . '/scheduled_messages.php';
 
 function reminder_dispatch_query(string $column, string $whenExpr): array
 {

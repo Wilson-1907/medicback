@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/messaging.php';
 require_once __DIR__ . '/afya_rafiki_content.php';
+require_once __DIR__ . '/hpv_results.php';
 require_once __DIR__ . '/openai_assistant.php';
 
 /**
@@ -187,20 +188,7 @@ $patientFirstName = afya_first_name((string) ($patient['full_name'] ?? ''));
 if (patient_awaiting_consent($patientId)) {
     if (is_consent_yes_reply($body)) {
         record_consent_yes($patientId, $channel);
-        $counseling = get_next_counseling_message($patientId, $replyLang);
-        if ($counseling !== null) {
-            send_patient_message($patientId, 'education_menu', $counseling);
-        }
-        if ($replyLang === 'sw') {
-            $ack = $patientFirstName !== ''
-                ? "Asante {$patientFirstName}. Utaendelea kupokea ujumbe wa Afya Rafiki. Jibu HELP kwa maswali au DOCTOR kwa mhudumu wa afya."
-                : 'Asante. Utaendelea kupokea ujumbe wa Afya Rafiki. Jibu HELP kwa maswali au DOCTOR kwa mhudumu wa afya.';
-        } else {
-            $ack = $patientFirstName !== ''
-                ? "Thank you {$patientFirstName}. You will continue receiving Afya Rafiki messages. Reply HELP for questions or DOCTOR for a provider."
-                : 'Thank you. You will continue receiving Afya Rafiki messages. Reply HELP for questions or DOCTOR for a provider.';
-        }
-        send_patient_message($patientId, 'system', $ack);
+        handle_consent_accepted($patientId, (string) ($patient['full_name'] ?? ''), $replyLang);
         echo 'OK';
         exit;
     }

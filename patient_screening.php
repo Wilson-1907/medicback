@@ -14,7 +14,7 @@ function ensure_patient_screening_schema(): bool
     try {
         $pdo = db();
         $cols = [
-            'hiv_status' => "ENUM('unknown','negative','positive') NOT NULL DEFAULT 'unknown'",
+            'hiv_status' => "ENUM('unknown','not_known','negative','positive') NOT NULL DEFAULT 'unknown'",
             'hpv_done_before' => "ENUM('unknown','no','yes') NOT NULL DEFAULT 'unknown'",
             'hpv_prior_result' => "ENUM('unknown','negative','positive') NOT NULL DEFAULT 'unknown'",
             'place_of_residence' => 'VARCHAR(255) NULL',
@@ -28,6 +28,12 @@ function ensure_patient_screening_schema(): bool
             if (!db_table_has_column('patients', $column)) {
                 $pdo->exec("ALTER TABLE patients ADD COLUMN {$column} {$definition}");
             }
+        }
+        if (db_table_has_column('patients', 'hiv_status')) {
+            $pdo->exec(
+                "ALTER TABLE patients MODIFY COLUMN hiv_status
+                 ENUM('unknown','not_known','negative','positive') NOT NULL DEFAULT 'unknown'"
+            );
         }
         return true;
     } catch (Throwable $e) {
@@ -73,7 +79,7 @@ function patient_screening_select_columns(): array
 function parse_screening_from_body(array $body): array
 {
     $hiv = strtolower(trim((string) ($body['hiv_status'] ?? 'unknown')));
-    if (!in_array($hiv, ['negative', 'positive'], true)) {
+    if (!in_array($hiv, ['negative', 'positive', 'not_known'], true)) {
         $hiv = 'unknown';
     }
 
@@ -121,8 +127,8 @@ function parse_screening_from_body(array $body): array
  */
 function validate_screening_registration(array $screening): ?string
 {
-    if ($screening['hiv_status'] === 'unknown') {
-        return 'HIV status is required (positive or negative).';
+    if (!in_array($screening['hiv_status'], ['negative', 'positive', 'not_known'], true)) {
+        return 'HIV status is required (positive, negative, or not known).';
     }
     if ($screening['hpv_done_before'] === 'unknown') {
         return 'Please indicate if HPV screening was ever done before.';
@@ -168,14 +174,14 @@ function compute_screening_followups(array $screening): array
     $hiv = $screening['hiv_status'];
     $hpv = $screening['hpv_prior_result'];
     $hpvDone = $screening['hpv_done_before'];
-    if ($hiv === 'positive' && $hpvDone === 'yes' && $hpv === 'negative') {
+    if (in_array($hiv, ['positive'], true) && $hpvDone === 'yes' && $hpv === 'negative') {
         $schedules[] = [
             'years' => 5.0,
             'reason' => 'hiv_pos_hpv_neg_5y',
             'send_at' => date('Y-m-d H:i:s', strtotime($anchor . ' +5 years')),
         ];
     }
-    if ($hiv === 'positive' && $hpvDone === 'yes' && $hpv === 'positive') {
+    if (in_array($hiv, ['positive'], true) && $hpvDone === 'yes' && $hpv === 'positive') {
         $schedules[] = [
             'years' => 3.0,
             'reason' => 'hiv_pos_hpv_pos_3y',
@@ -221,10 +227,10 @@ function build_checkup_reminder_message(
             return "Habari {$patientName}, matokeo yako ya VIA yalikuwa hasi. Tafadhali rudi {$hospital} kwa uchunguzi wa mwaka tarehe {$dateStr}.";
         }
         if ($reasonKey === 'hiv_pos_hpv_neg_5y') {
-            return "Habari {$patientName}, kwa ufuatiliaji (VVU chanya, HPV hasi), tafadhali rudi kliniki tarehe {$dateStr} kwa uchunguzi.";
+            return "Habari {$patientName}, kwa ufuatiliaji (VVU chanya, HPV hasi), tafadhali rudi kliniki tarehe {$dateStr} kwa kipimo cha HPV.";
         }
         if ($reasonKey === 'hiv_pos_hpv_pos_3y') {
-            return "Habari {$patientName}, kwa ufuatiliaji (VVU chanya, HPV chanya), tafadhali rudi kliniki tarehe {$dateStr} kwa uchunguzi.";
+            return "Habari {$patientName}, kwa ufuatiliaji (VVU chanya, HPV chanya), tafadhali rudi kliniki tarehe {$dateStr} kwa kipimo cha HPV.";
         }
         return "Habari {$patientName}, tafadhali rudi {$hospital} kwa uchunguzi tarehe {$dateStr}.";
     }
@@ -233,10 +239,10 @@ function build_checkup_reminder_message(
         return "Hello {$patientName}, your VIA result was negative. Please return to {$hospital} for your annual check-up on {$dateStr}.";
     }
     if ($reasonKey === 'hiv_pos_hpv_neg_5y') {
-        return "Hello {$patientName}, for follow-up (HIV positive, HPV negative), please visit the clinic on {$dateStr} for a check-up.";
+        return "Hello {$patientName}, for follow-up (HIV positive, HPV negative), please return for HPV screening on {$dateStr}.";
     }
     if ($reasonKey === 'hiv_pos_hpv_pos_3y') {
-        return "Hello {$patientName}, for follow-up (HIV positive, HPV positive), please visit the clinic on {$dateStr} for a check-up.";
+        return "Hello {$patientName}, for follow-up (HIV positive, HPV positive), please return for HPV screening on {$dateStr}.";
     }
     return "Hello {$patientName}, please return to {$hospital} for a check-up on {$dateStr}.";
 }

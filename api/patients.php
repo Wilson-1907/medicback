@@ -4,6 +4,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../hpv_results.php';
 require_once __DIR__ . '/../patient_screening.php';
+require_once __DIR__ . '/../patient_client_id.php';
+require_once __DIR__ . '/../afya_rafiki_content.php';
 
 try {
     $pdo = db();
@@ -73,7 +75,7 @@ try {
         }
 
         $q = trim((string) ($_GET['q'] ?? ''));
-        $sql = 'SELECT p.id, p.full_name, p.status, p.registration_at, p.preferred_language,
+        $sql = 'SELECT p.id, p.full_name, p.status, p.registration_at, p.preferred_language, p.external_mrn AS client_id,
                 (SELECT cc.address FROM contact_channels cc WHERE cc.patient_id = p.id AND cc.is_primary = 1 LIMIT 1) AS phone,
                 (SELECT cc.channel FROM contact_channels cc WHERE cc.patient_id = p.id AND cc.is_primary = 1 LIMIT 1) AS primary_channel
                 FROM patients p';
@@ -97,7 +99,7 @@ try {
     $name = trim((string) ($body['full_name'] ?? ''));
     $dob = trim((string) ($body['date_of_birth'] ?? ''));
     $lang = trim((string) ($body['preferred_language'] ?? 'en')) ?: 'en';
-    $mrn = trim((string) ($body['external_mrn'] ?? ''));
+    $clientId = parse_client_id_from_body($body);
     $notes = trim((string) ($body['notes'] ?? ''));
     $phone = api_phone((string) ($body['phone'] ?? ''));
     $channel = ((string) ($body['contact_channel'] ?? 'sms')) === 'whatsapp' ? 'whatsapp' : 'sms';
@@ -108,6 +110,10 @@ try {
     }
     if ($phone === '' || !preg_match('/^\+254\d{9}$/', $phone)) {
         api_json(['ok' => false, 'error' => 'Enter 9 digits after +254 (e.g. 712345678)'], 422);
+    }
+    $clientErr = validate_client_id_registration($clientId);
+    if ($clientErr !== null) {
+        api_json(['ok' => false, 'error' => $clientErr], 422);
     }
 
     $screening = parse_screening_from_body($body);
@@ -135,7 +141,7 @@ try {
                 $name,
                 $dob === '' ? null : $dob,
                 $lang,
-                $mrn === '' ? null : $mrn,
+                $clientId,
                 $notes === '' ? null : $notes,
                 'active',
                 $screening['hiv_status'],
@@ -157,7 +163,7 @@ try {
                 $name,
                 $dob === '' ? null : $dob,
                 $lang,
-                $mrn === '' ? null : $mrn,
+                $clientId,
                 $notes === '' ? null : $notes,
                 'active',
             ]);
@@ -185,6 +191,9 @@ try {
              VALUES (?,?,?,?)'
         );
         $ev->execute([$pid, $channel, $optIn ? 'opt_in' : 'opt_out', 'frontend_registration']);
+        if ($optIn) {
+            record_registration_consent($pid, $channel);
+        }
         $pdo->commit();
 
         if ($optIn) {
@@ -195,6 +204,7 @@ try {
         api_json([
             'ok' => true,
             'patient_id' => $pid,
+            'client_id' => $clientId,
             'next_checkup_at' => $nextCheckup,
             'referral_sent' => $screening['via_result'] === 'positive' && !empty($screening['has_cancer']) && $optIn,
         ], 201);

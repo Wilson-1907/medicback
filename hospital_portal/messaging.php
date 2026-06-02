@@ -4,40 +4,45 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/afya_rafiki_content.php';
 
-/** Allow referral and check-up SMS types on older databases. */
+/** Expand outbound message types — converts legacy ENUM to VARCHAR so any label is accepted. */
 function ensure_outbound_message_types(): void
 {
     static $done = false;
     if ($done) {
         return;
     }
-    $done = true;
     try {
         $pdo = db();
         $st = $pdo->prepare(
-            "SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+            "SELECT DATA_TYPE FROM information_schema.COLUMNS
              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'outbound_messages'
                AND COLUMN_NAME = 'message_type' LIMIT 1"
         );
         $st->execute();
-        $col = $st->fetchColumn();
-        if ($col && is_string($col) && !str_contains(strtolower($col), 'referral')) {
+        $dataType = strtolower((string) ($st->fetchColumn() ?: ''));
+        if ($dataType === 'enum') {
             $pdo->exec(
-                "ALTER TABLE outbound_messages MODIFY COLUMN message_type ENUM(
-                    'welcome',
-                    'appointment_reminder',
-                    'education_menu',
-                    'engagement_boost',
-                    'system',
-                    'ai_reply',
-                    'escalation_notice',
-                    'referral',
-                    'checkup_reminder'
-                ) NOT NULL"
+                "ALTER TABLE outbound_messages
+                 MODIFY COLUMN message_type VARCHAR(32) NOT NULL DEFAULT 'system'"
             );
+        } elseif ($dataType === '') {
+            // Table may not exist yet on fresh installs; schema.sql defines VARCHAR.
         }
+        $done = true;
     } catch (Throwable $e) {
         error_log('ensure_outbound_message_types: ' . $e->getMessage());
+    }
+}
+
+function force_outbound_message_types_varchar(): void
+{
+    try {
+        db()->exec(
+            "ALTER TABLE outbound_messages
+             MODIFY COLUMN message_type VARCHAR(32) NOT NULL DEFAULT 'system'"
+        );
+    } catch (Throwable $e) {
+        error_log('force_outbound_message_types_varchar: ' . $e->getMessage());
     }
 }
 
@@ -70,7 +75,16 @@ function log_outbound_message(int $patientId, string $channel, string $type, str
         'INSERT INTO outbound_messages (patient_id, channel, message_type, body, status)
          VALUES (?,?,?,?,?)'
     );
-    $st->execute([$patientId, $channel, $type, $body, 'queued']);
+    try {
+        $st->execute([$patientId, $channel, $type, $body, 'queued']);
+    } catch (PDOException $e) {
+        if (stripos($e->getMessage(), 'message_type') !== false) {
+            force_outbound_message_types_varchar();
+            $st->execute([$patientId, $channel, $type, $body, 'queued']);
+        } else {
+            throw $e;
+        }
+    }
     return (int) db()->lastInsertId();
 }
 

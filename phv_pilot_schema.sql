@@ -124,17 +124,7 @@ CREATE TABLE outbound_messages (
   id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   patient_id      BIGINT UNSIGNED NOT NULL,
   channel         ENUM('sms','whatsapp') NOT NULL,
-  message_type    ENUM(
-                      'welcome',
-                      'appointment_reminder',
-                      'education_menu',
-                      'engagement_boost',
-                      'system',
-                      'ai_reply',
-                      'escalation_notice',
-                      'referral',
-                      'checkup_reminder'
-                    ) NOT NULL,
+  message_type    VARCHAR(32) NOT NULL DEFAULT 'system',
   body            TEXT NOT NULL,
   at_message_id   VARCHAR(128) NULL COMMENT 'Africa\'s Talking message id',
   status          ENUM('queued','sent','delivered','failed') NOT NULL DEFAULT 'queued',

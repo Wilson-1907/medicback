@@ -14,6 +14,7 @@ try {
     ensure_patient_screening_schema();
     ensure_hpv_workflow_schema();
     ensure_client_id_unique_index();
+    ensure_outbound_message_types();
 
     if ($method === 'GET') {
         $clientIdParam = trim((string) ($_GET['client_id'] ?? ''));

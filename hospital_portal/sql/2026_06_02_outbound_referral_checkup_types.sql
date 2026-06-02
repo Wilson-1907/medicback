@@ -1,15 +1,5 @@
 -- Fix: Data truncated for column 'message_type' when sending referral or check-up SMS.
-USE phv_pilot;
+-- Use VARCHAR so all message labels (welcome, referral, checkup_reminder, etc.) are accepted.
 
 ALTER TABLE outbound_messages
-  MODIFY COLUMN message_type ENUM(
-    'welcome',
-    'appointment_reminder',
-    'education_menu',
-    'engagement_boost',
-    'system',
-    'ai_reply',
-    'escalation_notice',
-    'referral',
-    'checkup_reminder'
-  ) NOT NULL;
+  MODIFY COLUMN message_type VARCHAR(32) NOT NULL DEFAULT 'system';

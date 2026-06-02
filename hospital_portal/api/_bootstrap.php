@@ -4,6 +4,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../messaging.php';
 
+ensure_outbound_message_types();
+
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');

@@ -119,3 +119,70 @@ function validate_client_id_registration(string $clientId): ?string
     }
     return null;
 }
+
+/** @return array{full_name: string, client_id: ?string, channel: string}|null */
+function find_registered_phone(string $phone, ?string $channel = null): ?array
+{
+    $phone = trim($phone);
+    if ($phone === '') {
+        return null;
+    }
+    $sql = 'SELECT p.full_name, p.external_mrn AS client_id, cc.channel
+            FROM contact_channels cc
+            INNER JOIN patients p ON p.id = cc.patient_id
+            WHERE cc.address = ?';
+    $args = [$phone];
+    if ($channel !== null && $channel !== '') {
+        $sql .= ' AND cc.channel = ?';
+        $args[] = $channel;
+    }
+    $sql .= ' ORDER BY cc.is_primary DESC, cc.id ASC LIMIT 1';
+    $st = db()->prepare($sql);
+    $st->execute($args);
+    $row = $st->fetch();
+    return $row !== false ? $row : null;
+}
+
+function validate_phone_registration(string $phone, string $channel): ?string
+{
+    $existing = find_registered_phone($phone);
+    if ($existing === null) {
+        return null;
+    }
+    $clientId = trim((string) ($existing['client_id'] ?? ''));
+    if ($clientId !== '') {
+        return 'This phone number is already registered for client ' . $clientId
+            . '. Use a different number or open that patient\'s record.';
+    }
+    return 'This phone number is already registered. Please use a different number or contact the patient if they already exist.';
+}
+
+/** @return array{error: string, status: int}|null */
+function map_registration_db_error(Throwable $e): ?array
+{
+    $msg = $e->getMessage();
+    $isDuplicate = str_contains($msg, 'Duplicate') || str_contains($msg, '1062');
+    if ($e instanceof PDOException) {
+        $info = $e->errorInfo ?? [];
+        $isDuplicate = $isDuplicate || (($info[0] ?? '') === '23000');
+    }
+    if (!$isDuplicate) {
+        return null;
+    }
+    if (str_contains($msg, 'uq_channel_address') || str_contains($msg, 'contact_channels')) {
+        return [
+            'error' => 'This phone number is already registered. Please use a different number or contact the patient if they already exist.',
+            'status' => 422,
+        ];
+    }
+    if (str_contains($msg, 'uniq_patients_external_mrn') || str_contains($msg, 'external_mrn')) {
+        return [
+            'error' => 'This client number is already registered.',
+            'status' => 422,
+        ];
+    }
+    return [
+        'error' => 'This phone number or client number is already registered.',
+        'status' => 422,
+    ];
+}

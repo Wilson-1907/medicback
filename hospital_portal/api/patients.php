@@ -103,7 +103,7 @@ try {
                 $args = [$like, $like];
             }
         }
-        $sql .= ' ORDER BY p.external_mrn ASC, p.full_name ASC LIMIT 300';
+        $sql .= ' ORDER BY p.external_mrn ASC, p.full_name ASC LIMIT 500';
         $st = $pdo->prepare($sql);
         $st->execute($args);
         api_json(['ok' => true, 'items' => $st->fetchAll()]);
@@ -128,6 +128,10 @@ try {
     }
     if ($phone === '' || !preg_match('/^\+254\d{9}$/', $phone)) {
         api_json(['ok' => false, 'error' => 'Enter 9 digits after +254 (e.g. 712345678)'], 422);
+    }
+    $phoneErr = validate_phone_registration($phone, $channel);
+    if ($phoneErr !== null) {
+        api_json(['ok' => false, 'error' => $phoneErr], 422);
     }
     $clientErr = validate_client_id_registration($clientId);
     if ($clientErr !== null) {
@@ -230,8 +234,18 @@ try {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
-        api_json(['ok' => false, 'error' => $e->getMessage()], 500);
+        $mapped = map_registration_db_error($e);
+        if ($mapped !== null) {
+            api_json(['ok' => false, 'error' => $mapped['error']], $mapped['status']);
+        }
+        error_log('Patient registration error: ' . $e->getMessage());
+        api_json(['ok' => false, 'error' => 'Registration failed. Please check your information and try again.'], 500);
     }
 } catch (Throwable $e) {
-    api_json(['ok' => false, 'error' => $e->getMessage()], 500);
+    $mapped = map_registration_db_error($e);
+    if ($mapped !== null) {
+        api_json(['ok' => false, 'error' => $mapped['error']], $mapped['status']);
+    }
+    error_log('Patients API error: ' . $e->getMessage());
+    api_json(['ok' => false, 'error' => 'Server error. Please try again.'], 500);
 }

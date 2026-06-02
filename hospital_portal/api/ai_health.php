@@ -36,7 +36,17 @@ try {
         api_json($payload);
     }
 
-    $test = ai_generate_reply(202, 'sms', 'Reply with one short friendly sentence only.', 'en');
+    $pdo = db();
+    $testPatientId = (int) $pdo->query('SELECT id FROM patients ORDER BY id ASC LIMIT 1')->fetchColumn();
+    if ($testPatientId < 1) {
+        $payload['test'] = [
+            'ok' => false,
+            'error' => 'No patients in database — register one patient before running the AI connectivity test.',
+        ];
+        api_json($payload);
+    }
+
+    $test = ai_generate_reply($testPatientId, 'sms', 'Reply with one short friendly sentence only.', 'en');
     $payload['test'] = [
         'ok' => $test['ok'],
         'error' => $test['error'],

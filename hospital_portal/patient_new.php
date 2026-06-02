@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/layout.php';
 require_once __DIR__ . '/messaging.php';
+require_once __DIR__ . '/patient_client_id.php';
 require_login();
 
 $errors = [];
@@ -55,6 +56,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($phone === '' || !preg_match('/^\+254\d{9}$/', $phone)) {
             $errors[] = 'Please enter 9 digits after +254 (e.g., 712345678).';
         }
+        if ($errors === []) {
+            $phoneDup = validate_phone_registration($phone, $channel);
+            if ($phoneDup !== null) {
+                $errors[] = $phoneDup;
+            }
+        }
 
         if ($errors === []) {
             $dobVal = $dob === '' ? null : $dob;
@@ -99,7 +106,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $pdo->rollBack();
                 }
                 error_log('Patient registration error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
-                if (str_contains($e->getMessage(), 'Duplicate')) {
+                $mapped = map_registration_db_error($e);
+                if ($mapped !== null) {
+                    $errors[] = $mapped['error'];
+                } elseif (str_contains($e->getMessage(), 'Duplicate')) {
                     $errors[] = 'This phone number is already registered. Please use a different number or contact the patient if they already exist.';
                 } else {
                     $errors[] = 'Registration failed. Please check your information and try again.';

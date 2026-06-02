@@ -38,5 +38,5 @@ Response example:
 
 ## Env vars
 
-- `CLINIC_SITE_NAME` — e.g. `Nyeri town health center` (used in reminder text)
+- `CLINIC_SITE_NAME` — e.g. `Nyeri Town Health Center` (used in reminder text)
 - `AFYA_RAFIKI_NAME` — default `Afya Rafiki`

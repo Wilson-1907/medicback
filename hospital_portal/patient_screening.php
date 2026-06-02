@@ -220,7 +220,7 @@ function build_checkup_reminder_message(
     string $reasonKey
 ): string {
     $dateStr = $checkupDate;
-    $hospital = defined('HOSPITAL_NAME') ? HOSPITAL_NAME : 'Nyeri Level 4 Hospital';
+    $hospital = defined('HOSPITAL_NAME') ? HOSPITAL_NAME : 'Nyeri Town Health Center';
 
     if ($lang === 'sw') {
         if ($reasonKey === 'via_negative_1y') {

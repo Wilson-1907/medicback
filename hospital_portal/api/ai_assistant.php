@@ -121,7 +121,7 @@ function getRuleBasedResponse($message, $language) {
         
         // Greeting
         if (strpos($message_lower, 'habari') !== false || strpos($message_lower, 'jambo') !== false || strpos($message_lower, 'sasa') !== false) {
-            return "Habari! Karibu Hospitali ya Nyeri Level 4. Ninafurahi kukusaidia. Unaweza kuniuliza kuhusu miadi, dalili, kinga, au huduma zetu. Je, nikusaidieje leo?";
+            return "Habari! Karibu Nyeri Town Health Center. Ninafurahi kukusaidia. Unaweza kuniuliza kuhusu miadi, dalili, kinga, au huduma zetu. Je, nikusaidieje leo?";
         }
         
         // Thank you
@@ -152,7 +152,7 @@ function getRuleBasedResponse($message, $language) {
         
         // Greeting/Help
         if (strpos($message_lower, 'hello') !== false || strpos($message_lower, 'hi') !== false || strpos($message_lower, 'hey') !== false) {
-            return "Hello! Welcome to Nyeri Level 4 Hospital. I'm here to help you. You can ask me about appointments, symptoms, prevention tips, or our services. How can I assist you today?";
+            return "Hello! Welcome to Nyeri Town Health Center. I'm here to help you. You can ask me about appointments, symptoms, prevention tips, or our services. How can I assist you today?";
         }
         
         // Thank you

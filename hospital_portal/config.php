@@ -110,9 +110,9 @@ define('DB_SSL_MODE', strtolower(env_value('DB_SSL_MODE', 'preferred'))); // dis
 define('DB_SSL_CA', env_value('DB_SSL_CA', ''));
 
 define('APP_NAME', env_value('APP_NAME', 'HPV Hospital Console'));
-define('HOSPITAL_NAME', env_value('HOSPITAL_NAME', 'Your Hospital'));
+define('HOSPITAL_NAME', env_value('HOSPITAL_NAME', 'Nyeri Town Health Center'));
 define('AFYA_RAFIKI_NAME', env_value('AFYA_RAFIKI_NAME', 'Afya Rafiki'));
-define('CLINIC_SITE_NAME', env_value('CLINIC_SITE_NAME', 'Nyeri town health center'));
+define('CLINIC_SITE_NAME', env_value('CLINIC_SITE_NAME', 'Nyeri Town Health Center'));
 define('WIPE_DATA_PASSWORD', env_value('WIPE_DATA_PASSWORD', 'Adminpass'));
 define('AFRICASTALKING_MODE', env_value('AFRICASTALKING_MODE', 'sandbox'));
 define('AFRICASTALKING_USERNAME', env_by_mode(

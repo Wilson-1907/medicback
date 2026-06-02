@@ -1,6 +1,6 @@
 # Afya Rafiki — How the Service Works and Every Message Sent
 
-**Programme:** Nyeri Level 4 Hospital / Nyeri Town Health Center — HPV follow-up care  
+**Programme:** Nyeri Town Health Center — HPV follow-up care  
 **Service name:** Afya Rafiki  
 **How patients are reached:** SMS and WhatsApp  
 **Client number on register:** NC/NTHC/001/ followed by the unique digits from the lab book (for example NC/NTHC/001/022)
@@ -55,9 +55,9 @@ Depending on what was recorded at registration, Afya Rafiki schedules a reminder
 
 **If VIA result was negative — reminder in 1 year**
 
-English: Hello [name], your VIA result was negative. Please return to Nyeri Level 4 Hospital for your annual check-up on [date].
+English: Hello [name], your VIA result was negative. Please return to Nyeri Town Health Center for your annual check-up on [date].
 
-Kiswahili: Habari [name], matokeo yako ya VIA yalikuwa hasi. Tafadhali rudi Nyeri Level 4 Hospital kwa uchunguzi wa mwaka tarehe [date].
+Kiswahili: Habari [name], matokeo yako ya VIA yalikuwa hasi. Tafadhali rudi Nyeri Town Health Center kwa uchunguzi wa mwaka tarehe [date].
 
 **If HIV positive and prior HPV negative — reminder in 5 years**
 
@@ -265,7 +265,7 @@ Before the visit, reminders go out **7 days**, **3 days**, and **1 day** before.
 
 **English**
 
-Hello [name], your appointment at Nyeri Level 4 Hospital is booked.  
+Hello [name], your appointment at Nyeri Town Health Center is booked.  
 Date/Time: [date and time]  
 Department: [if recorded]  
 Provider: [if recorded]  
@@ -275,7 +275,7 @@ We are here for you. Reply HELP for health guidance or DOCTOR for direct hospita
 
 **Kiswahili**
 
-Habari [name], miadi yako katika Nyeri Level 4 Hospital imepangwa.  
+Habari [name], miadi yako katika Nyeri Town Health Center imepangwa.  
 Tarehe/Saa: [date and time]  
 Idara: [if recorded]  
 Mtoa huduma: [if recorded]  
@@ -289,7 +289,7 @@ Tupo hapa kwako. Jibu HELP kwa mwongozo wa afya au DOCTOR kwa msaada wa hospital
 
 **English**
 
-Hello [name], your appointment at Nyeri Level 4 Hospital has been updated.  
+Hello [name], your appointment at Nyeri Town Health Center has been updated.  
 Date/Time: [date and time]  
 End time: [if recorded]  
 Department: [if recorded]  
@@ -300,7 +300,7 @@ We are here for you. Reply HELP for health guidance or DOCTOR for direct hospita
 
 **Kiswahili**
 
-Habari [name], miadi yako katika Nyeri Level 4 Hospital imebadilishwa.  
+Habari [name], miadi yako katika Nyeri Town Health Center imebadilishwa.  
 Tarehe/Saa: [date and time]  
 Wakati wa mwisho: [if recorded]  
 Idara: [if recorded]  
@@ -592,4 +592,4 @@ Long-term check-up message on scheduled date
 
 ---
 
-*Afya Rafiki — Nyeri Level 4 Hospital HPV programme. June 2026.*
+*Afya Rafiki — Nyeri Town Health Center HPV programme. June 2026.*

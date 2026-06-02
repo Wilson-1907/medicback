@@ -8,7 +8,7 @@ return [
     'temperature' => 0.7,
     'supported_languages' => ['en', 'sw'],
     'hospital_info' => [
-        'name' => 'Nyeri Level 4 Hospital',
+        'name' => 'Nyeri Town Health Center',
         'phone' => '+254700000000',
         'email' => 'info@nyerihospital.go.ke',
         'location' => 'Nyeri Town, Kenya'

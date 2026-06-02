@@ -68,7 +68,7 @@ Run migration: `sql/2026_05_31_hpv_result_workflow.sql`
 6. Auto-escalation for urgent symptoms, distress, missed visits, complex clinical questions
 7. Groq AI for open conversation (matches Swahili, English, Sheng, mixed)
 
-Env: `AFYA_RAFIKI_NAME`, `CLINIC_SITE_NAME` (default: Nyeri town health center)
+Env: `AFYA_RAFIKI_NAME`, `CLINIC_SITE_NAME` (default: Nyeri Town Health Center)
 
 ## 5.1) Reminder scheduler endpoint
 

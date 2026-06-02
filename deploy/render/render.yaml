@@ -8,6 +8,8 @@ services:
       - key: APP_NAME
         value: HPV Hospital Console
       - key: HOSPITAL_NAME
-        value: Nyeri Level 4 Hospital
+        value: Nyeri Town Health Center
+      - key: CLINIC_SITE_NAME
+        value: Nyeri Town Health Center
       - key: WIPE_DATA_PASSWORD
         value: Adminpass

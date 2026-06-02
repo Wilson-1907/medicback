@@ -140,13 +140,9 @@ function build_hpv_result_notification(string $patientName, string $result, stri
 
 function build_consent_message(string $lang = 'en'): string
 {
-    $lang = afya_lang($lang);
-    if ($lang === 'sw') {
-        return "Je, ungependa kuendelea kupokea ujumbe wa ufuatiliaji kutoka kwa Afya Rafiki?\n"
-            . "Jibu:\n1. NDIO\n2. HAPANA";
-    }
-    return "Would you like to continue receiving follow-up messages from Afya Rafiki?\n"
-        . "Reply:\n1. YES\n2. NO";
+    // Consent is captured on paper before registration.
+    // Keep this function for backward compatibility but never send consent prompts.
+    return '';
 }
 
 /** @return list<string> Positive HPV pathway (after result confirmed). */

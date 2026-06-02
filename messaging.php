@@ -397,9 +397,6 @@ function should_send_engagement_message(int $patientId): bool
  */
 function send_random_engagement_message(int $patientId): bool
 {
-    if (!patient_has_confirmed_consent($patientId)) {
-        return false;
-    }
     require_once __DIR__ . '/hpv_results.php';
     if (!hpv_counseling_pathway_complete($patientId)) {
         return false;

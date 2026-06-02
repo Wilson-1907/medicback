@@ -49,17 +49,28 @@ function afya_format_appointment_date(?string $scheduledStart): string
 function build_welcome_message(string $patientName, string $lang = 'en'): string
 {
     $lang = afya_lang($lang);
-    $name = afya_first_name($patientName);
-    $greetingSw = $name !== '' ? "Habari {$name}." : 'Habari.';
-    $greetingEn = $name !== '' ? "Hello {$name}." : 'Hello.';
     if ($lang === 'sw') {
-        return "{$greetingSw} Karibu kwenye Afya Rafiki. Tuko hapa kukusaidia baada ya majibu yako ya uchunguzi wa HPV. "
+        return 'Karibu kwenye Afya rafiki. Tuko hapa kukusaidia baada ya majibu yako ya uchunguzi wa HPV. '
             . 'Huduma hii itakutumia taarifa za afya, vikumbusho, na mwongozo wa huduma ya ufuatiliaji. '
             . 'Taarifa zako zitahifadhiwa kwa siri.';
     }
-    return "{$greetingEn} Welcome to Afya Rafiki. We are here to support you after your HPV screening results. "
+    return 'Hello. Welcome to Afya rafiki. We are here to support you after your HPV screening results. '
         . 'This service will provide health information, reminders, and guidance for your follow-up care. '
         . 'Your information will remain confidential.';
+}
+
+/** Written consent signed at registration — no SMS opt-in question. */
+function record_registration_consent(int $patientId, string $channel): void
+{
+    if (patient_has_confirmed_consent($patientId)) {
+        return;
+    }
+    $pdo = db();
+    $ev = $pdo->prepare(
+        'INSERT INTO contact_preference_events (patient_id, channel, action, source)
+         VALUES (?,?,?,?)'
+    );
+    $ev->execute([$patientId, $channel, 'confirm_double_opt_in', 'registration_signed']);
 }
 
 function build_consent_thank_you_message(string $patientName, string $lang = 'en'): string
@@ -129,13 +140,9 @@ function build_hpv_result_notification(string $patientName, string $result, stri
 
 function build_consent_message(string $lang = 'en'): string
 {
-    $lang = afya_lang($lang);
-    if ($lang === 'sw') {
-        return "Je, ungependa kuendelea kupokea ujumbe wa ufuatiliaji kutoka kwa Afya Rafiki?\n"
-            . "Jibu:\n1. NDIO\n2. HAPANA";
-    }
-    return "Would you like to continue receiving follow-up messages from Afya Rafiki?\n"
-        . "Reply:\n1. YES\n2. NO";
+    // Consent is captured on paper before registration.
+    // Keep this function for backward compatibility but never send consent prompts.
+    return '';
 }
 
 /** @return list<string> Positive HPV pathway (after result confirmed). */
@@ -144,34 +151,34 @@ function afya_counseling_messages_positive(string $lang = 'en'): array
     $lang = afya_lang($lang);
     if ($lang === 'sw') {
         return [
-            'Tunajua hii inaweza kusisimua. HPV ni kawaida sana — si hatima yako peke yako. Ufuatiliaji wa kliniki ndio jambo muhimu zaidi.',
-            'Hatua nzuri inayofuata: hudhuria kliniki kama ulivyoelekezwa. Timu ya afya itakuongoza kwa upole.',
-            'Matokeo chanya ya HPV hayamaanishi saratani. Inamaanisha tu tunafuatilia kwa karibu ili uwe salama.',
-            'Uchunguzi unaojulikana kama VIA unaweza kufuata. Ni wa dakika chache tu, na wahudumu wako wamezoea kufanya hivyo.',
-            'Baada ya VIA: ikiwa hakuna mabadiliko yanayoonekana, huenda hutahitaji matibabu sasa. Ikiwa kuna mabadiliko, kuna matibabu rahisi.',
-            'Wanawake wenye HIV: rudia HPV baada ya miaka 3. Wengine: baada ya miaka 5 — kliniki yako itakuambia hasa.',
-            'Ikiwa inahitajika, matibabu kama Thermal Ablation yanaweza kusaidia — haraka na kwa kawaida bila kulazwa.',
-            'Thermal Ablation: daktari hutumia joto kidogo kuondoa seli zisizo za kawaida. Mara nyingi ni haraka na salama.',
-            'Baada ya matibabu, majimaji kidogo au maumivu madogo yanaweza kutokea — kwa kawaida hupungua wiki chache.',
-            'Rudi hospitalini haraka ikiwa: damu nyingi, harufu mbaya, maumivu makali, homa, au unahisi vibaya sana.',
-            'Wakati wa kupona: fuata ushauri wa daktari wako (mf. mapumziko na miadi ya ufuatiliaji).',
-            'Baada ya mwaka 1, kipimo cha ufuatiliaji (Test of Cure) kinaweza kuthibitisha kuwa kila kitu kiko sawa.',
+            'Majibu yako ya HPV yalikuwa chanya. Hii inamannisha uko na Virus ya HPV. HPV ni maambukizi ya kawaida na wanawake wengi hupata nafuu bila matatizo. Hata hivyo, huduma ya ufuatiliaji ni muhimu kusaidia kuzuia saratani ya mlango wa kizazi.',
+            'Huduma ya ufuatiliaji husaidia wahudumu wa afya kugundua na kutibu mabadiliko mapema kabla hayajawa makubwa. Tafadhali hudhuria kliniki yako kama ulivyoelekezwa.',
+            'Majibu chanya ya HPV hayamaanishi kuwa una saratani ya mlango wa kizazi. Inamaanisha kuwa ufuatiliaji zaidi unahitajika ili kulinda afya yako.',
+            'Kwa kuwa majibu yako ya HPV ni chanya, hatua inayofuata ni uchunguzi unaoitwa Visual Assessment (VIA). Wakati wa VIA, mhudumu wa afya hupaka dawa maalum ya siki kwenye mlango wa kizazi na kuangalia kama kuna sehemu zisizo za kawaida zinazohitaji matibabu. Uchunguzi huu ni salama na huchukua dakika chache tu.',
+            'Baada ya VIA, matokeo yako yanaweza kuwa: VIA Hasi (Negative): Hakuna mabadiliko yasiyo ya kawaida. VIA Chanya (Positive): Mabadiliko yalionekana ambayo yanaweza kuhitaji matibabu ili kuzuia saratani ya mlango wa kizazi.',
+            'Ikiwa matokeo yako ya VIA ni hasi, huhitaji matibabu kwa sasa. Wanawake wanaoishi na HIV: rudia kipimo cha HPV baada ya miaka 3. Wanawake wasio na HIV: rudia kipimo cha HPV baada ya miaka 5.',
+            'Ikiwa matokeo yako ya VIA ni chanya na unafaa kupata matibabu, mhudumu wa afya anaweza kupendekeza Thermal Ablation. Matibabu haya huondoa seli zisizo za kawaida kwenye mlango wa kizazi kabla hazijageuka kuwa saratani.',
+            'Thermal Ablation ni matibabu rahisi yanayotumia joto kuharibu seli zisizo za kawaida kwenye mlango wa kizazi. Matibabu haya huchukua dakika chache na kwa kawaida hayahitaji kulazwa hospitalini.',
+            'Baada ya Thermal Ablation, ni kawaida kupata majimaji kutoka ukeni (tumia pad au panty liner) na maumivu madogo chini ya tumbo. Dalili hizi kwa kawaida hupungua ndani ya siku au wiki chache.',
+            'Tafadhali rudi hospitalini mara moja ikiwa utapata: kutokwa na damu nyingi ukeni, majimaji yenye harufu mbaya, maumivu makali chini ya tumbo, homa, au dalili nyingine zinazokusumbua.',
+            'Ili kuruhusu mlango wa kizazi kupona: epuka kufanya ngono kwa wiki 4 au kama ulivyoelekezwa; epuka kuingiza kitu chochote ukeni; hudhuria miadi yote ya ufuatiliaji.',
+            'Baada ya Thermal Ablation, unapaswa kurudi kwa Test of Cure (ToC) kwa kutumia kipimo cha HPV baada ya mwaka 1 ili kuthibitisha matibabu yalifanikiwa.',
         ];
     }
 
     return [
-        'We know this news can feel heavy. HPV is very common — you are not alone. Clinic follow-up is what matters most.',
-        'Your next kind step: attend your clinic visit as planned. Your care team will guide you gently.',
-        'A positive HPV result does not mean cancer. It means we keep a caring eye on your health.',
-        'You may be offered a short exam called VIA. It usually takes only a few minutes; staff do this every day.',
-        'After VIA: if nothing unusual is seen, you may not need treatment now. If something is seen, there are simple options.',
-        'Routine screening continues: with HIV, often every 3 years; otherwise often every 5 years — your clinic will advise you.',
-        'If needed, treatment such as Thermal Ablation can help — often quick and usually without staying overnight.',
-        'Thermal Ablation uses gentle heat on the cervix. Many women go home the same day.',
-        'After treatment, mild discharge or light cramping can be normal for a few days to weeks.',
-        'Please come back soon if you have heavy bleeding, bad-smelling discharge, strong pain, fever, or feel very unwell.',
-        'While healing: follow your clinician’s advice and keep your follow-up appointments.',
-        'About a year later, a Test of Cure check can confirm things are on track.',
+        'Your HPV test was positive. This means you have HPV virus. HPV is a common infection and many women recover without problems. However, follow-up care is important to help prevent cervical cancer.',
+        'Follow-up care helps health providers detect and treat changes early before they become serious. Please attend your recommended clinic visit.',
+        'A positive HPV result does not mean you have cervical cancer. It means more follow-up is needed to keep you healthy.',
+        'Because your HPV test is positive, the next step is an examination called Visual Assessment (VIA). During VIA, a trained healthcare provider applies a special vinegar solution to the cervix and looks for any abnormal areas that may need treatment. The procedure is simple, safe, and usually takes only a few minutes.',
+        'After VIA, your results may be: VIA Negative: No visible abnormal changes were found on the cervix. VIA Positive: Changes were seen on the cervix that may require treatment to prevent cervical cancer.',
+        'If your VIA result is negative, no treatment is needed at this time. Women living with HIV: Repeat HPV test after 3 years. Women without HIV: Repeat HPV test after 5 years.',
+        'If your VIA result is positive and you are eligible for treatment, your healthcare provider may recommend Thermal Ablation. This treatment removes abnormal cervical cells before they can develop into cancer.',
+        'Thermal Ablation is a simple outpatient procedure that uses heat to destroy abnormal cells on the cervix. The procedure usually takes a few minutes and does not require admission to hospital.',
+        'After Thermal Ablation, it is normal to experience mild watery discharge (use a pad or panty liner) and mild lower abdominal discomfort. These symptoms usually improve within a few days to weeks.',
+        'Please return to the health facility immediately if you experience: heavy vaginal bleeding, foul-smelling vaginal discharge, severe lower abdominal pain, fever, or any symptoms that concern you.',
+        'To allow your cervix to heal: avoid sexual intercourse for 4 weeks or as advised; avoid inserting anything into the vagina during the healing period; attend all scheduled follow-up appointments.',
+        'After Thermal Ablation, you should return for a Test of Cure (ToC) using HPV testing after 1 year to confirm treatment was successful.',
     ];
 }
 

@@ -185,7 +185,6 @@ function get_patient_language(int $patientId): string
 function send_afya_enrollment_messages(int $patientId, string $patientName, string $lang = 'en'): void
 {
     send_patient_message($patientId, 'welcome', build_welcome_message($patientName, $lang));
-    send_patient_message($patientId, 'system', build_consent_message($lang));
 }
 
 function build_appointment_message(string $patientName, array $appointment, string $lang = 'en'): string
@@ -398,9 +397,6 @@ function should_send_engagement_message(int $patientId): bool
  */
 function send_random_engagement_message(int $patientId): bool
 {
-    if (!patient_has_confirmed_consent($patientId)) {
-        return false;
-    }
     require_once __DIR__ . '/hpv_results.php';
     if (!hpv_counseling_pathway_complete($patientId)) {
         return false;

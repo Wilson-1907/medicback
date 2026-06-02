@@ -4,6 +4,43 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/afya_rafiki_content.php';
 
+/** Allow referral and check-up SMS types on older databases. */
+function ensure_outbound_message_types(): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    try {
+        $pdo = db();
+        $st = $pdo->prepare(
+            "SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'outbound_messages'
+               AND COLUMN_NAME = 'message_type' LIMIT 1"
+        );
+        $st->execute();
+        $col = $st->fetchColumn();
+        if ($col && is_string($col) && !str_contains(strtolower($col), 'referral')) {
+            $pdo->exec(
+                "ALTER TABLE outbound_messages MODIFY COLUMN message_type ENUM(
+                    'welcome',
+                    'appointment_reminder',
+                    'education_menu',
+                    'engagement_boost',
+                    'system',
+                    'ai_reply',
+                    'escalation_notice',
+                    'referral',
+                    'checkup_reminder'
+                ) NOT NULL"
+            );
+        }
+    } catch (Throwable $e) {
+        error_log('ensure_outbound_message_types: ' . $e->getMessage());
+    }
+}
+
 function messaging_enabled(): bool
 {
     return AFRICASTALKING_API_KEY !== '';
@@ -28,6 +65,7 @@ function patient_primary_contact(int $patientId): ?array
 
 function log_outbound_message(int $patientId, string $channel, string $type, string $body): int
 {
+    ensure_outbound_message_types();
     $st = db()->prepare(
         'INSERT INTO outbound_messages (patient_id, channel, message_type, body, status)
          VALUES (?,?,?,?,?)'

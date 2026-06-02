@@ -131,7 +131,9 @@ CREATE TABLE outbound_messages (
                       'engagement_boost',
                       'system',
                       'ai_reply',
-                      'escalation_notice'
+                      'escalation_notice',
+                      'referral',
+                      'checkup_reminder'
                     ) NOT NULL,
   body            TEXT NOT NULL,
   at_message_id   VARCHAR(128) NULL COMMENT 'Africa\'s Talking message id',

@@ -9,7 +9,7 @@ try {
     // List booked appointments (for the hospital console appointments viewer).
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
         $rows = $pdo->query(
-            "SELECT a.id, a.patient_id, p.full_name, a.department, a.provider_name,
+            "SELECT a.id, a.patient_id, p.full_name, p.external_mrn AS client_id, a.department, a.provider_name,
                     a.scheduled_start, a.scheduled_end, a.location, a.status,
                     a.reminder_7d_sent_at, a.reminder_3d_sent_at, a.reminder_night_sent_at,
                     (SELECT cc.channel FROM contact_channels cc

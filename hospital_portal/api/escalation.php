@@ -21,7 +21,7 @@ function fetch_escalation_by_id(int $id): ?array
 {
     $pdo = db();
     $st = $pdo->prepare(
-        "SELECT e.id, e.patient_id, e.created_at, e.status, e.urgency, e.reason, e.updated_at, p.full_name,
+        "SELECT e.id, e.patient_id, p.external_mrn AS client_id, e.created_at, e.status, e.urgency, e.reason, e.updated_at, p.full_name,
                 (SELECT cc.address FROM contact_channels cc
                  WHERE cc.patient_id = p.id AND cc.is_primary = 1 LIMIT 1) AS phone,
                 (SELECT cc.channel FROM contact_channels cc

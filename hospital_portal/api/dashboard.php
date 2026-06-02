@@ -24,14 +24,14 @@ try {
     ];
 
     $recent = $pdo->query(
-        'SELECT id, full_name, status, preferred_language, registration_at
+        'SELECT id, full_name, status, preferred_language, registration_at, external_mrn AS client_id
          FROM patients
          ORDER BY registration_at DESC
          LIMIT 10'
     )->fetchAll();
 
     $appointments = $pdo->query(
-        "SELECT a.id, a.patient_id, p.full_name, a.department, a.provider_name,
+        "SELECT a.id, a.patient_id, p.full_name, p.external_mrn AS client_id, a.department, a.provider_name,
                 a.scheduled_start, a.scheduled_end, a.location, a.status,
                 (SELECT e.reason FROM appointment_reschedule_events e
                  WHERE e.appointment_id = a.id ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS reason

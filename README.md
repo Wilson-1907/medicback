@@ -1,74 +1,33 @@
-# PHV Engagement System
+# Medicback — HPV Patient Engagement API
 
-Single-hospital PHV engagement platform with:
+Backend for **Nyeri Town Health Center** (Afya Rafiki): patient registration, SMS/WhatsApp messaging, appointments, HPV workflow, and webhooks.
 
-- Patient registration and contact preferences
-- Appointment scheduling and rescheduling (with required reason)
-- Diagnosis logging
-- Africa's Talking SMS/WhatsApp automation
-- OpenAI caring conversational replies
-- Message center for outbound/inbound/escalation monitoring
+**Frontend (separate repo):** [medicfront](https://github.com/Wilson-1907/medicfront) — deploy `deploy/vercel` on Vercel.
 
-## Project Structure
+## Repository layout
 
-- `hospital_portal/` -> PHP backend + staff UI + webhook endpoints
-- `deploy/render/` -> Render deployment config for backend
-- `deploy/vercel/` -> Vercel frontend placeholder deployment
+| Path | Purpose |
+|------|---------|
+| `hospital_portal/` | PHP application (API, staff UI, webhooks, cron) |
+| `deploy/render/` | Docker + Render deployment config |
+| `phv_pilot_schema.sql` | Base database schema |
+| `hospital_portal/sql/` | Incremental migrations (run in order) |
+| `hospital_portal/docs/` | Official Afya Rafiki message and flow documentation |
 
-## Local Run (XAMPP/PHP)
+## Quick start (local)
 
-1. Import DB schema:
-   - `phv_pilot_schema.sql`
-2. Run appointment reason migration:
-   - `hospital_portal/sql/2026_04_17_enforce_appointment_reason.sql`
-3. Configure env:
-   - `hospital_portal/.env`
-4. Start server:
-   - `php -S 127.0.0.1:8000 -t hospital_portal`
+1. Import `phv_pilot_schema.sql`, then run migrations under `hospital_portal/sql/`.
+2. Copy `hospital_portal/.env.example` to `hospital_portal/.env` and set DB + Africa's Talking + Groq keys.
+3. Serve: `php -S 127.0.0.1:8000 -t hospital_portal`
 
-## Environment Modes (Africa's Talking)
+See `hospital_portal/README.md` for workflows, API list, and webhooks.
 
-Use one switch in `.env`:
+## Production
 
-- `AFRICASTALKING_MODE=sandbox` for testing
-- `AFRICASTALKING_MODE=production` for live traffic
-
-Fill values accordingly:
-
-- Sandbox fields: `AFRICASTALKING_SANDBOX_*`
-- Production fields: `AFRICASTALKING_PROD_*`
-
-For production go-live, keep sandbox values unused and fill only `AFRICASTALKING_PROD_*`.
-
-## Webhook Endpoints
-
-- Incoming: `/webhook_africastalking.php`
-- Delivery report: `/webhook_delivery_report.php`
-
-## OpenAI
-
-Set:
-
-- `GROQ_API_KEY` — Groq API key from [console.groq.com](https://console.groq.com)
-- `GROQ_MODEL` (default `llama-3.3-70b-versatile`)
-
-If key is empty, system falls back to predefined supportive responses.
-
-## Deploy
-
-### Render (backend + webhooks)
-
-- Use `deploy/render/render.yaml`
-- Dockerfile: `deploy/render/Dockerfile`
-- Copy env values from `deploy/render/.env.production.example` for live setup
-
-### Vercel (frontend)
-
-- Deploy `deploy/vercel/` as separate static frontend
-- Keep all webhook callbacks on Render backend URL
+- **API / webhooks:** Render (`deploy/render/`) — e.g. `https://medicback.onrender.com`
+- **Console UI:** Vercel (medicfront repo)
+- Set `HOSPITAL_NAME` and `CLINIC_SITE_NAME` to `Nyeri Town Health Center` on Render.
 
 ## Security
 
-- Never commit real API keys
-- Rotate any key exposed during testing
-- Use HTTPS URLs for all production callbacks
+Do not commit `.env` or API keys. Rotate any key that was exposed during testing.

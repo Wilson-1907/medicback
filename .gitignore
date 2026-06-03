@@ -1,0 +1,21 @@
+# Environment and secrets
+.env
+**/.env
+!**/.env.example
+
+# Local git worktrees (do not commit)
+.medicback.git/
+.medicfront.git/
+
+# Frontend lives in medicfront repo
+deploy/vercel/node_modules/
+deploy/vercel/
+
+# Dependencies and OS
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+
+# Scratch / local test copies
+test_payloads/

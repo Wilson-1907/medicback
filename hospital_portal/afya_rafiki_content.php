@@ -156,13 +156,13 @@ function afya_counseling_messages_positive(string $lang = 'en'): array
             'Majibu chanya ya HPV hayamaanishi kuwa una saratani ya mlango wa kizazi. Inamaanisha kuwa ufuatiliaji zaidi unahitajika ili kulinda afya yako.',
             'Kwa kuwa majibu yako ya HPV ni chanya, hatua inayofuata ni uchunguzi unaoitwa Visual Assessment (VIA). Wakati wa VIA, mhudumu wa afya hupaka dawa maalum ya siki kwenye mlango wa kizazi na kuangalia kama kuna sehemu zisizo za kawaida zinazohitaji matibabu. Uchunguzi huu ni salama na huchukua dakika chache tu.',
             'Baada ya VIA, matokeo yako yanaweza kuwa: VIA Hasi (Negative): Hakuna mabadiliko yasiyo ya kawaida. VIA Chanya (Positive): Mabadiliko yalionekana ambayo yanaweza kuhitaji matibabu ili kuzuia saratani ya mlango wa kizazi.',
-            'Ikiwa matokeo yako ya VIA ni hasi, huhitaji matibabu kwa sasa. Wanawake wanaoishi na HIV: rudia kipimo cha HPV baada ya miaka 3. Wanawake wasio na HIV: rudia kipimo cha HPV baada ya miaka 5.',
+            'Ikiwa matokeo yako ya VIA ni hasi, huhitaji matibabu kwa sasa. Ni muhimu kuendelea na uchunguzi wa kawaida: Wanawake wanaoishi na HIV: rudia kipimo cha HPV baada ya miaka 3. Wanawake wasio na HIV: rudia kipimo cha HPV baada ya miaka 5. Endelea kuhudhuria huduma za afya kama ulivyoelekezwa.',
             'Ikiwa matokeo yako ya VIA ni chanya na unafaa kupata matibabu, mhudumu wa afya anaweza kupendekeza Thermal Ablation. Matibabu haya huondoa seli zisizo za kawaida kwenye mlango wa kizazi kabla hazijageuka kuwa saratani.',
             'Thermal Ablation ni matibabu rahisi yanayotumia joto kuharibu seli zisizo za kawaida kwenye mlango wa kizazi. Matibabu haya huchukua dakika chache na kwa kawaida hayahitaji kulazwa hospitalini.',
             'Baada ya Thermal Ablation, ni kawaida kupata majimaji kutoka ukeni (tumia pad au panty liner) na maumivu madogo chini ya tumbo. Dalili hizi kwa kawaida hupungua ndani ya siku au wiki chache.',
             'Tafadhali rudi hospitalini mara moja ikiwa utapata: kutokwa na damu nyingi ukeni, majimaji yenye harufu mbaya, maumivu makali chini ya tumbo, homa, au dalili nyingine zinazokusumbua.',
             'Ili kuruhusu mlango wa kizazi kupona: epuka kufanya ngono kwa wiki 4 au kama ulivyoelekezwa; epuka kuingiza kitu chochote ukeni; hudhuria miadi yote ya ufuatiliaji.',
-            'Baada ya Thermal Ablation, unapaswa kurudi kwa Test of Cure (ToC) kwa kutumia kipimo cha HPV baada ya mwaka 1 ili kuthibitisha matibabu yalifanikiwa.',
+            'Baada ya Thermal Ablation, unapaswa kurudi kwa kipimo cha kuthibitisha mafanikio ya matibabu (Test of Cure) kwa kutumia kipimo cha HPV baada ya mwaka 1. Hii husaidia kuthibitisha kuwa matibabu yalifanikiwa na afya ya mlango wa kizazi inaendelea kuwa nzuri.',
         ];
     }
 
@@ -172,13 +172,13 @@ function afya_counseling_messages_positive(string $lang = 'en'): array
         'A positive HPV result does not mean you have cervical cancer. It means more follow-up is needed to keep you healthy.',
         'Because your HPV test is positive, the next step is an examination called Visual Assessment (VIA). During VIA, a trained healthcare provider applies a special vinegar solution to the cervix and looks for any abnormal areas that may need treatment. The procedure is simple, safe, and usually takes only a few minutes.',
         'After VIA, your results may be: VIA Negative: No visible abnormal changes were found on the cervix. VIA Positive: Changes were seen on the cervix that may require treatment to prevent cervical cancer.',
-        'If your VIA result is negative, no treatment is needed at this time. Women living with HIV: Repeat HPV test after 3 years. Women without HIV: Repeat HPV test after 5 years.',
+        'If your VIA result is negative, no treatment is needed at this time. Regular follow-up screening is important: Women living with HIV: Repeat HPV test after 3 years. Women without HIV: Repeat HPV test after 5 years. Continue attending routine health check-ups as advised.',
         'If your VIA result is positive and you are eligible for treatment, your healthcare provider may recommend Thermal Ablation. This treatment removes abnormal cervical cells before they can develop into cancer.',
         'Thermal Ablation is a simple outpatient procedure that uses heat to destroy abnormal cells on the cervix. The procedure usually takes a few minutes and does not require admission to hospital.',
         'After Thermal Ablation, it is normal to experience mild watery discharge (use a pad or panty liner) and mild lower abdominal discomfort. These symptoms usually improve within a few days to weeks.',
         'Please return to the health facility immediately if you experience: heavy vaginal bleeding, foul-smelling vaginal discharge, severe lower abdominal pain, fever, or any symptoms that concern you.',
         'To allow your cervix to heal: avoid sexual intercourse for 4 weeks or as advised; avoid inserting anything into the vagina during the healing period; attend all scheduled follow-up appointments.',
-        'After Thermal Ablation, you should return for a Test of Cure (ToC) using HPV testing after 1 year to confirm treatment was successful.',
+        'After Thermal Ablation, you should return for a Test of Cure (ToC) using HPV testing after 1 year. This helps confirm that treatment was successful and that your cervix remains healthy.',
     ];
 }
 

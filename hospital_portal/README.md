@@ -63,10 +63,10 @@ Backend and staff UI for the PHV engagement pilot.
 Run migration: `sql/2026_05_31_hpv_result_workflow.sql`
 
 4. HPV counseling sequence (after result confirmed)
-4. Appointment reminders (**7-day**, **3-day**, and **night-before / 1-day**) via `/cron_run_reminders.php`
-5. FAQ menu via `HELP` (`1`–`3` HPV questions, `4` appointments, `5`/`DOCTOR` provider)
-6. Auto-escalation for urgent symptoms, distress, missed visits, complex clinical questions
-7. Groq AI for open conversation (matches Swahili, English, Sheng, mixed)
+5. Appointment reminders (**7-day**, **3-day**, and **night-before**) via `/cron_run_reminders.php`
+6. FAQ menu via `HELP` (`1`–`3` HPV questions, `4` appointments, `5`/`DOCTOR` provider)
+7. Auto-escalation for urgent symptoms, distress, missed visits, complex clinical questions
+8. Groq AI for open conversation (matches Swahili, English, Sheng, mixed)
 
 Env: `AFYA_RAFIKI_NAME`, `CLINIC_SITE_NAME` (default: Nyeri Town Health Center)
 
@@ -87,7 +87,7 @@ When `GROQ_API_KEY` is configured:
 - AI sends caring, hopeful, safety-guarded responses
 - Critical wording is still directed toward urgent care and doctor escalation
 
-When OpenAI key is empty, fallback supportive replies are used.
+When `GROQ_API_KEY` is empty, fallback supportive replies are used.
 
 ## 7) Deployment split
 

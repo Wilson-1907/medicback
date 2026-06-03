@@ -30,6 +30,31 @@ function schedule_patient_message(
     return (int) db()->lastInsertId();
 }
 
+function schedule_patient_message_at(
+    int $patientId,
+    string $messageType,
+    string $body,
+    string $sendAtIso
+): int {
+    $ts = strtotime($sendAtIso);
+    $sendAt = $ts !== false ? date('Y-m-d H:i:s', $ts) : date('Y-m-d H:i:s');
+    $hasChainCol = scheduled_messages_has_counseling_chain_column();
+    if ($hasChainCol) {
+        $st = db()->prepare(
+            'INSERT INTO scheduled_messages (patient_id, message_type, body, send_at, status, triggers_counseling_chain)
+             VALUES (?,?,?,?,?,0)'
+        );
+        $st->execute([$patientId, $messageType, $body, $sendAt, 'queued']);
+    } else {
+        $st = db()->prepare(
+            'INSERT INTO scheduled_messages (patient_id, message_type, body, send_at, status)
+             VALUES (?,?,?,?,?)'
+        );
+        $st->execute([$patientId, $messageType, $body, $sendAt, 'queued']);
+    }
+    return (int) db()->lastInsertId();
+}
+
 function scheduled_messages_has_counseling_chain_column(): bool
 {
     static $has = null;

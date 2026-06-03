@@ -238,10 +238,6 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
         return ['ok' => false, 'error' => 'Results were already confirmed and sent to the patient'];
     }
 
-    if (!patient_has_confirmed_consent($patientId)) {
-        return ['ok' => false, 'error' => 'Patient has not accepted messages (consent) yet'];
-    }
-
     $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
     $name = (string) $row['full_name'];
 

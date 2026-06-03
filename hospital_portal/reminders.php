@@ -17,10 +17,6 @@ function reminder_dispatch_query(string $column, string $whenExpr): array
               AND p.status = 'active'
               AND a.{$column} IS NULL
               AND NOW() >= {$whenExpr}
-              AND EXISTS (
-                SELECT 1 FROM contact_preference_events cpe
-                WHERE cpe.patient_id = p.id AND cpe.action = 'confirm_double_opt_in'
-              )
             ORDER BY a.scheduled_start ASC
             LIMIT 200";
     return $pdo->query($sql)->fetchAll();

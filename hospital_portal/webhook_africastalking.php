@@ -165,25 +165,6 @@ $msg = strtoupper(trim($body));
 $replyLang = $lang === 'sw' ? 'sw' : 'en';
 $patientFirstName = afya_first_name((string) ($patient['full_name'] ?? ''));
 
-// --- Consent confirmation (Afya Rafiki enrollment) ---
-if (patient_awaiting_consent($patientId)) {
-    if (is_consent_yes_reply($body)) {
-        record_consent_yes($patientId, $channel);
-        handle_consent_accepted($patientId, (string) ($patient['full_name'] ?? ''), $replyLang);
-        echo 'OK';
-        exit;
-    }
-    if (is_consent_no_reply($body)) {
-        record_consent_no($patientId, $channel);
-        $ack = $replyLang === 'sw'
-            ? 'Umechagua kusitopokea ujumbe. Unaweza kuwasiliana na kliniki yako moja kwa moja wakati wowote.'
-            : 'You have chosen not to receive messages. You can contact your clinic directly anytime.';
-        send_patient_message($patientId, 'system', $ack);
-        echo 'OK';
-        exit;
-    }
-}
-
 // --- Rule-based FAQ / HELP menu ---
 $faqReply = afya_faq_reply($body, $replyLang);
 if ($faqReply !== null) {

@@ -47,9 +47,54 @@ function force_outbound_message_types_varchar(): void
     }
 }
 
+/** SMS only — Africa's Talking (production or sandbox per AFRICASTALKING_MODE). */
+function africastalking_sms_ready(): bool
+{
+    return AFRICASTALKING_API_KEY !== ''
+        && AFRICASTALKING_USERNAME !== ''
+        && AFRICASTALKING_SMS_FROM !== '';
+}
+
+/** Legacy WhatsApp via Africa's Talking (not used when WHATSAPP_PROVIDER=cloud / Mteja). */
+function africastalking_whatsapp_ready(): bool
+{
+    return AFRICASTALKING_API_KEY !== ''
+        && AFRICASTALKING_USERNAME !== ''
+        && AFRICASTALKING_WHATSAPP_FROM !== '';
+}
+
+/** Outbound WhatsApp: Mteja / Meta Cloud when WHATSAPP_PROVIDER=cloud, else AT WhatsApp. */
+function whatsapp_outbound_ready(): bool
+{
+    $provider = defined('WHATSAPP_PROVIDER') ? WHATSAPP_PROVIDER : 'africastalking';
+    if ($provider === 'cloud') {
+        return whatsapp_cloud_enabled();
+    }
+    return africastalking_whatsapp_ready();
+}
+
 function messaging_enabled(): bool
 {
-    return AFRICASTALKING_API_KEY !== '' || whatsapp_cloud_enabled();
+    return africastalking_sms_ready() || whatsapp_outbound_ready();
+}
+
+/** Normalize stored phone to E.164 (+254…) for outbound APIs. */
+function normalize_outbound_address(string $address): string
+{
+    $address = trim($address);
+    if ($address === '') {
+        return '';
+    }
+    $digits = preg_replace('/\D+/', '', $address) ?? '';
+    if ($digits === '') {
+        return '';
+    }
+    if (str_starts_with($digits, '0')) {
+        $digits = '254' . substr($digits, 1);
+    } elseif (strlen($digits) === 9) {
+        $digits = '254' . $digits;
+    }
+    return '+' . $digits;
 }
 
 /**
@@ -105,11 +150,27 @@ function update_outbound_status(int $outboundId, string $status, ?string $atId, 
  */
 function africastalking_send(string $channel, string $to, string $message): array
 {
-    if (!messaging_enabled()) {
-        return ['ok' => false, 'message_id' => null, 'error' => 'AFRICASTALKING_API_KEY is empty'];
+    if ($channel === 'sms' && !africastalking_sms_ready()) {
+        return [
+            'ok' => false,
+            'message_id' => null,
+            'error' => 'SMS not configured: set AFRICASTALKING_MODE and PROD (or sandbox) API_KEY, USERNAME, SMS_FROM',
+        ];
+    }
+    if ($channel === 'whatsapp' && !africastalking_whatsapp_ready()) {
+        return [
+            'ok' => false,
+            'message_id' => null,
+            'error' => 'WhatsApp (Africa\'s Talking) not configured: set AFRICASTALKING_*_WHATSAPP_FROM or use WHATSAPP_PROVIDER=cloud with Mteja credentials',
+        ];
     }
     if (!function_exists('curl_init')) {
         return ['ok' => false, 'message_id' => null, 'error' => 'PHP cURL extension is not enabled'];
+    }
+
+    $to = normalize_outbound_address($to);
+    if ($to === '') {
+        return ['ok' => false, 'message_id' => null, 'error' => 'Invalid recipient phone number'];
     }
 
     $url = $channel === 'whatsapp' ? AFRICASTALKING_WHATSAPP_URL : AFRICASTALKING_SMS_URL;
@@ -199,25 +260,41 @@ function send_patient_message(int $patientId, string $messageType, string $body)
     }
 
     $channel = (string) $contact['channel'];
-    $address = (string) $contact['address'];
+    $address = normalize_outbound_address((string) $contact['address']);
+    if ($address === '') {
+        error_log("SEND_PATIENT_MESSAGE FAILED: Invalid address for patient $patientId");
+        return false;
+    }
 
-    if ($channel === 'whatsapp' && !whatsapp_cloud_enabled() && AFRICASTALKING_WHATSAPP_FROM === '') {
-        error_log("SEND_PATIENT_MESSAGE FAILED: WhatsApp not configured (set WHATSAPP_PROVIDER=cloud + Meta tokens, or AFRICASTALKING_*_WHATSAPP_FROM)");
+    $waProvider = defined('WHATSAPP_PROVIDER') ? WHATSAPP_PROVIDER : 'africastalking';
+    if ($channel === 'sms' && !africastalking_sms_ready()) {
+        error_log('SEND_PATIENT_MESSAGE FAILED: SMS (Africa\'s Talking) not configured on server');
         $outboundId = log_outbound_message($patientId, $channel, $messageType, $body);
-        update_outbound_status($outboundId, 'failed', null, 'WhatsApp sender not configured on server');
+        update_outbound_status($outboundId, 'failed', null, 'SMS (Africa\'s Talking) not configured');
+        return false;
+    }
+    if ($channel === 'whatsapp' && !whatsapp_outbound_ready()) {
+        $hint = $waProvider === 'cloud'
+            ? 'WhatsApp (Mteja): set WHATSAPP_PROVIDER=cloud, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID on Render'
+            : 'WhatsApp: set WHATSAPP_PROVIDER=cloud for Mteja, or AFRICASTALKING_*_WHATSAPP_FROM for AT';
+        error_log('SEND_PATIENT_MESSAGE FAILED: ' . $hint);
+        $outboundId = log_outbound_message($patientId, $channel, $messageType, $body);
+        update_outbound_status($outboundId, 'failed', null, $hint);
         return false;
     }
 
     error_log("SEND_PATIENT_MESSAGE: Patient=$patientId, Channel=$channel, Address=$address, Type=$messageType");
 
     $outboundId = log_outbound_message($patientId, $channel, $messageType, $body);
-    if ($channel === 'whatsapp' && whatsapp_cloud_enabled()) {
-        $result = whatsapp_cloud_send($address, $body);
+    if ($channel === 'whatsapp') {
+        $result = whatsapp_cloud_enabled()
+            ? whatsapp_cloud_send($address, $body)
+            : africastalking_send('whatsapp', $address, $body);
     } else {
-        $result = africastalking_send($channel, $address, $body);
+        $result = africastalking_send('sms', $address, $body);
     }
 
-    error_log("AFRICASTALKING_RESULT: outboundId=$outboundId, ok=" . ($result['ok'] ? 'true' : 'false') . ", error=" . ($result['error'] ?? 'none'));
+    error_log('SEND_RESULT: outboundId=' . $outboundId . ', ok=' . ($result['ok'] ? 'true' : 'false') . ', error=' . ($result['error'] ?? 'none'));
 
     if ($result['ok']) {
         update_outbound_status($outboundId, 'sent', $result['message_id'], null);

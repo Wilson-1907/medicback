@@ -122,6 +122,11 @@ function send_unlinked_reply(string $channel, string $to, string $body): void
     if ($to === '') {
         return;
     }
+    $to = normalize_inbound_phone($to);
+    if ($channel === 'whatsapp' && function_exists('whatsapp_cloud_enabled') && whatsapp_cloud_enabled()) {
+        whatsapp_cloud_send($to, $body);
+        return;
+    }
     africastalking_send($channel, $to, $body);
 }
 
@@ -135,6 +140,13 @@ error_log("WEBHOOK_PAYLOAD: " . json_encode($payload));
 $from = normalize_inbound_phone(payload_value($payload, ['from', 'fromNumber', 'source', 'sender']));
 $body = payload_value($payload, ['text', 'message', 'body', 'content']);
 $channel = channel_from_payload($payload);
+
+// WhatsApp inbound is handled by Mteja → Meta webhook (webhook_whatsapp.php), not AT.
+if ($channel === 'whatsapp' && defined('WHATSAPP_PROVIDER') && WHATSAPP_PROVIDER === 'cloud') {
+    error_log('WEBHOOK_EXIT: WhatsApp inbound ignored on AT webhook (use webhook_whatsapp.php / Mteja)');
+    echo 'OK';
+    exit;
+}
 
 error_log("PARSED: from=$from, channel=$channel, body=$body");
 

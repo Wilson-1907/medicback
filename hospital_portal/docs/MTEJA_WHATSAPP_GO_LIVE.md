@@ -59,17 +59,20 @@ If Mteja only supports forwarding via **their** dashboard (not Meta directly), a
 
 Outside the 24-hour chat window, WhatsApp requires **pre-approved templates** for proactive messages.
 
-Ask Mteja to submit / approve templates for Afya Rafiki (English + Kiswahili where needed):
+Ask Mteja to submit / approve templates using the ready-made pack:
 
-| Template purpose | When sent |
-|------------------|-----------|
-| `afya_welcome` | Right after registration (opt-in) |
-| `afya_hpv_negative_hiv_pos` | HPV negative, HIV+ (3-year return) |
-| `afya_hpv_negative_hiv_neg` | HPV negative, HIV− (5-year return) |
-| `afya_hpv_positive_result` | HPV positive + appointment date |
-| `afya_appointment_reminder_7d` | 7 days before appointment |
-| `afya_appointment_reminder_3d` | 3 days before |
-| `afya_appointment_reminder_1d` | Day before |
+**See `hospital_portal/docs/WHATSAPP_MESSAGE_TEMPLATES.md`** — full English/Kiswahili bodies, variable placeholders, and template names to copy into Mteja.
+
+| Template name (EN example) | When sent |
+|----------------------------|-----------|
+| `afya_welcome_en` | Right after registration (opt-in) |
+| `afya_hpv_neg_hivpos_en` | HPV negative, HIV+ (3-year return) |
+| `afya_hpv_neg_hivneg_en` | HPV negative, HIV− (5-year return) |
+| `afya_hpv_positive_en` | HPV positive + appointment date |
+| `afya_appt_reminder_7d_en` | 7 days before appointment |
+| `afya_appt_reminder_3d_en` | 3 days before |
+| `afya_appt_reminder_1d_en` | Day before |
+| `afya_via_referral_en` | VIA referral (specialist pathway) |
 
 Until templates are approved, Mteja may allow **session messages** only after the patient has messaged first within 24 hours. Plan a short pilot: nurse asks patient to send *Hi* to the hospital WhatsApp number after registration.
 

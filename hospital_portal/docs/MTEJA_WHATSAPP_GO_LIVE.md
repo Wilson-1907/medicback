@@ -11,6 +11,60 @@ Today the app supports:
 
 ---
 
+## Go live tomorrow — 24-hour checklist
+
+**Reality:** Meta templates often take 24–48h. You can still go live tomorrow using **session messages** (patient texts the hospital number first) + **SMS** for the first outbound until templates are approved.
+
+### Tonight (30 min max)
+
+| # | You | Mteja (email/call) |
+|---|-----|-------------------|
+| 1 | Submit **4 urgent templates** in Mteja: welcome EN/SW, HPV positive EN/SW (from `WHATSAPP_MESSAGE_TEMPLATES.md`) | Ask **expedited approval** + Meta credentials **tonight** |
+| 2 | Generate verify token (long random password); save in Notes | Register webhook URL below |
+| 3 | Send email (Part 6 below) — paste verify token in a separate line to them | Confirm WABA number is active |
+
+**Webhook URL (give Mteja):** `https://medicback.onrender.com/webhook_whatsapp.php`  
+**Skip for day 1:** Mteja Chatbot flows, Web Query, session notification URL (optional later).
+
+### Tomorrow morning — technical (20 min)
+
+1. **Render** → medicback → Environment → add:
+   - `WHATSAPP_PROVIDER=cloud`
+   - `WHATSAPP_ACCESS_TOKEN` = from Mteja
+   - `WHATSAPP_PHONE_NUMBER_ID` = from Mteja
+   - `WHATSAPP_VERIFY_TOKEN` = same string you gave Mteja
+2. **Save** → wait for redeploy (~2 min).
+3. Open: `https://medicback.onrender.com/api/messaging_health.php`  
+   - Need: `"whatsapp_cloud_ready": true`
+4. **Webhook test:** Mteja/Meta “Verify” on webhook, or send *Hi* from your phone to the hospital WhatsApp number → you should get an Afya Rafiki reply.
+
+### Tomorrow — hospital workflow (pilot: 3 patients)
+
+| Step | Staff action |
+|------|----------------|
+| A | Patient **opts in** on paper; register in console with channel **WhatsApp**, phone `+2547…` |
+| B | **If templates not approved yet:** patient opens WhatsApp → sends **Hi** to hospital number (opens 24h window) |
+| C | Staff confirms HPV / books appointment in console → system sends WhatsApp (works inside 24h window) |
+| D | **Welcome before Hi:** use **SMS** for welcome today, or wait until welcome template is approved |
+| E | Patient types **HELP** → menu; **DOCTOR** → escalation |
+
+### If something fails
+
+| Symptom | Fix |
+|---------|-----|
+| `whatsapp_cloud_ready: false` | Token or phone number ID missing on Render |
+| No reply to *Hi* | Webhook not registered or wrong verify token |
+| Welcome not on WhatsApp | Template not approved — use SMS or patient sends Hi first |
+| `131047` / template errors from Meta | Outside 24h window — need approved template |
+
+### Definition of “live tomorrow”
+
+- Hospital WhatsApp number answers **HELP** / **DOCTOR** via medicback.  
+- Staff can register patients and send **results/reminders on WhatsApp** after patient has messaged once (or when templates approved).  
+- SMS stays on for welcome/backup until all templates are green in Mteja.
+
+---
+
 ## Part 1 — What to request from Mteja
 
 Email **support@mteja.io** (or your account manager) with the checklist below.
@@ -61,7 +115,8 @@ Outside the 24-hour chat window, WhatsApp requires **pre-approved templates** fo
 
 Ask Mteja to submit / approve templates using the ready-made pack:
 
-**See `hospital_portal/docs/WHATSAPP_MESSAGE_TEMPLATES.md`** — full English/Kiswahili bodies, variable placeholders, and template names to copy into Mteja.
+**See `hospital_portal/docs/WHATSAPP_MESSAGE_TEMPLATES.md`** — **84 templates** (Phase 1–3) EN/SW.  
+**FAQ knowledge base:** `hospital_portal/docs/MTEJA_KNOWLEDGE_BASE_FAQ.md` — import into Mteja for multi-FAQ / chatbot.
 
 | Template name (EN example) | When sent |
 |----------------------------|-----------|

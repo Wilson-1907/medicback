@@ -24,13 +24,13 @@ Submit these in the **Mteja** dashboard (or Meta Business Manager) for **Nyeri T
 | Phase | Templates | Count (EN+SW) |
 |-------|-----------|---------------|
 | **1 — Go-live** | 1–8 | 16 |
-| **2 — System messages** | 9–26 | 36 |
-| **3 — HPV counseling (positive)** | 27–42 | 32 |
-| **Total** | | **84** |
+| **2 — System & FAQ replies** | 9–33 | 50 |
+| **3 — HPV counseling (positive)** | 34–49 | 32 |
+| **Total** | **49** | **98** |
 
 **Phase 1:** submit first (urgent go-live).  
-**Phase 2:** all automated replies (appointments, HELP, DOCTOR flow, missed visit, etc.).  
-**Phase 3:** 16 counseling steps — submit if Mteja/Meta require templates outside 24h session.
+**Phase 2:** appointments, HELP/DOCTOR, missed visit, check-ups, FAQ options 1–6.  
+**Phase 3:** 16 counseling messages (official script) — batch 2 if Meta requires templates for each step.
 
 **Knowledge base (FAQ):** `MTEJA_KNOWLEDGE_BASE_EN.md` + `MTEJA_KNOWLEDGE_BASE_SW.md` — two Mteja knowledge bases (one per language).
 
@@ -684,111 +684,544 @@ Afya yako ni muhimu. Umechukua hatua nzuri kwa kufuatilia afya yako. Jibu HELP k
 
 ---
 
-## Phase 3 — HPV positive counseling (templates 27–42)
+## 27. Appointment updated (date/time changed)
 
-**Naming:** `afya_counsel_pos_01_en` … `afya_counsel_pos_16_en` (and `_sw`).  
-**Source code:** `hospital_portal/afya_counseling_positive.php`.  
-**Note:** If Meta rejects a body over **1024 characters**, ask Mteja to split into two templates or use session messages for that step only.
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_appt_updated_en` | `afya_appt_updated_sw` |
+| **Category** | UTILITY | UTILITY |
+| **When sent** | Staff changes appointment date/time | Same |
 
-### 27–42. Counseling steps 1–16
+**Body (en):**
 
-For each step `NN` (01–16), create **two** templates (`_en` / `_sw`) with the bodies below.
+```
+Hello {{1}}, your appointment at Nyeri Town Health Center has been updated. New date/time: {{2}}. We are here for you. Reply HELP or DOCTOR if you need support.
+```
 
-#### Step 01 — `afya_counsel_pos_01`
+**Body (sw):**
 
-**EN:** Your HPV test was positive. This means that HPV was detected in your sample. HPV is a very common infection, and about 8 out of every 10 sexually active people will get HPV at some point in their lives. Most HPV infections clear on their own without causing health problems. However, follow-up care is important to identify and treat any changes early and help prevent cervical cancer.
+```
+Habari {{1}}, miadi yako katika Nyeri Town Health Center imebadilishwa. Tarehe/Saa mpya: {{2}}. Tupo hapa kwako. Jibu HELP au DOCTOR ikiwa unahitaji msaada.
+```
 
-**SW:** Majibu yako ya HPV yalikuwa chanya (positive). Hii inamaanisha kuwa virusi vya HPV vimepatikana kwenye sampuli yako. HPV ni maambukizi ya kawaida sana, na takribani watu 8 kati ya 10 wanaoshiriki ngono hupata HPV wakati fulani maishani mwao. Maambukizi mengi ya HPV huisha yenyewe bila kusababisha matatizo ya kiafya. Hata hivyo, huduma ya ufuatiliaji ni muhimu ili kugundua na kutibu mabadiliko yoyote mapema na kusaidia kuzuia saratani ya mlango wa kizazi.
+| Variable | Sample |
+|----------|--------|
+| `{{1}}` | Jane |
+| `{{2}}` | Wednesday, 18 Jun 2026 2:00 PM |
 
-#### Step 02 — `afya_counsel_pos_02`
+---
 
-**EN:** Follow-up care helps health providers detect and treat changes early before they become serious. Please attend your recommended clinic visit.
+## 28. FAQ reply — What is HPV? (option 1)
 
-**SW:** Huduma ya ufuatiliaji husaidia wahudumu wa afya kugundua na kutibu mabadiliko mapema kabla hayajawa makubwa. Tafadhali hudhuria kliniki yako kama ulivyoelekezwa.
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_faq_hpv_en` | `afya_faq_hpv_sw` |
+| **Category** | UTILITY | UTILITY |
+| **When sent** | Patient sends 1 or asks about HPV | Same |
 
-#### Step 03 — `afya_counsel_pos_03`
+**Body (en):**
 
-**EN:** A positive HPV result does not mean you have cervical cancer. It means that more follow-up is needed to keep you healthy.
+```
+HPV is a common virus that can affect the cervix. Some types may cause cervical cancer if not treated early. Follow-up care helps protect your health.
+```
 
-**SW:** Majibu chanya (Positive) ya HPV hayamaanishi kuwa una saratani ya mlango wa kizazi. Inamaanisha kuwa ufuatiliaji zaidi unahitajika ili kulinda afya yako.
+**Body (sw):**
 
-#### Step 04 — `afya_counsel_pos_04`
+```
+HPV ni virusi vya kawaida vinavyoweza kuathiri mlango wa kizazi. Aina zingine zinaweza kusababisha saratani ya mlango wa kizazi zisipotibiwa mapema. Huduma ya ufuatiliaji husaidia kulinda afya yako.
+```
 
-**EN:** You have the ability to take important steps to protect your health. By attending your appointments and following the advice of your healthcare provider, you are helping to prevent cervical cancer.
+**Variables:** none
 
-**SW:** Una uwezo wa kuchukua hatua muhimu za kulinda afya yako. Kwa kuhudhuria miadi yako na kufuata ushaudi wa mhudumu wa afya, unasaidia kuzuia saratani ya mlango wa kizazi.
+---
 
-#### Step 05 — `afya_counsel_pos_05`
+## 29. FAQ reply — Cervical cancer? (option 2)
 
-**EN:** If you feel comfortable, consider sharing information about your appointment with a trusted family member or friend who can support you.
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_faq_cancer_en` | `afya_faq_cancer_sw` |
+| **Category** | UTILITY | UTILITY |
 
-**SW:** Ikiwa unajisikia huru kufanya hivyo, unaweza kumshirikisha mwanafamilia au rafiki unayemwamini ili akusaidie kuhudhuria miadi yako.
+**Body (en):**
 
-#### Step 06 — `afya_counsel_pos_06`
+```
+A positive HPV result does not mean you have cervical cancer. It means you have HPV virus. Additional follow-up care is needed. Please attend your clinic appointment.
+```
 
-**EN:** Most HPV infections clear naturally. However, some infections can persist and cause changes on the cervix over time. Attending follow-up appointments helps ensure that any changes are identified and managed early.
+**Body (sw):**
 
-**SW:** Maambukizi mengi ya HPV huisha yenyewe. Hata hivyo, baadhi yanaweza kuendelea kwa muda mrefu na kusababisha mabadiliko kwenye mlango wa kizazi. Kuhudhuria miadi ya ufuatiliaji husaidia kuhakikisha kuwa mabadiliko yoyote yanagunduliwa na kushughulikiwa mapema.
+```
+Majibu chanya ya HPV hayamaanishi kuwa una saratani. Inamaanisha una virusi vya HPV. Huduma zaidi ya ufuatiliaji inahitajika. Tafadhali hudhuria miadi yako ya kliniki.
+```
 
-#### Step 07 — `afya_counsel_pos_07`
+**Variables:** none
 
-**EN:** Because your HPV test is positive, the next step is an examination called Visual Assessment with Acetic acid (VIA). During VIA, a trained healthcare provider applies a special vinegar solution to the cervix and looks for any abnormal areas that may need treatment. The procedure is simple, safe, and usually takes only a few minutes.
+---
 
-**SW:** Kwa kuwa majibu yako ya HPV ni chanya (Positive), hatua inayofuata ni uchunguzi unaoitwa Visual Assessment with Acetic acid (VIA). Wakati wa VIA, mhudumu wa afya hupaka dawa maalum ya siki kwenye mlango wa kizazi na kuangalia kama kuna sehemu zisizo za kawaida zinazohitaji matibabu. Uchunguzi huu ni salama na huchukua dakika chache tu.
+## 30. FAQ reply — Can HPV be treated? (option 3)
 
-#### Step 08 — `afya_counsel_pos_08`
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_faq_treat_en` | `afya_faq_treat_sw` |
+| **Category** | UTILITY | UTILITY |
 
-**EN:** After VIA, your results may be: VIA Negative: No visible abnormal changes were found on the cervix. VIA Positive: Changes were seen on the cervix that may require treatment to prevent cervical cancer.
+**Body (en):**
 
-**SW:** Baada ya VIA, matokeo yako yanaweza kuwa: VIA Hasi (Negative): Hakuna mabadiliko yasiyo ya kawaida yaliyoonekana. VIA Chanya (Positive): Mabadiliko yalionekana ambayo yanaweza kuhitaji matibabu ili kuzuia saratani ya mlango wa kizazi.
+```
+HPV infections often clear naturally. Follow-up care helps health providers monitor and manage any cervical changes early.
+```
 
-#### Step 09 — `afya_counsel_pos_09` *(long — verify length with Mteja)*
+**Body (sw):**
 
-**EN:** Your HPV test can be positive, but your VIA result negative. This means HPV was found, but no abnormal changes were seen on your cervix at this time. Most HPV infections clear on their own. You do not need treatment at this time. Women living with HIV: repeat HPV screening after 3 years. Women without HIV: repeat after 5 years. Please continue routine check-ups as advised.
+```
+Maambukizi ya HPV mara nyingi hupotea yenyewe. Huduma ya ufuatiliaji husaidia wahudumu wa afya kufuatilia na kutibu mabadiliko mapema.
+```
 
-**SW:** Majibu yako ya HPV yanaweza kuwa chanya, lakini VIA hasi. HPV vilipatikana lakini hakuna mabadiliko yasiyo ya kawaida kwa sasa. Maambukizi mengi huisha yenyewe. Huhitaji matibabu sasa. Wanawake wenye VVU: rudia HPV baada ya miaka 3. Wasio na VVU: baada ya miaka 5. Endelea kuhudhuria huduma za afya kama ulivyoelekezwa.
+**Variables:** none
 
-#### Step 10 — `afya_counsel_pos_10`
+---
 
-**EN:** Your HPV and VIA results can both be positive. This means HPV was detected and some changes were seen on your cervix that may require treatment. This does not mean cervical cancer. Treatment at this stage helps remove abnormal cells and prevent cancer. Your provider may recommend Thermal Ablation.
+## 31. FAQ reply — Appointments (option 4)
 
-**SW:** HPV na VIA vinaweza kuwa chanya. HPV vilipatikana na mabadiliko yalionekana kwenye mlango wa kizazi. Hii si saratani. Matibabu husaidia kuondoa seli zisizo za kawaida. Mhudumu wa afya anaweza kupendekeza Thermal Ablation.
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_faq_appt_en` | `afya_faq_appt_sw` |
+| **Category** | UTILITY | UTILITY |
 
-#### Step 11 — `afya_counsel_pos_11`
+**Body (en):**
 
-**EN:** If your HPV and VIA are positive, your healthcare provider may recommend Thermal Ablation. It uses heat to remove abnormal cervical cells before they can develop into cancer. The procedure usually takes only a few minutes and does not require hospital admission. Early treatment is highly effective.
+```
+For appointments, contact Nyeri Town Health Center or wait for your reminder message. Reply DOCTOR if you need urgent help.
+```
 
-**SW:** Ikiwa HPV na VIA ni chanya, mhudumu anaweza kupendekeza Thermal Ablation. Matibabu yanatumia joto kuondoa seli zisizo za kawaida kabla hazijageuka saratani. Huchukua dakika chache na kwa kawaida hayahitaji kulazwa. Matibabu ya mapema yanafanikiwa.
+**Body (sw):**
 
-#### Step 12 — `afya_counsel_pos_12`
+```
+Kwa miadi, wasiliana na Nyeri Town Health Center au subiri kikumbusho. Jibu DOCTOR ikiwa unahitaji msaada wa haraka.
+```
 
-**EN:** After Thermal Ablation, it is normal to experience mild watery discharge (use a pad) and mild lower abdominal discomfort. These symptoms usually improve within a few days to weeks (about 2–6 weeks).
+**Variables:** none
 
-**SW:** Baada ya Thermal Ablation, ni kawaida kupata majimaji kidogo (tumia pad) na maumivu madogo chini ya tumbo. Dalili hizi hupungua ndani ya siku au wiki chache (wiki 2–6).
+---
 
-#### Step 13 — `afya_counsel_pos_13`
+## 32. FAQ reply — Symptoms of HPV (option 5)
 
-**EN:** Please return to the health facility immediately if you experience: heavy vaginal bleeding, foul-smelling discharge, severe lower abdominal pain, fever, or any symptoms that concern you.
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_faq_symptoms_hpv_en` | `afya_faq_symptoms_hpv_sw` |
+| **Category** | UTILITY | UTILITY |
 
-**SW:** Rudi hospitalini mara moja ikiwa utapata: damu nyingi ukeni, majimaji yenye harufu mbaya, maumivu makali chini ya tumbo, homa, au dalili nyingine zinazokusumbua.
+**Body (en):**
 
-#### Step 14 — `afya_counsel_pos_14`
+```
+Most people with HPV have no symptoms. Regular screening (HPV test, VIA) is important even when you feel well. Unusual bleeding, persistent pain, or unusual discharge — see a healthcare provider.
+```
 
-**EN:** To allow your cervix to heal after treatment: avoid sexual intercourse for 4 weeks or as advised; avoid inserting anything into the vagina during healing (e.g. tampons); attend all scheduled follow-up appointments.
+**Body (sw):**
 
-**SW:** Ili mlango wa kizazi upone: epuka ngono kwa wiki 4 au kama ulivyoelekezwa; epuka kuingiza kitu ukeni wakati wa kupona; hudhuria miadi zote za ufuatiliaji.
+```
+Watu wengi hawana dalili za HPV. Uchunguzi wa mara kwa mara (HPV, VIA) ni muhimu hata ukiwa na afya njema. Damu isiyo ya kawaida, maumivu ya kudumu, au majimaji yasiyo ya kawaida — tembelea mhudumu wa afya.
+```
 
-#### Step 15 — `afya_counsel_pos_15`
+**Variables:** none
 
-**EN:** After Thermal Ablation, return for a Test of Cure (ToC) using HPV testing after 1 year. This helps confirm treatment was successful and your cervix remains healthy.
+---
 
-**SW:** Baada ya Thermal Ablation, rudi kwa Test of Cure (ToC) kwa kipimo cha HPV baada ya mwaka 1. Hii husaidia kuthibitisha matibabu yalifanikiwa na afya ya mlango wa kizazi inaendelea kuwa nzuri.
+## 33. FAQ reply — Symptoms of cervical cancer (option 6)
 
-#### Step 16 — `afya_counsel_pos_16` *(long — verify length with Mteja)*
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_faq_symptoms_cc_en` | `afya_faq_symptoms_cc_sw` |
+| **Category** | UTILITY | UTILITY |
 
-**EN:** When preparing for VIA, most women have a normal result (VIA negative) or changes that can be treated early (VIA positive). Sometimes a "suspicious for cancer" result requires specialist assessment — this does not mean you have cancer. You may be referred to Nyeri County Referral Hospital. Early assessment helps protect your health.
+**Body (en):**
 
-**SW:** Unapojiandaa kwa VIA, wanawake wengi hupata matokeo ya kawaida (VIA hasi) au mabadiliko yanayoweza kutibiwa mapema (VIA chanya). Wakati mwingine matokeo ya "kuhisiwa kuwa na saratani" yanahitaji daktari bingwa — si saratani moja kwa moja. Unaweza pelekwa Hospitali ya Rufaa ya Kaunti ya Nyeri. Uchunguzi wa mapema unalinda afya yako.
+```
+Many women with early changes have no symptoms. Possible signs: bleeding after sex, between periods, or after menopause; unusual discharge; pelvic pain. These do not always mean cancer — visit a health facility.
+```
+
+**Body (sw):**
+
+```
+Wanawake wengi hawana dalili mapema. Dalili zinazoweza kuonekana: damu baada ya ngono au kati ya hedhi; majimaji yasiyo ya kawaida; maumivu ya kudumu. Si lazima iwe saratani — tembelea kituo cha afya.
+```
+
+**Variables:** none
+
+---
+
+## Phase 3 — HPV positive counseling (templates 34–49)
+
+Official script from `afya_counseling_positive.php`. If Meta rejects a body over **1024 characters**, use session message for that step or ask Mteja to split (steps **42** and **49** are longest).
+
+---
+
+## 34. Counseling step 1 — HPV positive explained
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_counsel_pos_01_en` | `afya_counsel_pos_01_sw` |
+| **Category** | UTILITY | UTILITY |
+| **When sent** | Day 1 after positive HPV confirm | Same |
+
+**Body (en):**
+
+```
+Your HPV test was positive. This means that HPV was detected in your sample. HPV is a very common infection, and about 8 out of every 10 sexually active people will get HPV at some point in their lives. Most HPV infections clear on their own without causing health problems. However, follow-up care is important to identify and treat any changes early and help prevent cervical cancer.
+```
+
+**Body (sw):**
+
+```
+Majibu yako ya HPV yalikuwa chanya (positive). Hii inamaanisha kuwa virusi vya HPV vimepatikana kwenye sampuli yako. HPV ni maambukizi ya kawaida sana, na takribani watu 8 kati ya 10 wanaoshiriki ngono hupata HPV wakati fulani maishani mwao. Maambukizi mengi ya HPV huisha yenyewe bila kusababisha matatizo ya kiafya. Hata hivyo, huduma ya ufuatiliaji ni muhimu ili kugundua na kutibu mabadiliko yoyote mapema na kusaidia kuzuia saratani ya mlango wa kizazi.
+```
+
+**Variables:** none
+
+---
+
+## 35. Counseling step 2 — Attend follow-up
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_counsel_pos_02_en` | `afya_counsel_pos_02_sw` |
+| **Category** | UTILITY | UTILITY |
+
+**Body (en):**
+
+```
+Follow-up care helps health providers detect and treat changes early before they become serious. Please attend your recommended clinic visit.
+```
+
+**Body (sw):**
+
+```
+Huduma ya ufuatiliaji husaidia wahudumu wa afya kugundua na kutibu mabadiliko mapema kabla hayajawa makubwa. Tafadhali hudhuria kliniki yako kama ulivyoelekezwa.
+```
+
+**Variables:** none
+
+---
+
+## 36. Counseling step 3 — Not cancer
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_counsel_pos_03_en` | `afya_counsel_pos_03_sw` |
+| **Category** | UTILITY | UTILITY |
+
+**Body (en):**
+
+```
+A positive HPV result does not mean you have cervical cancer. It means that more follow-up is needed to keep you healthy.
+```
+
+**Body (sw):**
+
+```
+Majibu chanya (Positive) ya HPV hayamaanishi kuwa una saratani ya mlango wa kizazi. Inamaanisha kuwa ufuatiliaji zaidi unahitajika ili kulinda afya yako.
+```
+
+**Variables:** none
+
+---
+
+## 37. Counseling step 4 — You can protect your health
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_counsel_pos_04_en` | `afya_counsel_pos_04_sw` |
+| **Category** | UTILITY | UTILITY |
+
+**Body (en):**
+
+```
+You have the ability to take important steps to protect your health. By attending your appointments and following the advice of your healthcare provider, you are helping to prevent cervical cancer.
+```
+
+**Body (sw):**
+
+```
+Una uwezo wa kuchukua hatua muhimu za kulinda afya yako. Kwa kuhudhuria miadi yako na kufuata ushaudi wa mhudumu wa afya, unasaidia kuzuia saratani ya mlango wa kizazi.
+```
+
+**Variables:** none
+
+---
+
+## 38. Counseling step 5 — Family support
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_counsel_pos_05_en` | `afya_counsel_pos_05_sw` |
+| **Category** | UTILITY | UTILITY |
+
+**Body (en):**
+
+```
+If you feel comfortable, consider sharing information about your appointment with a trusted family member or friend who can support you.
+```
+
+**Body (sw):**
+
+```
+Ikiwa unajisikia huru kufanya hivyo, unaweza kumshirikisha mwanafamilia au rafiki unayemwamini ili akusaidie kuhudhuria miadi yako.
+```
+
+**Variables:** none
+
+---
+
+## 39. Counseling step 6 — HPV may persist
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_counsel_pos_06_en` | `afya_counsel_pos_06_sw` |
+| **Category** | UTILITY | UTILITY |
+
+**Body (en):**
+
+```
+Most HPV infections clear naturally. However, some infections can persist and cause changes on the cervix over time. Attending follow-up appointments helps ensure that any changes are identified and managed early.
+```
+
+**Body (sw):**
+
+```
+Maambukizi mengi ya HPV huisha yenyewe. Hata hivyo, baadhi yanaweza kuendelea kwa muda mrefu na kusababisha mabadiliko kwenye mlango wa kizazi. Kuhudhuria miadi ya ufuatiliaji husaidia kuhakikisha kuwa mabadiliko yoyote yanagunduliwa na kushughulikiwa mapema.
+```
+
+**Variables:** none
+
+---
+
+## 40. Counseling step 7 — What is VIA
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_counsel_pos_07_en` | `afya_counsel_pos_07_sw` |
+| **Category** | UTILITY | UTILITY |
+
+**Body (en):**
+
+```
+Because your HPV test is positive, the next step is an examination called Visual Assessment with Acetic acid (VIA). During VIA, a trained healthcare provider applies a special vinegar solution to the cervix and looks for any abnormal areas that may need treatment. The procedure is simple, safe, and usually takes only a few minutes.
+```
+
+**Body (sw):**
+
+```
+Kwa kuwa majibu yako ya HPV ni chanya (Positive), hatua inayofuata ni uchunguzi unaoitwa Visual Assessment with Acetic acid (VIA). Wakati wa VIA, mhudumu wa afya hupaka dawa maalum ya siki kwenye mlango wa kizazi na kuangalia kama kuna sehemu zisizo za kawaida zinazohitaji matibabu. Uchunguzi huu ni salama na huchukua dakika chache tu.
+```
+
+**Variables:** none
+
+---
+
+## 41. Counseling step 8 — VIA results explained
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_counsel_pos_08_en` | `afya_counsel_pos_08_sw` |
+| **Category** | UTILITY | UTILITY |
+
+**Body (en):**
+
+```
+After VIA, your results may be: VIA Negative: No visible abnormal changes were found on the cervix. VIA Positive: Changes were seen on the cervix that may require treatment to prevent cervical cancer.
+```
+
+**Body (sw):**
+
+```
+Baada ya VIA, matokeo yako yanaweza kuwa: VIA Hasi (Negative): Hakuna mabadiliko yasiyo ya kawaida yaliyoonekana kwenye mlango wa kizazi. VIA Chanya (Positive): Mabadiliko yalionekana kwenye mlango wa kizazi ambayo yanaweza kuhitaji matibabu ili kuzuia saratani ya mlango wa kizazi.
+```
+
+**Variables:** none
+
+---
+
+## 42. Counseling step 9 — HPV+ / VIA negative
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_counsel_pos_09_en` | `afya_counsel_pos_09_sw` |
+| **Category** | UTILITY | UTILITY |
+
+**Body (en):**
+
+```
+Your HPV test can be positive, but your VIA result negative. This means that HPV was found, but no abnormal changes were seen on your cervix at this time. Most HPV infections clear on their own without causing health problems. Only a small number of women develop cervical changes that may require treatment, which is why regular follow-up screening is important. You do not need treatment at this time. Women living with HIV: Repeat HPV screening after 3 years. Women without HIV: Repeat HPV screening after 5 years. Please continue attending routine health check-ups as advised.
+```
+
+**Body (sw):**
+
+```
+Majibu yako ya HPV yanaweza kuwa chanya (positive), lakini matokeo ya VIA yakawa hasi (negative). Hii inamaanisha kuwa virusi vya HPV vilipatikana, lakini hakuna mabadiliko yasiyo ya kawaida yaliyoonekana kwenye mlango wa kizazi kwa sasa. Maambukizi mengi ya HPV huisha yenyewe bila kusababisha matatizo ya kiafya. Ni wanawake wachache tu hupata mabadiliko yanayohitaji matibabu, ndiyo sababu uchunguzi wa ufuatiliaji ni muhimu. Huhitaji matibabu kwa sasa. Wanawake wanaoishi na HIV: Rudia uchunguzi wa HPV baada ya miaka 3. Wanawake wasio na HIV: Rudia uchunguzi wa HPV baada ya miaka 5. Tafadhali endelea kuhudhuria huduma za afya kama ulivyoelekezwa.
+```
+
+**Variables:** none
+
+---
+
+## 43. Counseling step 10 — HPV+ / VIA positive
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_counsel_pos_10_en` | `afya_counsel_pos_10_sw` |
+| **Category** | UTILITY | UTILITY |
+
+**Body (en):**
+
+```
+Your HPV test can be positive, and your VIA result also positive. This means that HPV was detected and some changes were seen on your cervix that may require treatment. This does not mean that you have cervical cancer. Treatment at this stage helps remove the abnormal cells and prevents them from developing into cervical cancer in the future. If you are eligible for treatment, your healthcare provider may recommend Thermal Ablation, a simple procedure that uses heat to remove abnormal cervical cells and protect your health.
+```
+
+**Body (sw):**
+
+```
+Majibu yako ya HPV yanaweza kuwa chanya (positive), na matokeo ya VIA pia yakawa chanya. Hii inamaanisha kuwa virusi vya HPV vilipatikana na mabadiliko fulani yalionekana kwenye mlango wa kizazi ambayo yanaweza kuhitaji matibabu. Hii haimaanishi kuwa una saratani ya mlango wa kizazi. Matibabu katika hatua hii husaidia kuondoa seli zisizo za kawaida na kuzuia zisigeuke kuwa saratani baadaye. Ikiwa unafaa kupata matibabu, mhudumu wa afya anaweza kupendekeza Thermal Ablation, matibabu rahisi yanayotumia joto kuondoa seli zisizo za kawaida kwenye mlango wa kizazi na kusaidia kulinda afya yako.
+```
+
+**Variables:** none
+
+---
+
+## 44. Counseling step 11 — Thermal Ablation intro
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_counsel_pos_11_en` | `afya_counsel_pos_11_sw` |
+| **Category** | UTILITY | UTILITY |
+
+**Body (en):**
+
+```
+If your HPV test was positive and your VIA positive (result showed changes on the cervix), your healthcare provider may recommend Thermal Ablation. Thermal Ablation is a simple treatment that uses heat to remove abnormal cells on the cervix before they can develop into cervical cancer. The procedure usually takes only a few minutes and does not require admission to hospital. Early treatment is highly effective and helps keep your cervix healthy.
+```
+
+**Body (sw):**
+
+```
+Majibu yako ya HPV yakiwa chanya (positive) na matokeo ya VIA yaonyeshe mabadiliko kwenye mlango wa kizazi (VIA Positive), mhudumu wa afya anaweza kupendekeza Thermal Ablation. Thermal Ablation ni matibabu rahisi yanayotumia joto kuondoa seli zisizo za kawaida kwenye mlango wa kizazi kabla hazijageuka kuwa saratani ya mlango wa kizazi. Matibabu haya huchukua dakika chache tu na kwa kawaida hayahitaji kulazwa hospitalini. Matibabu ya mapema yanafanikiwa sana na husaidia kudumisha afya ya mlango wa kizazi.
+```
+
+**Variables:** none
+
+---
+
+## 45. Counseling step 12 — After ablation (normal symptoms)
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_counsel_pos_12_en` | `afya_counsel_pos_12_sw` |
+| **Category** | UTILITY | UTILITY |
+
+**Body (en):**
+
+```
+After Thermal Ablation, it is normal to experience: Mild watery discharge — use pad or panty liner. Mild lower abdominal discomfort. These symptoms usually improve within a few days to weeks (about 2–6 weeks).
+```
+
+**Body (sw):**
+
+```
+Baada ya Thermal Ablation, ni kawaida kupata: Majimaji kutoka ukeni — tumia pad au panty liner. Maumivu madogo chini ya tumbo. Dalili hizi kwa kawaida hupungua ndani ya siku au wiki chache (2–6 weeks).
+```
+
+**Variables:** none
+
+---
+
+## 46. Counseling step 13 — When to return urgently
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_counsel_pos_13_en` | `afya_counsel_pos_13_sw` |
+| **Category** | UTILITY | UTILITY |
+
+**Body (en):**
+
+```
+Please return to the health facility immediately if you experience: Heavy vaginal bleeding. Foul-smelling vaginal discharge. Severe lower abdominal pain. Fever or high body temperature. Any symptoms that concern you.
+```
+
+**Body (sw):**
+
+```
+Tafadhali rudi hospitalini mara moja ikiwa utapata: Kutokwa na damu nyingi ukeni. Majimaji yenye harufu mbaya kutoka ukeni. Maumivu makali chini ya tumbo. Homa au joto la mwili kuongezeka. Dalili nyingine zinazokusumbua.
+```
+
+**Variables:** none
+
+---
+
+## 47. Counseling step 14 — Healing after treatment
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_counsel_pos_14_en` | `afya_counsel_pos_14_sw` |
+| **Category** | UTILITY | UTILITY |
+
+**Body (en):**
+
+```
+To allow your cervix to heal: Avoid sexual intercourse for 4 weeks or as advised by your healthcare provider. Avoid inserting anything into the vagina during the healing period (e.g. tampons). Attend all scheduled follow-up appointments.
+```
+
+**Body (sw):**
+
+```
+Ili kuruhusu mlango wa kizazi kupona: Epuka kufanya ngono kwa wiki 4 au kama ulivyoelekezwa na mhudumu wa afya. Epuka kuingiza kitu chochote ukeni wakati wa kupona (k.m. tampons). Hudhuria miadi yote ya ufuatiliaji.
+```
+
+**Variables:** none
+
+---
+
+## 48. Counseling step 15 — Test of Cure (1 year)
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_counsel_pos_15_en` | `afya_counsel_pos_15_sw` |
+| **Category** | UTILITY | UTILITY |
+
+**Body (en):**
+
+```
+After Thermal Ablation, you should return for a Test of Cure (ToC) using HPV testing after 1 year. This helps confirm that treatment was successful and that your cervix remains healthy.
+```
+
+**Body (sw):**
+
+```
+Baada ya Thermal Ablation, unapaswa kurudi kwa kipimo cha kuthibitisha mafanikio ya matibabu (Test of Cure) kwa kutumia kipimo cha HPV baada ya mwaka 1. Hii husaidia kuthibitisha kuwa matibabu yalifanikiwa na afya ya mlango wa kizazi inaendelea kuwa nzuri.
+```
+
+**Variables:** none
+
+---
+
+## 49. Counseling step 16 — VIA pathways & referral
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_counsel_pos_16_en` | `afya_counsel_pos_16_sw` |
+| **Category** | UTILITY | UTILITY |
+
+**Body (en):**
+
+```
+As you prepare for your VIA examination, it is important to know that there are several possible results. Most women will have either a normal result (VIA negative) or changes that can be treated early (VIA positive). In some cases, the healthcare provider may see changes that require further assessment by a specialist. This is called a "suspicious for cancer" result. A suspicious result does not mean that you have cervical cancer. It simply means that more tests are needed. If this happens, you will be referred to Nyeri County Referral Hospital for specialist review and further care. Early assessment helps ensure that any health concerns are identified and managed as soon as possible.
+```
+
+**Body (sw):**
+
+```
+Unapojitayarisha kwa uchunguzi wa VIA, ni muhimu kujua kwamba kuna matokeo tofauti yanayoweza kupatikana. Wanawake wengi hupata matokeo ya kawaida (VIA negative) au mabadiliko ambayo yanaweza kutibiwa mapema (VIA positive). Wakati mwingine, mhudumu wa afya anaweza kuona mabadiliko yanayohitaji uchunguzi zaidi na daktari bingwa — matokeo ya "kuhisiwa kuwa na saratani" (suspicious for cancer). Matokeo haya hayamaanishi moja kwa moja kuwa una saratani. Yanamaanisha vipimo zaidi vinahitajika. Ikiwa hali hii itatokea, utapewa rufaa kwenda Hospitali ya Rufaa ya Kaunti ya Nyeri kwa uchunguzi na huduma zaidi. Uchunguzi wa mapema husaidia kuhakikisha matatizo yoyote ya afya yanagunduliwa na kushughulikiwa mapema iwezekanavyo.
+```
+
+**Variables:** none
 
 ---
 
@@ -796,8 +1229,8 @@ For each step `NN` (01–16), create **two** templates (`_en` / `_sw`) with the 
 
 - [ ] Display name: **Nyeri Town Health Center** (or **Afya Rafiki** if approved)
 - [ ] **Phase 1** (1–8) submitted first — EN + SW each
-- [ ] **Phase 2** (9–26) — system messages
-- [ ] **Phase 3** (27–42) — counseling `afya_counsel_pos_01` … `16` (or use session messages for long steps 9 & 16)
+- [ ] **Phase 2** (9–33) — system, FAQ, appointment updated
+- [ ] **Phase 3** (34–49) — counseling `afya_counsel_pos_01` … `16` (verify length for 42 & 49)
 - [ ] **Knowledge base:** import `MTEJA_KNOWLEDGE_BASE_EN.md` and `MTEJA_KNOWLEDGE_BASE_SW.md`
 - [ ] Category **UTILITY** for all templates
 - [ ] Sample values for every `{{1}}` / `{{2}}`
@@ -826,14 +1259,14 @@ Subject: Full WhatsApp pack — Nyeri Town Health Center (Afya Rafiki)
 Please submit UTILITY templates (English + Kiswahili) from our document:
 hospital_portal/docs/WHATSAPP_MESSAGE_TEMPLATES.md
 
-Phase 1 (urgent, 16 templates): afya_welcome_*, afya_hpv_neg_*, afya_hpv_positive_*,
-afya_appt_reminder_7d/3d/1d_*, afya_via_referral_*
+Phase 1 (urgent, 16): templates 1–8 (welcome, HPV results, reminders, VIA referral)
 
-Phase 2 (36 templates): afya_appt_booked_*, afya_help_menu_*, afya_escalation_*,
-afya_doctor_* (4), afya_missed_* (2), afya_post_visit_*, afya_unlinked_*,
-afya_fallback_*, afya_checkup_* (4), afya_consent_thanks_*, afya_engagement_tip_*
+Phase 2 (50): templates 9–33 (appointments, HELP, DOCTOR, missed visit, check-ups,
+FAQ 1–6, unlinked, fallback, consent, engagement)
 
-Phase 3 (32 templates, optional batch 2): afya_counsel_pos_01_en … afya_counsel_pos_16_sw
+Phase 3 (32, batch 2): templates 34–49 (afya_counsel_pos_01 … 16, EN + SW each)
+
+Total: 49 template types × 2 languages = 98 submissions
 
 Also import two FAQ knowledge bases:
 hospital_portal/docs/MTEJA_KNOWLEDGE_BASE_EN.md (English)
@@ -845,13 +1278,44 @@ Reply with template IDs when approved.
 
 ---
 
-## Template name index (all 84)
+## Template name index (all 49 — add `_en` or `_sw`)
 
-| # | Name pattern (add `_en` / `_sw`) |
-|---|----------------------------------|
-| 1–8 | `afya_welcome`, `afya_hpv_neg_hivpos`, `afya_hpv_neg_hivneg`, `afya_hpv_positive`, `afya_appt_reminder_7d`, `afya_appt_reminder_3d`, `afya_appt_reminder_1d`, `afya_via_referral` |
-| 9–26 | `afya_appt_booked`, `afya_help_menu`, `afya_escalation`, `afya_doctor_reason_ask`, `afya_doctor_reason_remind`, `afya_doctor_reason_ack`, `afya_doctor_already`, `afya_missed_appt`, `afya_missed_reschedule`, `afya_post_visit`, `afya_unlinked`, `afya_fallback`, `afya_checkup_via_neg`, `afya_checkup_hiv_hpvneg`, `afya_checkup_hiv_hpvpos`, `afya_checkup_generic`, `afya_consent_thanks`, `afya_engagement_tip` |
-| 27–42 | `afya_counsel_pos_01` … `afya_counsel_pos_16` |
+| # | Template name |
+|---|---------------|
+| 1 | `afya_welcome` |
+| 2 | `afya_hpv_neg_hivpos` |
+| 3 | `afya_hpv_neg_hivneg` |
+| 4 | `afya_hpv_positive` |
+| 5 | `afya_appt_reminder_7d` |
+| 6 | `afya_appt_reminder_3d` |
+| 7 | `afya_appt_reminder_1d` |
+| 8 | `afya_via_referral` |
+| 9 | `afya_appt_booked` |
+| 10 | `afya_help_menu` |
+| 11 | `afya_escalation` |
+| 12 | `afya_doctor_reason_ask` |
+| 13 | `afya_doctor_reason_remind` |
+| 14 | `afya_doctor_reason_ack` |
+| 15 | `afya_doctor_already` |
+| 16 | `afya_missed_appt` |
+| 17 | `afya_missed_reschedule` |
+| 18 | `afya_post_visit` |
+| 19 | `afya_unlinked` |
+| 20 | `afya_fallback` |
+| 21 | `afya_checkup_via_neg` |
+| 22 | `afya_checkup_hiv_hpvneg` |
+| 23 | `afya_checkup_hiv_hpvpos` |
+| 24 | `afya_checkup_generic` |
+| 25 | `afya_consent_thanks` |
+| 26 | `afya_engagement_tip` |
+| 27 | `afya_appt_updated` |
+| 28 | `afya_faq_hpv` |
+| 29 | `afya_faq_cancer` |
+| 30 | `afya_faq_treat` |
+| 31 | `afya_faq_appt` |
+| 32 | `afya_faq_symptoms_hpv` |
+| 33 | `afya_faq_symptoms_cc` |
+| 34–49 | `afya_counsel_pos_01` … `afya_counsel_pos_16` |
 
 ---
 

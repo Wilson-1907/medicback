@@ -116,7 +116,7 @@ Outside the 24-hour chat window, WhatsApp requires **pre-approved templates** fo
 Ask Mteja to submit / approve templates using the ready-made pack:
 
 **See `hospital_portal/docs/WHATSAPP_MESSAGE_TEMPLATES.md`** — **84 templates** (Phase 1–3) EN/SW.  
-**FAQ knowledge base:** `hospital_portal/docs/MTEJA_KNOWLEDGE_BASE_FAQ.md` — import into Mteja for multi-FAQ / chatbot.
+**FAQ knowledge bases:** `MTEJA_KNOWLEDGE_BASE_EN.md` (English) and `MTEJA_KNOWLEDGE_BASE_SW.md` (Kiswahili) — one Mteja KB per language.
 
 | Template name (EN example) | When sent |
 |----------------------------|-----------|

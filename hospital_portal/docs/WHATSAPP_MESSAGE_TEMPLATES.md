@@ -32,7 +32,7 @@ Submit these in the **Mteja** dashboard (or Meta Business Manager) for **Nyeri T
 **Phase 2:** all automated replies (appointments, HELP, DOCTOR flow, missed visit, etc.).  
 **Phase 3:** 16 counseling steps — submit if Mteja/Meta require templates outside 24h session.
 
-**Knowledge base (FAQ):** `MTEJA_KNOWLEDGE_BASE_FAQ.md` — import into Mteja for chatbot / AI (multi-FAQ EN+SW).
+**Knowledge base (FAQ):** `MTEJA_KNOWLEDGE_BASE_EN.md` + `MTEJA_KNOWLEDGE_BASE_SW.md` — two Mteja knowledge bases (one per language).
 
 ---
 
@@ -798,7 +798,7 @@ For each step `NN` (01–16), create **two** templates (`_en` / `_sw`) with the 
 - [ ] **Phase 1** (1–8) submitted first — EN + SW each
 - [ ] **Phase 2** (9–26) — system messages
 - [ ] **Phase 3** (27–42) — counseling `afya_counsel_pos_01` … `16` (or use session messages for long steps 9 & 16)
-- [ ] **Knowledge base:** import `MTEJA_KNOWLEDGE_BASE_FAQ.md` (sections A–G)
+- [ ] **Knowledge base:** import `MTEJA_KNOWLEDGE_BASE_EN.md` and `MTEJA_KNOWLEDGE_BASE_SW.md`
 - [ ] Category **UTILITY** for all templates
 - [ ] Sample values for every `{{1}}` / `{{2}}`
 - [ ] Mteja confirms template names + IDs when **APPROVED**
@@ -835,9 +835,9 @@ afya_fallback_*, afya_checkup_* (4), afya_consent_thanks_*, afya_engagement_tip_
 
 Phase 3 (32 templates, optional batch 2): afya_counsel_pos_01_en … afya_counsel_pos_16_sw
 
-Also import FAQ knowledge base from:
-hospital_portal/docs/MTEJA_KNOWLEDGE_BASE_FAQ.md
-(40+ Q&A pairs EN/SW for HELP menu and common patient questions)
+Also import two FAQ knowledge bases:
+hospital_portal/docs/MTEJA_KNOWLEDGE_BASE_EN.md (English)
+hospital_portal/docs/MTEJA_KNOWLEDGE_BASE_SW.md (Kiswahili)
 
 Category: UTILITY only. HPV cervical follow-up programme.
 Reply with template IDs when approved.

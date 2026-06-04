@@ -5,9 +5,11 @@ This folder defines deployment for the PHP backend (`hospital_portal`) on Render
 ## What Render Hosts
 
 - Staff web app (`index.php`, `patients.php`, `patient_view.php`)
-- Africa's Talking webhooks:
-  - `/webhook_africastalking.php` (incoming messages)
-  - `/webhook_delivery_report.php` (delivery callbacks)
+- Messaging webhooks:
+  - `/webhook_whatsapp.php` — WhatsApp via Meta Cloud API (typical with **Mteja**)
+  - `/webhook_africastalking.php` — SMS / optional AT WhatsApp
+  - `/webhook_delivery_report.php` — delivery callbacks
+- Go-live guide: `hospital_portal/docs/MTEJA_WHATSAPP_GO_LIVE.md`
 - OpenAI-backed patient reply logic
 
 ## Deploy Steps
@@ -32,7 +34,9 @@ To go live with real Africa's Talking credentials:
 
 Once deployed to `https://YOUR-RENDER-APP.onrender.com`:
 
-- Incoming messages:
+- WhatsApp (Mteja / Meta):
+  - `https://YOUR-RENDER-APP.onrender.com/webhook_whatsapp.php`
+- SMS / AT:
   - `https://YOUR-RENDER-APP.onrender.com/webhook_africastalking.php`
 - Delivery reports:
   - `https://YOUR-RENDER-APP.onrender.com/webhook_delivery_report.php`

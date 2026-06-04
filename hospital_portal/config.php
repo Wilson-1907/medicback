@@ -158,6 +158,14 @@ define('AFRICASTALKING_WHATSAPP_URL', env_by_mode(
     'https://api.africastalking.com/version1/whatsapp/message'
 ));
 
+/** WhatsApp: africastalking (default) or cloud (Meta API — typical with Mteja WABA) */
+define('WHATSAPP_PROVIDER', strtolower(env_value('WHATSAPP_PROVIDER', 'africastalking')));
+define('WHATSAPP_ACCESS_TOKEN', env_value('WHATSAPP_ACCESS_TOKEN', ''));
+define('WHATSAPP_PHONE_NUMBER_ID', env_value('WHATSAPP_PHONE_NUMBER_ID', ''));
+define('WHATSAPP_BUSINESS_ACCOUNT_ID', env_value('WHATSAPP_BUSINESS_ACCOUNT_ID', ''));
+define('WHATSAPP_VERIFY_TOKEN', env_value('WHATSAPP_VERIFY_TOKEN', ''));
+define('WHATSAPP_GRAPH_VERSION', env_value('WHATSAPP_GRAPH_VERSION', 'v21.0'));
+
 define('GROQ_API_KEY', env_value('GROQ_API_KEY', ''));
 define('GROQ_MODEL', env_value('GROQ_MODEL', 'llama-3.3-70b-versatile'));
 define('GROQ_BASE_URL', env_value('GROQ_BASE_URL', 'https://api.groq.com/openai/v1/chat/completions'));

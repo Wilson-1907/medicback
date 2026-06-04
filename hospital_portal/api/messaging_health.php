@@ -33,15 +33,21 @@ try {
         "SELECT error_detail FROM outbound_messages WHERE channel = 'whatsapp' AND status = 'failed' ORDER BY id DESC LIMIT 1"
     )->fetch();
 
+    $waProvider = defined('WHATSAPP_PROVIDER') ? WHATSAPP_PROVIDER : 'africastalking';
+    $cloudReady = function_exists('whatsapp_cloud_enabled') && whatsapp_cloud_enabled();
+    $atWaReady = $apiKeySet && $usernameSet && $waFrom !== '';
+
     api_json([
         'ok' => true,
+        'whatsapp_provider' => $waProvider,
+        'whatsapp_cloud_ready' => $cloudReady,
         'africastalking' => [
             'mode' => $mode,
             'api_key_configured' => $apiKeySet,
             'username_configured' => $usernameSet,
             'sms_from' => $smsFrom !== '' ? $smsFrom : null,
             'whatsapp_from' => $waFrom !== '' ? $waFrom : null,
-            'whatsapp_ready' => $apiKeySet && $usernameSet && $waFrom !== '',
+            'whatsapp_ready' => $cloudReady || $atWaReady,
             'sms_ready' => $apiKeySet && $usernameSet && $smsFrom !== '',
         ],
         'patients' => [
@@ -55,9 +61,11 @@ try {
             'last_whatsapp_error' => $lastWaError['error_detail'] ?? null,
         ],
         'webhook_urls' => [
-            'inbound' => '/webhook_africastalking.php',
+            'whatsapp_cloud' => '/webhook_whatsapp.php',
+            'africastalking_inbound' => '/webhook_africastalking.php',
             'delivery' => '/webhook_delivery_report.php',
         ],
+        'mteja_go_live_doc' => '/hospital_portal/docs/MTEJA_WHATSAPP_GO_LIVE.md',
         'cron' => [
             'reminders_endpoint' => '/cron_run_reminders.php',
             'note' => 'Schedule every 30-60 min. Set CRON_SECRET on server and pass ?key=...',

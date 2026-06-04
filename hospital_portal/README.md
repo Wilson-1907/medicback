@@ -49,10 +49,9 @@ Backend and staff UI for the PHV engagement pilot.
 
 ## 5) Webhooks
 
-- Incoming messages:
-  - `/webhook_africastalking.php`
-- Delivery reports:
-  - `/webhook_delivery_report.php`
+- WhatsApp (Mteja / Meta Cloud): `/webhook_whatsapp.php` — see `docs/MTEJA_WHATSAPP_GO_LIVE.md`
+- SMS / Africa's Talking: `/webhook_africastalking.php`
+- Delivery reports: `/webhook_delivery_report.php`
 
 **Afya Rafiki** patient SMS/WhatsApp flow (official script):
 

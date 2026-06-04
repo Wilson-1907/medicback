@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/afya_rafiki_content.php';
+require_once __DIR__ . '/whatsapp_cloud.php';
 
 /** Expand outbound message types — converts legacy ENUM to VARCHAR so any label is accepted. */
 function ensure_outbound_message_types(): void
@@ -48,7 +49,7 @@ function force_outbound_message_types_varchar(): void
 
 function messaging_enabled(): bool
 {
-    return AFRICASTALKING_API_KEY !== '';
+    return AFRICASTALKING_API_KEY !== '' || whatsapp_cloud_enabled();
 }
 
 /**
@@ -200,8 +201,8 @@ function send_patient_message(int $patientId, string $messageType, string $body)
     $channel = (string) $contact['channel'];
     $address = (string) $contact['address'];
 
-    if ($channel === 'whatsapp' && AFRICASTALKING_WHATSAPP_FROM === '') {
-        error_log("SEND_PATIENT_MESSAGE FAILED: WhatsApp sender (AFRICASTALKING_*_WHATSAPP_FROM) not configured for patient $patientId");
+    if ($channel === 'whatsapp' && !whatsapp_cloud_enabled() && AFRICASTALKING_WHATSAPP_FROM === '') {
+        error_log("SEND_PATIENT_MESSAGE FAILED: WhatsApp not configured (set WHATSAPP_PROVIDER=cloud + Meta tokens, or AFRICASTALKING_*_WHATSAPP_FROM)");
         $outboundId = log_outbound_message($patientId, $channel, $messageType, $body);
         update_outbound_status($outboundId, 'failed', null, 'WhatsApp sender not configured on server');
         return false;
@@ -210,7 +211,11 @@ function send_patient_message(int $patientId, string $messageType, string $body)
     error_log("SEND_PATIENT_MESSAGE: Patient=$patientId, Channel=$channel, Address=$address, Type=$messageType");
 
     $outboundId = log_outbound_message($patientId, $channel, $messageType, $body);
-    $result = africastalking_send($channel, $address, $body);
+    if ($channel === 'whatsapp' && whatsapp_cloud_enabled()) {
+        $result = whatsapp_cloud_send($address, $body);
+    } else {
+        $result = africastalking_send($channel, $address, $body);
+    }
 
     error_log("AFRICASTALKING_RESULT: outboundId=$outboundId, ok=" . ($result['ok'] ? 'true' : 'false') . ", error=" . ($result['error'] ?? 'none'));
 

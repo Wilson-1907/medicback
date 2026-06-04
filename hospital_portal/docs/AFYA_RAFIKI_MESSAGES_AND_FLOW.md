@@ -31,7 +31,15 @@ At registration the patient signs the hospital form agreeing to receive messages
 
 The nurse registers the patient on the HPV console: client number, name, date of birth, phone, language (English or Kiswahili), SMS or WhatsApp, and screening details (HIV status, HPV history, residence, VIA result and date, and related fields).
 
-When registration is saved and the patient agreed to receive messages on paper, **no automatic welcome SMS** is sent. Messages are sent when HPV results are confirmed by staff.
+When registration is saved and the patient agreed to receive messages on paper, the **welcome SMS is sent immediately** (English or Kiswahili below). HPV result messages are sent when staff confirm the result.
+
+### Welcome — sent on successful registration (opt-in)
+
+**English**  
+Hello. Welcome to Afya rafiki. We are here to support you after your HPV screening results. This service will provide health information, reminders, and guidance for your follow-up care. Your information will remain confidential.
+
+**Kiswahili**  
+Karibu kwenye Afya rafiki. Tuko hapa kukusaidia baada ya majibu yako ya uchunguzi wa HPV. Huduma hii itakutumia taarifa za afya, vikumbusho, na mwongozo wa huduma ya ufuatiliaji. Taarifa zako zitahifadhiwa kwa siri.
 
 ### When HPV results are negative
 
@@ -53,11 +61,10 @@ Thank you for choosing Afya Rafiki.
 
 ### When HPV results are positive
 
-The nurse informs the patient by phone, schedules follow-up, then activates Afya Rafiki in the console (**Confirm & notify**). The system sends:
+The nurse informs the patient by phone, schedules follow-up, then **Confirm & notify** in the console. The system sends:
 
-1. **Welcome** (English / Kiswahili — short confidential introduction)  
-2. **HPV positive result** with follow-up appointment date  
-3. **Sixteen counseling messages** on a gentle drip schedule (3 hours, then 5 hours, then 1 day between each — not all at once)
+1. **HPV positive result** with follow-up appointment date (welcome was already sent at registration)  
+2. **Sixteen counseling messages** on a gentle drip schedule (3 hours, then 5 hours, then 1 day between each — not all at once)
 
 **English — HPV positive result (excerpt)**
 

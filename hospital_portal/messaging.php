@@ -234,10 +234,10 @@ function get_patient_language(int $patientId): string
     return in_array($lang, ['en', 'sw']) ? $lang : 'en';
 }
 
-/** Registration records paper consent only; welcome/result SMS sent when HPV result is confirmed. */
+/** Sent immediately after successful registration when patient opted in to messages. */
 function send_afya_enrollment_messages(int $patientId, string $patientName, string $lang = 'en'): void
 {
-    // No SMS at registration — official flow sends messages when HPV results are confirmed.
+    send_patient_message($patientId, 'welcome', build_welcome_message($patientName, $lang));
 }
 
 function build_appointment_message(string $patientName, array $appointment, string $lang = 'en'): string

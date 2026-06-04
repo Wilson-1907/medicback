@@ -254,7 +254,6 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
             build_hpv_negative_result_notification($name, $hivStatus, $lang)
         );
     } else {
-        send_patient_message($patientId, 'welcome', build_welcome_message($name, $lang));
         $apptDate = afya_next_appointment_display($patientId);
         send_patient_message(
             $patientId,

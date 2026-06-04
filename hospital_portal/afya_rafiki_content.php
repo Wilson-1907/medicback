@@ -45,16 +45,16 @@ function afya_format_appointment_date(?string $scheduledStart): string
     return date('l, j M Y', $ts) . ' ' . date('g:i A', $ts);
 }
 
-/** Initial welcome when HPV positive pathway is activated (nurse confirms result). */
+/** Welcome SMS sent immediately when registration with message consent is saved. */
 function build_welcome_message(string $patientName, string $lang = 'en'): string
 {
     $lang = afya_lang($lang);
     if ($lang === 'sw') {
-        return 'Karibu kwenye Afya Rafiki. Tuko hapa kukusaidia baada ya majibu yako ya uchunguzi wa HPV. '
+        return 'Karibu kwenye Afya rafiki. Tuko hapa kukusaidia baada ya majibu yako ya uchunguzi wa HPV. '
             . 'Huduma hii itakutumia taarifa za afya, vikumbusho, na mwongozo wa huduma ya ufuatiliaji. '
             . 'Taarifa zako zitahifadhiwa kwa siri.';
     }
-    return 'Hello. Welcome to Afya Rafiki. We are here to support you after your HPV screening results. '
+    return 'Hello. Welcome to Afya rafiki. We are here to support you after your HPV screening results. '
         . 'This service will provide health information, reminders, and guidance for your follow-up care. '
         . 'Your information will remain confidential.';
 }

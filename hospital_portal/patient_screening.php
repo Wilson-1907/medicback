@@ -5,6 +5,7 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/hpv_results.php';
 require_once __DIR__ . '/scheduled_messages.php';
 require_once __DIR__ . '/messaging.php';
+require_once __DIR__ . '/afya_rafiki_content.php';
 
 const NYERI_REFERRAL_HOSPITAL = 'Nyeri County Referral Hospital';
 
@@ -200,17 +201,27 @@ function compute_screening_followups(array $screening): array
     return ['next_checkup_at' => $next, 'schedules' => $schedules];
 }
 
-function build_referral_message(string $patientName, string $lang): string
+function build_referral_message(string $patientName, string $lang, string $appointmentDate = '__________'): string
 {
     $hospital = NYERI_REFERRAL_HOSPITAL;
+    $name = function_exists('afya_first_name') ? afya_first_name($patientName) : $patientName;
+    $hello = $lang === 'sw'
+        ? ($name !== '' ? "Habari {$name}," : 'Habari,')
+        : ($name !== '' ? "Hello {$name}," : 'Hello,');
     if ($lang === 'sw') {
-        return "Habari {$patientName}, matokeo yako ya VIA yanaonyesha hali inayohitaji uangalizi zaidi. "
-            . "Tunakuelekeza kwenda {$hospital} kwa uchunguzi na matibabu zaidi. "
-            . 'Wasiliana na kliniki yetu ikiwa unahitaji usafiri au msaada.';
+        return "{$hello}\nUchunguzi wako wa VIA ulionyesha mabadiliko kwenye mlango wa kizazi ambayo yanahitaji tathmini zaidi na daktari bingwa. "
+            . 'Hii haimaanishi moja kwa moja kuwa una saratani ya mlango wa kizazi. Hata hivyo, vipimo zaidi vinahitajika ili kuelewa vizuri mabadiliko yaliyoonekana.'
+            . "\nUmepewa rufaa kwenda {$hospital} kwa uchunguzi wa daktari wa magonjwa ya wanawake na matibabu zaidi ikiwa yatahitajika. "
+            . 'Ni muhimu kuhudhuria miadi hii kwa sababu uchunguzi na matibabu ya mapema husaidia kulinda afya yako.'
+            . "\nTarehe ya miadi yako ni:\nTarehe: {$appointmentDate}"
+            . "\nIkiwa una maswali yoyote, tafadhali wasiliana na mhudumu wako wa afya au Afya Rafiki kwa ushauri zaidi.";
     }
-    return "Hello {$patientName}, your VIA results indicate a condition that needs further care. "
-        . "You are referred to {$hospital} for further assessment and treatment. "
-        . 'Contact our clinic if you need travel support or assistance.';
+    return "{$hello}\nYour VIA examination showed changes on the cervix that require further assessment by a specialist. "
+        . 'This does not necessarily mean that you have cervical cancer. However, additional tests are needed to better understand the changes that were seen.'
+        . "\nYou have been referred to {$hospital} for a gynecological review and further management. "
+        . 'Attending this appointment is important because early assessment and treatment, when needed, can help protect your health and improve outcomes.'
+        . "\nPlease attend your scheduled appointment on:\nDate: {$appointmentDate}"
+        . "\nIf you have any questions, please contact your healthcare provider or Afya Rafiki for guidance.";
 }
 
 function build_checkup_reminder_message(

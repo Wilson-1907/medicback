@@ -245,13 +245,24 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
         'UPDATE patients SET hpv_result_confirmed_at = NOW(3), hpv_counseling_index = 0 WHERE id = ?'
     )->execute([$patientId]);
 
-    send_patient_message(
-        $patientId,
-        'system',
-        build_hpv_result_notification($name, $result, $lang)
-    );
-
-    $scheduled = schedule_hpv_counseling_step($patientId, hpv_delay_before_counseling_index(0));
+    $scheduled = false;
+    if ($result === 'negative') {
+        $hivStatus = afya_patient_hiv_status($patientId);
+        send_patient_message(
+            $patientId,
+            'system',
+            build_hpv_negative_result_notification($name, $hivStatus, $lang)
+        );
+    } else {
+        send_patient_message($patientId, 'welcome', build_welcome_message($name, $lang));
+        $apptDate = afya_next_appointment_display($patientId);
+        send_patient_message(
+            $patientId,
+            'system',
+            build_hpv_positive_result_notification($name, $apptDate, $lang)
+        );
+        $scheduled = schedule_hpv_counseling_step($patientId, hpv_delay_before_counseling_index(0));
+    }
 
     $dx = db()->prepare(
         'INSERT INTO diagnosis_results (patient_id, diagnosis_label, severity, result_summary, recorded_by)

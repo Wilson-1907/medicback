@@ -234,9 +234,10 @@ function get_patient_language(int $patientId): string
     return in_array($lang, ['en', 'sw']) ? $lang : 'en';
 }
 
+/** Registration records paper consent only; welcome/result SMS sent when HPV result is confirmed. */
 function send_afya_enrollment_messages(int $patientId, string $patientName, string $lang = 'en'): void
 {
-    send_patient_message($patientId, 'welcome', build_welcome_message($patientName, $lang));
+    // No SMS at registration — official flow sends messages when HPV results are confirmed.
 }
 
 function build_appointment_message(string $patientName, array $appointment, string $lang = 'en'): string
@@ -392,30 +393,20 @@ function get_random_engagement_messages(string $lang = 'en'): array
 {
     if ($lang === 'sw') {
         return [
-            "Habari! 👋 Tunakujali katika safari yako ya afya ya HPV. Je, una maswali kuhusu chanjo au uchunguzi? Jibu HELP au uliza chochote.",
-            "💪 Afya yako ni muhimu! HPV inaweza kuzuilika kwa chanjo na uchunguzi wa mara kwa mara. Unajisikiaje leo?",
-            "🌸 Kumbuka: chanjo ya HPV inaweza kulinda dhidi ya saratani ya shingo ya kizazi. Je, una swali lolote? Tupo hapa!",
-            "🥗 Lishe bora na usingizi wa kutosha huimarisha kinga yako. Leo umekula matunda na mboga za majani?",
-            "💧 Kunywa maji mengi husaidia mwili wako kujikinga. Lita 6-8 leo — unaweza kufanya hivyo!",
-            "🚶 Tembea kwa dakika 20 kila siku — moyo na akili yako vitashukuru. Karibu kutuambia jinsi unavyojisikia!",
-            "😊 Unafanya vizuri kwa kujali afya yako. Kila hatua ndogo inahesabu. Je, una swali lingine?",
-            "❤️ Hospitali yetu iko hapa kukusaidia. Chanjo, uchunguzi, au ushauri — jibu ujumbe huu wakati wowote.",
-            "🎯 Lengo la leo: fanya kitu kimoja cha kujali afya yako. Unaweza kuanza na maji au matembezi!",
-            "🌞 Afya ni mali. HPV inaweza kudhibitiwa — usisite kuuliza. Je, una swali lolote leo?",
+            'Afya yako ni muhimu. Endelea kujali mwili wako — lishe bora, usingizi, na maji ya kutosha husaidia.',
+            'Umechukua hatua nzuri kwa kufuatilia afya yako. Tupo hapa ukihitaji msaada. Jibu HELP kwa maswali.',
+            'Kumbuka: uchunguzi wa mara kwa mara husaidia kulinda afya yako. HPV ni jambo la kawaida — ufuatiliaji husaidia.',
+            'Tembea kidogo, kula vizuri, na pumzika — mambo madogo yanaimarisha afya.',
+            'Wewe si peke yako. Afya Rafiki iko pamoja nawe katika safari hii.',
         ];
     }
 
     return [
-        "Hi! 👋 We're thinking of you on your HPV care journey. Have questions about vaccination or screening? Reply HELP anytime.",
-        "💪 Your health matters! HPV can be prevented with vaccination and regular screening. How are you feeling today?",
-        "🌸 Remember: HPV vaccination helps protect against cervical cancer. Any questions? We're here for you!",
-        "🥗 Good nutrition and rest strengthen your immunity. Did you eat fruits and vegetables today?",
-        "💧 Stay hydrated — 6-8 glasses of water daily supports your body. You've got this!",
-        "🚶 A 20-minute walk daily is great for heart and mind. How is your day going?",
-        "😊 You're doing great by staying engaged with your health. Every small step counts. Any questions for us?",
-        "❤️ Our team is here for you — vaccination, screening, or advice. Reply anytime with a question.",
-        "🎯 Today's health goal: do one small thing for yourself — water, a walk, or rest. What will you choose?",
-        "🌞 HPV is manageable with the right care. Never hesitate to ask. Do you have a question today?",
+        'Your health matters. Keep caring for yourself — good food, rest, and water all help.',
+        'You have taken a good step by following up on your health. Reply HELP if you have a question.',
+        'Regular screening helps protect your health. HPV is very common — follow-up care makes a difference.',
+        'A short walk, healthy meals, and rest can support your wellbeing.',
+        'You are not alone. Afya Rafiki is with you on this path.',
     ];
 }
 

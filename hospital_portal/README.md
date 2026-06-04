@@ -54,11 +54,12 @@ Backend and staff UI for the PHV engagement pilot.
 - Delivery reports:
   - `/webhook_delivery_report.php`
 
-**Afya Rafiki** patient SMS/WhatsApp flow:
+**Afya Rafiki** patient SMS/WhatsApp flow (official script):
 
-1. Welcome message on enrollment
-2. Consent (`1` YES / `2` NO) → thank-you + “results will be sent here” → **3 minutes later** one neutral encouragement (no positive/negative yet)
-3. Staff records **HPV positive or negative**, then **Confirm & notify** → result SMS now; follow-up messages drip on a gentle timeline (**3 hours**, then **5 hours**, then **1 day** between each message — not all at once). Positive pathway: 12 steps; negative: 6 steps.
+1. **Registration** — paper consent only; no SMS YES/NO
+2. Staff records **HPV positive or negative**, then **Confirm & notify**
+3. **HPV negative** — one SMS (3-year return if HIV+, 5-year if HIV−)
+4. **HPV positive** — welcome + positive result SMS with appointment date, then **16** counseling messages on a drip schedule (**3 hours**, **5 hours**, then **1 day** between each)
 
 Run migration: `sql/2026_05_31_hpv_result_workflow.sql`
 

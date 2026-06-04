@@ -186,7 +186,11 @@ $escalation = afya_escalation_check($body);
 if ($escalation['escalate']) {
     create_escalation($patientId, $escalation['reason'], $escalation['urgency']);
     if (preg_match('/\b(missed|sikuhudhuria|nilikosa)\b/ui', $body)) {
-        send_patient_message($patientId, 'escalation_notice', build_missed_appointment_message($replyLang));
+        send_patient_message(
+            $patientId,
+            'escalation_notice',
+            build_missed_appointment_message((string) ($patient['full_name'] ?? ''), $replyLang)
+        );
     } else {
         send_patient_message($patientId, 'escalation_notice', build_escalation_reply($replyLang));
     }

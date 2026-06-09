@@ -377,8 +377,13 @@ async function testInboundWebhook(phone, patientLabel) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
     });
+    const text = await res.text();
     if (res.status !== 200) {
         fail('Inbound webhook POST', `HTTP ${res.status}`);
+        return;
+    }
+    if (text.trim() !== 'OK') {
+        fail('Inbound webhook clean response', text.slice(0, 200));
         return;
     }
     pass('Inbound webhook POST accepted (Meta format)');

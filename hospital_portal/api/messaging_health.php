@@ -111,8 +111,8 @@ try {
 
     }
 
-    if ($waProvider === 'cloud' && !$verifySet) {
-        $setupRequired[] = 'WhatsApp webhook: set WHATSAPP_VERIFY_TOKEN (same value in Mteja/Meta webhook settings)';
+    if (in_array($waProvider, ['cloud', 'mteja'], true) && !$verifySet) {
+        $setupRequired[] = 'WhatsApp inbound: set WHATSAPP_VERIFY_TOKEN and register webhook_whatsapp.php in Mteja (Settings → Channels → WhatsApp → webhook mode)';
     }
 
 
@@ -124,6 +124,12 @@ try {
         : 'https://medicback.onrender.com';
 
 
+
+    $lastInbound = $pdo->query(
+        "SELECT received_at, from_address, LEFT(body, 80) AS preview
+         FROM inbound_messages
+         ORDER BY id DESC LIMIT 1"
+    )->fetch();
 
     api_json([
 
@@ -188,6 +194,13 @@ try {
 
             'last_sms_error' => $lastSmsError['error_detail'] ?? null,
 
+        ],
+
+        'inbound' => [
+            'last_received_at' => $lastInbound['received_at'] ?? null,
+            'last_from' => $lastInbound['from_address'] ?? null,
+            'last_preview' => $lastInbound['preview'] ?? null,
+            'webhook_url' => $baseUrl . '/webhook_whatsapp.php',
         ],
 
         'docs' => [

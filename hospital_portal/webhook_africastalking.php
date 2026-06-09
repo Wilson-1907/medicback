@@ -7,6 +7,7 @@ require_once __DIR__ . '/afya_rafiki_content.php';
 require_once __DIR__ . '/hpv_results.php';
 require_once __DIR__ . '/openai_assistant.php';
 require_once __DIR__ . '/doctor_call_requests.php';
+require_once __DIR__ . '/whatsapp_inbound.php';
 
 /**
  * Africa's Talking inbound webhook handler.
@@ -141,9 +142,9 @@ $from = normalize_inbound_phone(payload_value($payload, ['from', 'fromNumber', '
 $body = payload_value($payload, ['text', 'message', 'body', 'content']);
 $channel = channel_from_payload($payload);
 
-// WhatsApp inbound is handled by Mteja → Meta webhook (webhook_whatsapp.php), not AT.
-if ($channel === 'whatsapp' && defined('WHATSAPP_PROVIDER') && WHATSAPP_PROVIDER === 'cloud') {
-    error_log('WEBHOOK_EXIT: WhatsApp inbound ignored on AT webhook (use webhook_whatsapp.php / Mteja)');
+// WhatsApp via Mteja/Meta uses webhook_whatsapp.php — not Africa's Talking.
+if ($channel === 'whatsapp' && defined('WHATSAPP_PROVIDER') && in_array(WHATSAPP_PROVIDER, ['cloud', 'mteja'], true)) {
+    error_log('WEBHOOK_EXIT: WhatsApp inbound on AT webhook — use webhook_whatsapp.php (Mteja/Meta)');
     echo 'OK';
     exit;
 }
@@ -176,6 +177,11 @@ if (!$patientId) {
 $msg = strtoupper(trim($body));
 $replyLang = $lang === 'sw' ? 'sw' : 'en';
 $patientFirstName = afya_first_name((string) ($patient['full_name'] ?? ''));
+
+if (whatsapp_inbound_try_language_reply($patientId, $body, $channel)) {
+    echo 'OK';
+    exit;
+}
 
 // --- Rule-based FAQ / HELP menu ---
 $faqReply = afya_faq_reply($body, $replyLang);

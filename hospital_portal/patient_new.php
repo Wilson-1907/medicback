@@ -187,7 +187,7 @@ layout_header('Register patient');
 
     <div class="field">
       <label>
-        <input type="checkbox" name="opt_in" value="1" <?= !empty($_POST['opt_in']) ? ' checked' : '' ?>>
+        <input type="checkbox" name="opt_in" value="1"<?= (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || isset($_POST['opt_in'])) ? ' checked' : '' ?>>
         <strong>Patient consents to receive messages</strong>
       </label>
       <div class="field-hint">Patient agrees to receive health education, appointment reminders, and updates via the selected channel in their preferred language.</div>

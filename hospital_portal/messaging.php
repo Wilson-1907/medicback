@@ -326,13 +326,17 @@ function get_patient_language(int $patientId): string
     return in_array($lang, ['en', 'sw']) ? $lang : 'en';
 }
 
-/** Sent after registration when patient opted in — records consent only; messages start when results are confirmed. */
+/** Sent after registration when patient opted in — consent thank-you + optional health tip. */
 function send_afya_enrollment_messages(int $patientId, string $patientName, string $lang = 'en'): void
 {
     $contact = patient_primary_contact($patientId);
-    if ($contact) {
-        record_registration_consent($patientId, (string) $contact['channel']);
+    if (!$contact) {
+        error_log("ENROLLMENT: No opted-in contact for patient $patientId — no welcome message sent");
+        return;
     }
+    record_registration_consent($patientId, (string) $contact['channel']);
+    require_once __DIR__ . '/hpv_results.php';
+    handle_consent_accepted($patientId, $patientName, $lang);
 }
 
 function build_appointment_message(string $patientName, array $appointment, string $lang = 'en'): string

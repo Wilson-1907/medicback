@@ -213,6 +213,9 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
     }
 
     if ($messageType === 'system' || $messageType === 'ai_reply') {
+        if (str_contains($bodyLower, 'appreciate you agreeing') || str_contains($bodyLower, 'kukubali kupokea ujumbe')) {
+            return $mk('afya_consent_thanks', $name !== '' ? [$name] : ['']);
+        }
         if (str_contains($bodyLower, 'hpv test result is negative') || str_contains($bodyLower, 'majibu yako ya hpv ni hasi')) {
             $hiv = function_exists('afya_patient_hiv_status') ? afya_patient_hiv_status($patientId) : 'negative';
             $base = $hiv === 'positive' ? 'afya_hpv_neg_hivpos' : 'afya_hpv_neg_hivneg';

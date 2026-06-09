@@ -64,6 +64,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $providerName = $_POST['provider_name'] !== '' ? trim((string) $_POST['provider_name']) : null;
                     $location = $_POST['location'] !== '' ? trim((string) $_POST['location']) : null;
 
+                    $dupSt = $pdo->prepare(
+                        "SELECT id FROM appointments
+                         WHERE patient_id = ? AND scheduled_start = ? AND status IN ('proposed','confirmed')
+                         LIMIT 1"
+                    );
+                    $dupSt->execute([$id, $startSql]);
+                    if ($dupSt->fetch()) {
+                        $errors[] = 'This patient already has an appointment at that date and time.';
+                    } else {
                     $pdo->beginTransaction();
                     $st = $pdo->prepare(
                         'INSERT INTO appointments (patient_id, department, provider_name, scheduled_start, scheduled_end, location, status)
@@ -99,6 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ], $reason, false, $patientLangForMsgs)
                     );
                     $flash = 'Appointment added.';
+                    }
                 }
             } elseif ($action === 'confirm_appt') {
                 $aid = (int) ($_POST['appointment_id'] ?? 0);

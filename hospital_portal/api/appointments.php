@@ -56,6 +56,20 @@ try {
 
         $startSql = api_dt($start);
         $endSql = $end === '' ? null : api_dt($end);
+
+        $dupSt = $pdo->prepare(
+            "SELECT id FROM appointments
+             WHERE patient_id = ? AND scheduled_start = ? AND status IN ('proposed','confirmed')
+             LIMIT 1"
+        );
+        $dupSt->execute([$patientId, $startSql]);
+        if ($dupSt->fetch()) {
+            api_json([
+                'ok' => false,
+                'error' => 'This patient already has an appointment at that date and time.',
+            ], 409);
+        }
+
         $pdo->beginTransaction();
         try {
             $st = $pdo->prepare(

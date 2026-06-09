@@ -329,17 +329,26 @@ function whatsapp_inbound_handle_request(string $rawBody, array $query = []): vo
     foreach ($messages as $item) {
         $from = $item['from'];
         $body = $item['body'];
-        $patient = whatsapp_inbound_find_patient($from);
-        $patientId = $patient ? (int) $patient['id'] : null;
+        $patient = null;
+        $patientId = null;
+        try {
+            $patient = whatsapp_inbound_find_patient($from);
+            $patientId = $patient ? (int) $patient['id'] : null;
+        } catch (Throwable $e) {
+            error_log('WHATSAPP_INBOUND find_patient: ' . $e->getMessage());
+        }
 
         whatsapp_inbound_save($patientId, $from, $body, $payload);
         error_log("WHATSAPP_INBOUND: from={$from} patient=" . ($patientId ?? 'none') . ' body=' . substr($body, 0, 120));
 
-        if (!$patient) {
-            whatsapp_inbound_send_unlinked($from, $body);
-            continue;
+        try {
+            if (!$patient) {
+                whatsapp_inbound_send_unlinked($from, $body);
+                continue;
+            }
+            whatsapp_inbound_process_registered_patient($patient, $body);
+        } catch (Throwable $e) {
+            error_log('WHATSAPP_INBOUND process: ' . $e->getMessage());
         }
-
-        whatsapp_inbound_process_registered_patient($patient, $body);
     }
 }

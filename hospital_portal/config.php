@@ -169,8 +169,11 @@ define('MTEJA_APP_ID', env_value('MTEJA_APP_ID', ''));
 define('MTEJA_API_KEY', env_value('MTEJA_API_KEY', ''));
 define('MTEJA_VIRTUAL_NUMBER', env_value('MTEJA_VIRTUAL_NUMBER', ''));
 define('MTEJA_API_URL', env_value('MTEJA_API_URL', 'https://api.sentry.mteja.io/api/whatsapp-template'));
-define('MTEJA_LANG_CODE_EN', env_value('MTEJA_LANG_CODE_EN', 'en'));
+define('MTEJA_LANG_CODE_EN', env_value('MTEJA_LANG_CODE_EN', 'en_US'));
 define('MTEJA_LANG_CODE_SW', env_value('MTEJA_LANG_CODE_SW', 'sw'));
+/** Optional override if Mteja template name differs (e.g. MTEJA_TEMPLATE_AFYA_WELCOME_EN=welcome_en) */
+define('MTEJA_TEMPLATE_AFYA_WELCOME_EN', env_value('MTEJA_TEMPLATE_AFYA_WELCOME_EN', ''));
+define('MTEJA_TEMPLATE_AFYA_WELCOME_SW', env_value('MTEJA_TEMPLATE_AFYA_WELCOME_SW', ''));
 
 define('GROQ_API_KEY', env_value('GROQ_API_KEY', ''));
 define('GROQ_MODEL', env_value('GROQ_MODEL', 'llama-3.3-70b-versatile'));

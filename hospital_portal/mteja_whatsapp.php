@@ -44,6 +44,40 @@ function mteja_body_component(array $textParams = []): array
     return ['type' => 'body', 'parameters' => $parameters];
 }
 
+/** Static templates (no {{1}} vars) should send empty components per Mteja/Meta. */
+function mteja_build_components(array $textParams = []): array
+{
+    if ($textParams === []) {
+        return [];
+    }
+    return [mteja_body_component($textParams)];
+}
+
+function mteja_template_name(string $base, string $suffix): string
+{
+    $overrideKey = 'MTEJA_TEMPLATE_' . strtoupper(str_replace('-', '_', $base)) . '_' . strtoupper($suffix);
+    if (defined($overrideKey)) {
+        $override = constant($overrideKey);
+        if (is_string($override) && $override !== '') {
+            return $override;
+        }
+    }
+    return $base . '_' . $suffix;
+}
+
+function mteja_lang_alternates(string $langCode): array
+{
+    $codes = [$langCode];
+    if ($langCode === 'en') {
+        $codes[] = 'en_US';
+    } elseif ($langCode === 'en_US') {
+        $codes[] = 'en';
+    } elseif ($langCode === 'sw') {
+        $codes[] = 'sw_KE';
+    }
+    return array_values(array_unique($codes));
+}
+
 /**
  * @return array{templateName: string, languageCode: string, components: list<array<string, mixed>>}|null
  */
@@ -63,9 +97,9 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
 
     $mk = static function (string $base, array $params = []) use ($suffix, $langCode): array {
         return [
-            'templateName' => $base . '_' . $suffix,
+            'templateName' => mteja_template_name($base, $suffix),
             'languageCode' => $langCode,
-            'components' => [mteja_body_component($params)],
+            'components' => mteja_build_components($params),
         ];
     };
 
@@ -207,56 +241,118 @@ function mteja_whatsapp_send_template(
     $virtual = normalize_outbound_address(MTEJA_VIRTUAL_NUMBER);
     $requestId = bin2hex(random_bytes(16));
 
-    $payload = [
+    $url = defined('MTEJA_API_URL') && MTEJA_API_URL !== ''
+        ? MTEJA_API_URL
+        : 'https://api.sentry.mteja.io/api/whatsapp-template';
+
+    $virtualVariants = array_values(array_unique(array_filter([
+        $virtual,
+        ltrim($virtual, '+'),
+        preg_replace('/^\+254/', '0', $virtual) ?: null,
+    ])));
+
+    $attempt = static function (array $payload) use ($url, $requestId): array {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'X-App-ID: ' . MTEJA_APP_ID,
+                'X-API-Key: ' . MTEJA_API_KEY,
+                'Content-Type: application/json',
+                'Accept: application/json',
+            ],
+            CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => 25,
+        ]);
+
+        $raw = curl_exec($ch);
+        $err = curl_error($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+
+        if ($raw === false) {
+            return [
+                'ok' => false,
+                'message_id' => null,
+                'error' => $err !== '' ? $err : 'cURL error',
+                'response' => null,
+            ];
+        }
+
+        $json = json_decode($raw, true);
+        $messageId = is_array($json) ? (string) ($json['requestId'] ?? $requestId) : $requestId;
+
+        if ($code >= 200 && $code < 300 && is_array($json) && !empty($json['success'])) {
+            return ['ok' => true, 'message_id' => $messageId, 'error' => null, 'response' => $json];
+        }
+
+        $reason = is_array($json) ? (string) ($json['reason'] ?? json_encode($json)) : $raw;
+        return [
+            'ok' => false,
+            'message_id' => $messageId,
+            'error' => 'HTTP ' . $code . ': ' . $reason
+                . ' [template=' . ($payload['templateName'] ?? '?')
+                . ' lang=' . ($payload['languageCode'] ?? '?')
+                . ' to=' . ($payload['customerNumber'] ?? '?') . ']',
+            'response' => is_array($json) ? $json : null,
+        ];
+    };
+
+    $basePayload = [
         'appId' => (int) MTEJA_APP_ID,
         'userId' => 0,
         'virtualNumber' => $virtual,
         'customerNumber' => $customer,
         'templateName' => $templateName,
-        'components' => $components !== [] ? $components : [mteja_body_component([])],
         'languageCode' => $languageCode,
         'requestId' => $requestId,
     ];
 
-    $url = defined('MTEJA_API_URL') && MTEJA_API_URL !== ''
-        ? MTEJA_API_URL
-        : 'https://api.sentry.mteja.io/api/whatsapp-template';
-
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'X-App-ID: ' . MTEJA_APP_ID,
-            'X-API-Key: ' . MTEJA_API_KEY,
-            'Content-Type: application/json',
-            'Accept: application/json',
-        ],
-        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
-        CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_TIMEOUT => 25,
-    ]);
-
-    $raw = curl_exec($ch);
-    $err = curl_error($ch);
-    $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    curl_close($ch);
-
-    if ($raw === false) {
-        return ['ok' => false, 'message_id' => null, 'error' => $err !== '' ? $err : 'cURL error'];
+    // Try empty components first (static templates), then explicit body if needed.
+    $componentVariants = [$components];
+    if ($components === []) {
+        $componentVariants[] = [mteja_body_component([])];
     }
 
-    $json = json_decode($raw, true);
-    $messageId = is_array($json) ? (string) ($json['requestId'] ?? $requestId) : $requestId;
+    $langVariants = mteja_lang_alternates($languageCode);
+    $last = ['ok' => false, 'message_id' => null, 'error' => 'Mteja send failed'];
 
-    if ($code >= 200 && $code < 300 && is_array($json) && !empty($json['success'])) {
-        return ['ok' => true, 'message_id' => $messageId, 'error' => null];
+    foreach ($virtualVariants as $virtualTry) {
+        foreach ($langVariants as $langTry) {
+            foreach ($componentVariants as $compTry) {
+                $payload = $basePayload;
+                $payload['virtualNumber'] = $virtualTry;
+                $payload['languageCode'] = $langTry;
+                $payload['components'] = $compTry;
+                $payload['requestId'] = bin2hex(random_bytes(16));
+
+                error_log('MTEJA_SEND: ' . json_encode([
+                    'template' => $templateName,
+                    'lang' => $langTry,
+                    'virtual' => $virtualTry,
+                    'to' => $customer,
+                    'components' => count($compTry),
+                ]));
+
+                $last = $attempt($payload);
+                if ($last['ok']) {
+                    return [
+                        'ok' => true,
+                        'message_id' => $last['message_id'],
+                        'error' => null,
+                    ];
+                }
+            }
+        }
     }
 
     return [
         'ok' => false,
-        'message_id' => $messageId,
-        'error' => 'HTTP ' . $code . ': ' . (is_array($json) ? json_encode($json) : $raw),
+        'message_id' => $last['message_id'] ?? null,
+        'error' => ($last['error'] ?? 'Mteja send failed')
+            . ' — verify in Mteja: template name afya_welcome_en, language en_US, number +254142830423',
     ];
 }
 

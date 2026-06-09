@@ -158,13 +158,19 @@ define('AFRICASTALKING_WHATSAPP_URL', env_by_mode(
     'https://api.africastalking.com/version1/whatsapp/message'
 ));
 
-/** WhatsApp: africastalking (default) or cloud (Meta API — typical with Mteja WABA) */
+/** WhatsApp: africastalking | cloud (Meta Graph) | mteja (Mteja template broadcast API) */
 define('WHATSAPP_PROVIDER', strtolower(env_value('WHATSAPP_PROVIDER', 'africastalking')));
 define('WHATSAPP_ACCESS_TOKEN', env_value('WHATSAPP_ACCESS_TOKEN', ''));
 define('WHATSAPP_PHONE_NUMBER_ID', env_value('WHATSAPP_PHONE_NUMBER_ID', ''));
 define('WHATSAPP_BUSINESS_ACCOUNT_ID', env_value('WHATSAPP_BUSINESS_ACCOUNT_ID', ''));
 define('WHATSAPP_VERIFY_TOKEN', env_value('WHATSAPP_VERIFY_TOKEN', ''));
 define('WHATSAPP_GRAPH_VERSION', env_value('WHATSAPP_GRAPH_VERSION', 'v21.0'));
+define('MTEJA_APP_ID', env_value('MTEJA_APP_ID', ''));
+define('MTEJA_API_KEY', env_value('MTEJA_API_KEY', ''));
+define('MTEJA_VIRTUAL_NUMBER', env_value('MTEJA_VIRTUAL_NUMBER', ''));
+define('MTEJA_API_URL', env_value('MTEJA_API_URL', 'https://api.sentry.mteja.io/api/whatsapp-template'));
+define('MTEJA_LANG_CODE_EN', env_value('MTEJA_LANG_CODE_EN', 'en'));
+define('MTEJA_LANG_CODE_SW', env_value('MTEJA_LANG_CODE_SW', 'sw'));
 
 define('GROQ_API_KEY', env_value('GROQ_API_KEY', ''));
 define('GROQ_MODEL', env_value('GROQ_MODEL', 'llama-3.3-70b-versatile'));

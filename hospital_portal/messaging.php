@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/afya_rafiki_content.php';
 require_once __DIR__ . '/whatsapp_cloud.php';
+require_once __DIR__ . '/mteja_whatsapp.php';
 
 /** Expand outbound message types — converts legacy ENUM to VARCHAR so any label is accepted. */
 function ensure_outbound_message_types(): void
@@ -63,10 +64,13 @@ function africastalking_whatsapp_ready(): bool
         && AFRICASTALKING_WHATSAPP_FROM !== '';
 }
 
-/** Outbound WhatsApp: Mteja / Meta Cloud when WHATSAPP_PROVIDER=cloud, else AT WhatsApp. */
+/** Outbound WhatsApp: Mteja template API, Meta Cloud, or AT WhatsApp. */
 function whatsapp_outbound_ready(): bool
 {
     $provider = defined('WHATSAPP_PROVIDER') ? WHATSAPP_PROVIDER : 'africastalking';
+    if ($provider === 'mteja') {
+        return mteja_whatsapp_enabled();
+    }
     if ($provider === 'cloud') {
         return whatsapp_cloud_enabled();
     }
@@ -274,9 +278,11 @@ function send_patient_message(int $patientId, string $messageType, string $body)
         return false;
     }
     if ($channel === 'whatsapp' && !whatsapp_outbound_ready()) {
-        $hint = $waProvider === 'cloud'
-            ? 'WhatsApp (Mteja): set WHATSAPP_PROVIDER=cloud, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID on Render'
-            : 'WhatsApp: set WHATSAPP_PROVIDER=cloud for Mteja, or AFRICASTALKING_*_WHATSAPP_FROM for AT';
+        $hint = match ($waProvider) {
+            'mteja' => 'WhatsApp (Mteja): set WHATSAPP_PROVIDER=mteja, MTEJA_APP_ID, MTEJA_API_KEY, MTEJA_VIRTUAL_NUMBER on Render',
+            'cloud' => 'WhatsApp (Meta Cloud): set WHATSAPP_PROVIDER=cloud, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID',
+            default => 'WhatsApp: set WHATSAPP_PROVIDER=mteja or cloud, or AFRICASTALKING_*_WHATSAPP_FROM for AT',
+        };
         error_log('SEND_PATIENT_MESSAGE FAILED: ' . $hint);
         $outboundId = log_outbound_message($patientId, $channel, $messageType, $body);
         update_outbound_status($outboundId, 'failed', null, $hint);
@@ -287,9 +293,13 @@ function send_patient_message(int $patientId, string $messageType, string $body)
 
     $outboundId = log_outbound_message($patientId, $channel, $messageType, $body);
     if ($channel === 'whatsapp') {
-        $result = whatsapp_cloud_enabled()
-            ? whatsapp_cloud_send($address, $body)
-            : africastalking_send('whatsapp', $address, $body);
+        if (mteja_whatsapp_enabled()) {
+            $result = mteja_whatsapp_send_patient($patientId, $address, $messageType, $body);
+        } elseif (whatsapp_cloud_enabled()) {
+            $result = whatsapp_cloud_send($address, $body);
+        } else {
+            $result = africastalking_send('whatsapp', $address, $body);
+        }
     } else {
         $result = africastalking_send('sms', $address, $body);
     }

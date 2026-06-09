@@ -29,6 +29,7 @@ try {
     $waProvider = defined('WHATSAPP_PROVIDER') ? WHATSAPP_PROVIDER : 'africastalking';
 
     $cloudReady = function_exists('whatsapp_cloud_enabled') && whatsapp_cloud_enabled();
+    $mtejaReady = function_exists('mteja_whatsapp_enabled') && mteja_whatsapp_enabled();
 
     $smsReady = function_exists('africastalking_sms_ready') && africastalking_sms_ready();
 
@@ -100,6 +101,10 @@ try {
 
     }
 
+    if ($waProvider === 'mteja' && !$mtejaReady) {
+        $setupRequired[] = 'WhatsApp (Mteja): set WHATSAPP_PROVIDER=mteja, MTEJA_APP_ID, MTEJA_API_KEY, MTEJA_VIRTUAL_NUMBER (+254142830423)';
+    }
+
     if ($waProvider === 'cloud' && !$cloudReady) {
 
         $setupRequired[] = 'WhatsApp (Mteja): set WHATSAPP_PROVIDER=cloud, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID on Render';
@@ -145,17 +150,14 @@ try {
             ],
 
             'whatsapp' => [
-
-                'provider' => $waProvider === 'cloud' ? 'mteja_meta_cloud' : 'africastalking',
-
+                'provider' => $waProvider === 'mteja' ? 'mteja_template_api' : ($waProvider === 'cloud' ? 'meta_cloud' : 'africastalking'),
                 'ready' => $waReady,
-
+                'mteja_configured' => $mtejaReady,
                 'cloud_configured' => $cloudReady,
-
                 'verify_token_set' => $verifySet,
-
+                'virtual_number' => defined('MTEJA_VIRTUAL_NUMBER') && MTEJA_VIRTUAL_NUMBER !== '' ? MTEJA_VIRTUAL_NUMBER : null,
                 'inbound_webhook' => $baseUrl . '/webhook_whatsapp.php',
-
+                'mteja_send_endpoint' => defined('MTEJA_API_URL') ? MTEJA_API_URL : 'https://api.sentry.mteja.io/api/whatsapp-template',
             ],
 
         ],

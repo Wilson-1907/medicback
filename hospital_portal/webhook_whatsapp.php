@@ -180,7 +180,17 @@ foreach ($messages as $item) {
     whatsapp_webhook_save_inbound($patientId, $from, $body, $payload);
 
     if (!$patient) {
-        whatsapp_cloud_send($from, ai_unlinked_reply(ai_detect_message_language($body, 'en')));
+        if (function_exists('mteja_whatsapp_enabled') && mteja_whatsapp_enabled()) {
+            $suffix = ai_detect_message_language($body, 'en') === 'sw' ? 'sw' : 'en';
+            mteja_whatsapp_send_template(
+                $from,
+                'afya_unlinked_' . $suffix,
+                mteja_lang_code($suffix),
+                [mteja_body_component([])]
+            );
+        } elseif (function_exists('whatsapp_cloud_enabled') && whatsapp_cloud_enabled()) {
+            whatsapp_cloud_send($from, ai_unlinked_reply(ai_detect_message_language($body, 'en')));
+        }
         continue;
     }
 

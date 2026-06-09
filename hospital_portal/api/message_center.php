@@ -25,17 +25,29 @@ try {
                  WHERE p.status = 'active' AND c.opted_in = 1"
             )->fetchAll();
             $count = 0;
+            $failed = 0;
             foreach ($recipients as $r) {
-                send_patient_message((int) $r['id'], 'system', $messageText);
-                $count++;
+                if (send_patient_message((int) $r['id'], 'staff_custom', $messageText)) {
+                    $count++;
+                } else {
+                    $failed++;
+                }
             }
-            api_json(['ok' => true, 'sent' => $count]);
+            if ($count === 0 && $failed > 0) {
+                api_json(['ok' => false, 'error' => 'WhatsApp send failed for all patients — submit afya_staff_message template in Mteja'], 502);
+            }
+            api_json(['ok' => true, 'sent' => $count, 'failed' => $failed]);
         }
         $patientId = (int) ($body['patient_id'] ?? 0);
         if ($patientId < 1) {
             api_json(['ok' => false, 'error' => 'patient_id is required'], 422);
         }
-        send_patient_message($patientId, 'system', $messageText);
+        if (!send_patient_message($patientId, 'staff_custom', $messageText)) {
+            api_json([
+                'ok' => false,
+                'error' => 'WhatsApp send failed — create template afya_staff_message_en (lang en) in Mteja with body variable {{1}}',
+            ], 502);
+        }
         api_json(['ok' => true, 'sent' => 1]);
     }
 

@@ -22,12 +22,20 @@ function mteja_lang_code(string $lang): string
 {
     $lang = $lang === 'sw' ? 'sw' : 'en';
     if ($lang === 'sw' && defined('MTEJA_LANG_CODE_SW') && MTEJA_LANG_CODE_SW !== '') {
-        return MTEJA_LANG_CODE_SW;
+        $code = MTEJA_LANG_CODE_SW;
+    } elseif ($lang === 'en' && defined('MTEJA_LANG_CODE_EN') && MTEJA_LANG_CODE_EN !== '') {
+        $code = MTEJA_LANG_CODE_EN;
+    } else {
+        $code = $lang;
     }
-    if ($lang === 'en' && defined('MTEJA_LANG_CODE_EN') && MTEJA_LANG_CODE_EN !== '') {
-        return MTEJA_LANG_CODE_EN;
+    // Mteja dashboard uses en / sw — never send en_US to the API.
+    if ($code === 'en_US' || $code === 'en_GB') {
+        return 'en';
     }
-    return $lang;
+    if ($code === 'sw_KE') {
+        return 'sw';
+    }
+    return $code;
 }
 
 function mteja_template_suffix(string $lang): string
@@ -63,6 +71,28 @@ function mteja_template_name(string $base, string $suffix): string
         }
     }
     return $base . '_' . $suffix;
+}
+
+function mteja_template_param(string $text, int $max = 980): string
+{
+    $text = trim(preg_replace('/\s+/u', ' ', $text) ?? '');
+    if ($text === '') {
+        return '—';
+    }
+    if (mb_strlen($text) > $max) {
+        return mb_substr($text, 0, $max - 1) . '…';
+    }
+    return $text;
+}
+
+function mteja_phone_variants(string $e164): array
+{
+    $normalized = normalize_outbound_address($e164);
+    if ($normalized === '') {
+        return [];
+    }
+    $digits = ltrim($normalized, '+');
+    return array_values(array_unique([$normalized, $digits]));
 }
 
 function mteja_lang_alternates(string $langCode): array
@@ -117,6 +147,14 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
 
     if ($messageType === 'welcome') {
         return $mk('afya_welcome');
+    }
+
+    if ($messageType === 'staff_custom') {
+        return $mk('afya_staff_message', [mteja_template_param($body)]);
+    }
+
+    if ($messageType === 'ai_reply') {
+        return $mk('afya_ai_reply', [mteja_template_param($body)]);
     }
 
     if ($messageType === 'appointment_booked') {
@@ -262,11 +300,6 @@ function mteja_whatsapp_send_template(
         return ['ok' => false, 'message_id' => null, 'error' => 'PHP cURL extension is not enabled'];
     }
 
-    $customer = normalize_outbound_address($customerE164);
-    if ($customer === '') {
-        return ['ok' => false, 'message_id' => null, 'error' => 'Invalid recipient phone number'];
-    }
-
     $virtual = normalize_outbound_address(MTEJA_VIRTUAL_NUMBER);
     $requestId = bin2hex(random_bytes(16));
 
@@ -274,11 +307,10 @@ function mteja_whatsapp_send_template(
         ? MTEJA_API_URL
         : 'https://api.sentry.mteja.io/api/whatsapp-template';
 
-    $virtualVariants = array_values(array_unique(array_filter([
-        $virtual,
-        ltrim($virtual, '+'),
-        preg_replace('/^\+254/', '0', $virtual) ?: null,
-    ])));
+    $customerVariants = mteja_phone_variants($customerE164);
+    if ($customerVariants === []) {
+        return ['ok' => false, 'message_id' => null, 'error' => 'Invalid recipient phone number'];
+    }
 
     $attempt = static function (array $payload) use ($url, $requestId): array {
         $ch = curl_init($url);
@@ -333,26 +365,26 @@ function mteja_whatsapp_send_template(
         'appId' => (int) MTEJA_APP_ID,
         'userId' => 0,
         'virtualNumber' => $virtual,
-        'customerNumber' => $customer,
         'templateName' => $templateName,
         'languageCode' => $languageCode,
         'requestId' => $requestId,
     ];
 
-    // Try empty components first (static templates), then explicit body if needed.
-    $componentVariants = [$components];
-    if ($components === []) {
-        $componentVariants[] = [mteja_body_component([])];
-    }
+    // Static templates: try empty components, then explicit empty body.
+    // Parameterized templates: send body params only (no empty retry).
+    $componentVariants = $components === []
+        ? [[], [mteja_body_component([])]]
+        : [$components];
 
     $langVariants = mteja_lang_alternates($languageCode);
     $last = ['ok' => false, 'message_id' => null, 'error' => 'Mteja send failed'];
 
-    foreach ($virtualVariants as $virtualTry) {
+    foreach ($customerVariants as $customerTry) {
         foreach ($langVariants as $langTry) {
             foreach ($componentVariants as $compTry) {
                 $payload = $basePayload;
-                $payload['virtualNumber'] = $virtualTry;
+                $payload['customerNumber'] = $customerTry;
+                $payload['virtualNumber'] = $virtual;
                 $payload['languageCode'] = $langTry;
                 $payload['components'] = $compTry;
                 $payload['requestId'] = bin2hex(random_bytes(16));
@@ -360,8 +392,8 @@ function mteja_whatsapp_send_template(
                 error_log('MTEJA_SEND: ' . json_encode([
                     'template' => $templateName,
                     'lang' => $langTry,
-                    'virtual' => $virtualTry,
-                    'to' => $customer,
+                    'virtual' => $virtual,
+                    'to' => $customerTry,
                     'components' => count($compTry),
                 ]));
 
@@ -381,7 +413,7 @@ function mteja_whatsapp_send_template(
         'ok' => false,
         'message_id' => $last['message_id'] ?? null,
         'error' => ($last['error'] ?? 'Mteja send failed')
-            . ' — verify in Mteja: template name afya_welcome_en, language en, number +254142830423',
+            . ' — check template is approved in Mteja (lang en/sw), virtual number +254142830423, patient on WhatsApp',
     ];
 }
 

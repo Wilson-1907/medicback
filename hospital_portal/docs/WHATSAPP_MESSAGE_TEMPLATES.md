@@ -506,6 +506,54 @@ Habari. Ili kupata msaada wa kiafya, tafadhali sajili nambari yako katika Nyeri 
 
 ---
 
+## 20a. Staff custom message (console “Send custom message”)
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_staff_message_en` | `afya_staff_message_sw` |
+| **Category** | UTILITY | UTILITY |
+| **When sent** | Nurse sends personalised text from hospital console | Same |
+
+**Body (en):**
+
+```
+Message from Nyeri Town Health Center Afya Rafiki: {{1}}
+```
+
+**Body (sw):**
+
+```
+Ujumbe kutoka Nyeri Town Health Center Afya Rafiki: {{1}}
+```
+
+**Variables:** `{{1}}` = staff message text (max ~980 characters)
+
+---
+
+## 20b. AI reply to patient
+
+| Field | English | Kiswahili |
+|-------|---------|----------|
+| **Template name** | `afya_ai_reply_en` | `afya_ai_reply_sw` |
+| **Category** | UTILITY | UTILITY |
+| **When sent** | Patient texts HELP/FAQ and AI responds | Same |
+
+**Body (en):**
+
+```
+{{1}}
+```
+
+**Body (sw):**
+
+```
+{{1}}
+```
+
+**Variables:** `{{1}}` = AI reply text
+
+---
+
 ## 20. AI / system fallback
 
 | Field | English | Kiswahili |
@@ -1301,21 +1349,23 @@ Reply with template IDs when approved.
 | 17 | `afya_missed_reschedule` |
 | 18 | `afya_post_visit` |
 | 19 | `afya_unlinked` |
-| 20 | `afya_fallback` |
-| 21 | `afya_checkup_via_neg` |
-| 22 | `afya_checkup_hiv_hpvneg` |
-| 23 | `afya_checkup_hiv_hpvpos` |
-| 24 | `afya_checkup_generic` |
-| 25 | `afya_consent_thanks` |
-| 26 | `afya_engagement_tip` |
-| 27 | `afya_appt_updated` |
-| 28 | `afya_faq_hpv` |
-| 29 | `afya_faq_cancer` |
-| 30 | `afya_faq_treat` |
-| 31 | `afya_faq_appt` |
-| 32 | `afya_faq_symptoms_hpv` |
-| 33 | `afya_faq_symptoms_cc` |
-| 34–49 | `afya_counsel_pos_01` … `afya_counsel_pos_16` |
+| 20 | `afya_staff_message` |
+| 21 | `afya_ai_reply` |
+| 22 | `afya_fallback` |
+| 23 | `afya_checkup_via_neg` |
+| 24 | `afya_checkup_hiv_hpvneg` |
+| 25 | `afya_checkup_hiv_hpvpos` |
+| 26 | `afya_checkup_generic` |
+| 27 | `afya_consent_thanks` |
+| 28 | `afya_engagement_tip` |
+| 29 | `afya_appt_updated` |
+| 30 | `afya_faq_hpv` |
+| 31 | `afya_faq_cancer` |
+| 32 | `afya_faq_treat` |
+| 33 | `afya_faq_appt` |
+| 34 | `afya_faq_symptoms_hpv` |
+| 35 | `afya_faq_symptoms_cc` |
+| 36–51 | `afya_counsel_pos_01` … `afya_counsel_pos_16` |
 
 ---
 

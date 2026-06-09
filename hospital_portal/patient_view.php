@@ -107,7 +107,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         "UPDATE appointments SET status = 'confirmed', confirmation_at = NOW(3) WHERE id = ? AND patient_id = ?"
                     );
                     $u->execute([$aid, $id]);
-                    send_patient_message($id, 'education_menu', build_engagement_menu_message($patientLangForMsgs));
                     $flash = 'Appointment marked confirmed.';
                 }
             } elseif ($action === 'reschedule_appt') {

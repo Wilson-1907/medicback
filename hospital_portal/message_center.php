@@ -31,17 +31,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'send_
                 )->fetchAll();
                 $count = 0;
                 foreach ($recipients as $r) {
-                    send_patient_message((int) $r['id'], 'system', $messageText);
-                    $count++;
+                    if (send_patient_message((int) $r['id'], 'staff_custom', $messageText)) {
+                        $count++;
+                    }
                 }
                 $sendFlash = 'Custom message sent to ' . $count . ' patient(s).';
             } else {
                 $targetId = (int) ($_POST['patient_id'] ?? 0);
                 if ($targetId < 1) {
                     $sendErrors[] = 'Select a patient to message.';
-                } else {
-                    send_patient_message($targetId, 'system', $messageText);
+                } elseif (send_patient_message($targetId, 'staff_custom', $messageText)) {
                     $sendFlash = 'Custom message sent.';
+                } else {
+                    $sendErrors[] = 'WhatsApp send failed — ensure afya_staff_message template is approved in Mteja.';
                 }
             }
         }

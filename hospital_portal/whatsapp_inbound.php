@@ -143,26 +143,35 @@ function whatsapp_inbound_parse_messages(array $payload): array
     return $out;
 }
 
+function whatsapp_inbound_phone_variants(string $phone): array
+{
+    $normalized = whatsapp_inbound_normalize_phone($phone);
+    $digits = preg_replace('/\D+/', '', $normalized) ?? '';
+    $variants = array_filter(array_unique([
+        trim($phone),
+        $normalized,
+        $digits,
+        $digits !== '' ? '+' . $digits : '',
+    ]));
+    return array_values($variants);
+}
+
 function whatsapp_inbound_find_patient(string $phone): ?array
 {
-    if ($phone === '') {
+    $variants = whatsapp_inbound_phone_variants($phone);
+    if ($variants === []) {
         return null;
     }
-    $digits = preg_replace('/\D+/', '', $phone) ?? '';
+    $placeholders = implode(',', array_fill(0, count($variants), '?'));
     $st = db()->prepare(
-        'SELECT p.id, p.full_name, p.preferred_language
+        "SELECT p.id, p.full_name, p.preferred_language
          FROM contact_channels c
          INNER JOIN patients p ON p.id = c.patient_id
-         WHERE c.opted_in = 1
-           AND (
-             c.address = ?
-             OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(c.address, \'+\', \'\'), \' \', \'\'), \'-\', \'\'), \'(\', \'\'), \')\', \'\') = ?
-             OR REPLACE(c.address, \'+\', \'\') = ?
-           )
+         WHERE c.opted_in = 1 AND c.address IN ({$placeholders})
          ORDER BY c.is_primary DESC, c.id ASC
-         LIMIT 1'
+         LIMIT 1"
     );
-    $st->execute([$phone, $digits, $digits]);
+    $st->execute($variants);
     $row = $st->fetch();
     return $row ?: null;
 }

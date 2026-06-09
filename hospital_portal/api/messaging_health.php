@@ -117,11 +117,16 @@ try {
 
 
 
-    $baseUrl = (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] !== '')
-
-        ? ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']
-
-        : 'https://medicback.onrender.com';
+    $baseUrl = 'https://medicback.onrender.com';
+    if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] !== '') {
+        $scheme = 'https';
+        if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
+            $scheme = strtolower((string) $_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https' ? 'https' : 'http';
+        } elseif (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+            $scheme = str_contains((string) $_SERVER['HTTP_HOST'], 'onrender.com') ? 'https' : 'http';
+        }
+        $baseUrl = $scheme . '://' . $_SERVER['HTTP_HOST'];
+    }
 
 
 

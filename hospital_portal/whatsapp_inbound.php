@@ -156,8 +156,8 @@ function whatsapp_inbound_find_patient(string $phone): ?array
          WHERE c.opted_in = 1
            AND (
              c.address = ?
-             OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(c.address, "+", ""), " ", ""), "-", ""), "(", ""), ")", "") = ?
-             OR REPLACE(c.address, "+", "") = ?
+             OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(c.address, \'+\', \'\'), \' \', \'\'), \'-\', \'\'), \'(\', \'\'), \')\', \'\') = ?
+             OR REPLACE(c.address, \'+\', \'\') = ?
            )
          ORDER BY c.is_primary DESC, c.id ASC
          LIMIT 1'

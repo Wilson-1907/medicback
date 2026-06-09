@@ -88,7 +88,7 @@ try {
 
         send_patient_message(
             $patientId,
-            'appointment_reminder',
+            'appointment_booked',
             build_appointment_change_message($patientName, [
                 'scheduled_start' => $startSql,
                 'scheduled_end' => $endSql,
@@ -97,7 +97,6 @@ try {
                 'location' => $location === '' ? null : $location,
             ], $reason, false, $lang)
         );
-        send_patient_message($patientId, 'education_menu', build_engagement_menu_message($lang));
         api_json(['ok' => true, 'appointment_id' => $appointmentId], 201);
     }
 
@@ -159,7 +158,7 @@ try {
 
         send_patient_message(
             (int) $row['patient_id'],
-            'appointment_reminder',
+            'appointment_rescheduled',
             build_appointment_change_message((string) $row['full_name'], [
                 'scheduled_start' => $newStartSql,
                 'scheduled_end' => $newEndSql,
@@ -168,7 +167,6 @@ try {
                 'location' => $row['location'],
             ], $reason, true, $lang)
         );
-        send_patient_message((int) $row['patient_id'], 'education_menu', build_engagement_menu_message($lang));
         api_json(['ok' => true, 'appointment_id' => $appointmentId]);
     }
 

@@ -255,6 +255,12 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
         );
     } else {
         $apptDate = afya_next_appointment_display($patientId);
+        if ($apptDate === '__________') {
+            return [
+                'ok' => false,
+                'error' => 'Book a follow-up appointment first — the HPV positive message needs the appointment date.',
+            ];
+        }
         send_patient_message(
             $patientId,
             'system',

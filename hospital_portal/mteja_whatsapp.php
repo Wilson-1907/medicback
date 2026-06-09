@@ -67,15 +67,25 @@ function mteja_template_name(string $base, string $suffix): string
 
 function mteja_lang_alternates(string $langCode): array
 {
-    $codes = [$langCode];
-    if ($langCode === 'en') {
-        $codes[] = 'en_US';
-    } elseif ($langCode === 'en_US') {
-        $codes[] = 'en';
-    } elseif ($langCode === 'sw') {
-        $codes[] = 'sw_KE';
+    return [$langCode];
+}
+
+function mteja_extract_appointment_datetime(string $body, int $patientId): string
+{
+    if (preg_match('/Date\/Time:\s*(.+?)(?:\n|$)/mi', $body, $m)
+        || preg_match('/Tarehe\/Saa:\s*(.+?)(?:\n|$)/mi', $body, $m)) {
+        $date = trim($m[1]);
+        if ($date !== '' && $date !== 'TBD' && !str_contains($date, '__________')) {
+            return $date;
+        }
     }
-    return array_values(array_unique($codes));
+    if (function_exists('afya_next_appointment_display')) {
+        $fromDb = afya_next_appointment_display($patientId);
+        if ($fromDb !== '' && !str_contains($fromDb, '__________')) {
+            return $fromDb;
+        }
+    }
+    return 'TBD';
 }
 
 /**
@@ -109,6 +119,16 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
         return $mk('afya_welcome');
     }
 
+    if ($messageType === 'appointment_booked') {
+        $date = mteja_extract_appointment_datetime($body, $patientId);
+        return $mk('afya_appt_booked', $name !== '' ? [$name, $date] : ['', $date]);
+    }
+
+    if ($messageType === 'appointment_rescheduled') {
+        $date = mteja_extract_appointment_datetime($body, $patientId);
+        return $mk('afya_appt_updated', $name !== '' ? [$name, $date] : ['', $date]);
+    }
+
     if ($messageType === 'appointment_reminder') {
         if (str_contains($bodyLower, 'next week') || str_contains($bodyLower, 'wiki ijayo')) {
             if (preg_match('/\(([^)]+)\)/u', $body, $m)) {
@@ -119,10 +139,13 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
         if (str_contains($bodyLower, 'tomorrow') || str_contains($bodyLower, 'kesho')) {
             return $mk('afya_appt_reminder_1d');
         }
-        if (preg_match('/\(([^)]+)\)/u', $body, $m)) {
-            return $mk('afya_appt_reminder_3d', [$m[1]]);
+        if (str_contains($bodyLower, 'reminder from afya rafiki') || str_contains($bodyLower, 'kikumbusho kutoka afya rafiki')) {
+            if (preg_match('/\(([^)]+)\)/u', $body, $m)) {
+                return $mk('afya_appt_reminder_3d', [$m[1]]);
+            }
+            return $mk('afya_appt_reminder_3d', ['your scheduled date']);
         }
-        return $mk('afya_appt_reminder_3d', ['your scheduled date']);
+        return null;
     }
 
     if ($messageType === 'education_menu' || ($messageType === 'system' && str_contains($bodyLower, 'afya rafiki —'))) {
@@ -158,9 +181,15 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
             return $mk($base, $name !== '' ? [$name] : ['']);
         }
         if (str_contains($bodyLower, 'hpv test result is positive') || str_contains($bodyLower, 'majibu yako ya kipimo cha hpv ni chanya')) {
-            $date = function_exists('afya_next_appointment_display') ? afya_next_appointment_display($patientId) : '__________';
-            if (preg_match('/Date:\s*(.+)$/mi', $body, $m) || preg_match('/Tarehe:\s*(.+)$/mi', $body, $m)) {
-                $date = trim($m[1]);
+            $date = function_exists('afya_next_appointment_display') ? afya_next_appointment_display($patientId) : '';
+            if (preg_match('/Date:\s*(.+?)(?:\n|$)/mi', $body, $m) || preg_match('/Tarehe:\s*(.+?)(?:\n|$)/mi', $body, $m)) {
+                $parsed = trim($m[1]);
+                if ($parsed !== '' && !str_contains($parsed, '__________')) {
+                    $date = $parsed;
+                }
+            }
+            if ($date === '' || str_contains($date, '__________')) {
+                $date = 'TBD';
             }
             return $mk('afya_hpv_positive', $name !== '' ? [$name, $date] : ['', $date]);
         }

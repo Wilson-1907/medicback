@@ -16,7 +16,7 @@ function reminder_dispatch_query(string $column, string $whenExpr): array
             WHERE a.status IN ('proposed','confirmed')
               AND p.status = 'active'
               AND a.{$column} IS NULL
-              AND NOW() >= {$whenExpr}
+              AND {$whenExpr}
             ORDER BY a.scheduled_start ASC
             LIMIT 200";
     return $pdo->query($sql)->fetchAll();
@@ -33,9 +33,18 @@ function process_due_appointment_reminders(): array
     $sent = ['7d' => 0, '3d' => 0, 'night' => 0];
 
     $types = [
-        '7d' => ['column' => 'reminder_7d_sent_at', 'when' => 'DATE_SUB(a.scheduled_start, INTERVAL 7 DAY)'],
-        '3d' => ['column' => 'reminder_3d_sent_at', 'when' => 'DATE_SUB(a.scheduled_start, INTERVAL 3 DAY)'],
-        'night' => ['column' => 'reminder_night_sent_at', 'when' => "TIMESTAMP(DATE_SUB(DATE(a.scheduled_start), INTERVAL 1 DAY), '20:00:00')"],
+        '7d' => [
+            'column' => 'reminder_7d_sent_at',
+            'when' => 'CURDATE() = DATE(DATE_SUB(a.scheduled_start, INTERVAL 7 DAY))',
+        ],
+        '3d' => [
+            'column' => 'reminder_3d_sent_at',
+            'when' => 'CURDATE() = DATE(DATE_SUB(a.scheduled_start, INTERVAL 3 DAY))',
+        ],
+        'night' => [
+            'column' => 'reminder_night_sent_at',
+            'when' => "CURDATE() = DATE(DATE_SUB(DATE(a.scheduled_start), INTERVAL 1 DAY)) AND NOW() >= TIMESTAMP(CURDATE(), '20:00:00')",
+        ],
     ];
 
     foreach ($types as $key => $cfg) {

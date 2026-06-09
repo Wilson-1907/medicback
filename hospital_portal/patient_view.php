@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     send_patient_message(
                         $id,
-                        'appointment_reminder',
+                        'appointment_booked',
                         build_appointment_change_message($patientNameForMsgs, [
                             'scheduled_start' => $startSql,
                             'scheduled_end' => $endVal,
@@ -98,7 +98,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'location' => $location,
                         ], $reason, false, $patientLangForMsgs)
                     );
-                    send_patient_message($id, 'education_menu', build_engagement_menu_message($patientLangForMsgs));
                     $flash = 'Appointment added.';
                 }
             } elseif ($action === 'confirm_appt') {
@@ -159,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         send_patient_message(
                             $id,
-                            'appointment_reminder',
+                            'appointment_rescheduled',
                             build_appointment_change_message($patientNameForMsgs, [
                                 'scheduled_start' => $newStartSql,
                                 'scheduled_end' => $newEndVal,
@@ -168,7 +167,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 'location' => $current['location'],
                             ], $newReason, true, $patientLangForMsgs)
                         );
-                        send_patient_message($id, 'education_menu', build_engagement_menu_message($patientLangForMsgs));
                         $flash = 'Appointment rescheduled and patient notified.';
                     }
                 }

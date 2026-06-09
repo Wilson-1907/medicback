@@ -370,6 +370,7 @@ function build_appointment_message(string $patientName, array $appointment, stri
 function build_appointment_change_message(string $patientName, array $appointment, string $reason, bool $isUpdate, string $lang = 'en'): string
 {
     $parts = [];
+    $when = afya_format_appointment_date($appointment['scheduled_start'] ?? null);
     
     if ($lang === 'sw') {
         if ($isUpdate) {
@@ -377,7 +378,7 @@ function build_appointment_change_message(string $patientName, array $appointmen
         } else {
             $parts[] = "Habari {$patientName}, miadi yako katika " . HOSPITAL_NAME . " imepangwa.";
         }
-        $parts[] = 'Tarehe/Saa: ' . ($appointment['scheduled_start'] ?? 'TBD');
+        $parts[] = 'Tarehe/Saa: ' . $when;
         if (!empty($appointment['scheduled_end'])) {
             $parts[] = 'Wakati wa mwisho: ' . $appointment['scheduled_end'];
         }
@@ -398,7 +399,7 @@ function build_appointment_change_message(string $patientName, array $appointmen
         } else {
             $parts[] = "Hello {$patientName}, your appointment at " . HOSPITAL_NAME . " is booked.";
         }
-        $parts[] = 'Date/Time: ' . ($appointment['scheduled_start'] ?? 'TBD');
+        $parts[] = 'Date/Time: ' . $when;
         if (!empty($appointment['scheduled_end'])) {
             $parts[] = 'End time: ' . $appointment['scheduled_end'];
         }
@@ -582,7 +583,7 @@ function send_appointment_bundle_messages(
     // Booking confirmation only; 7d / 3d / night-before reminders are sent by cron_run_reminders.php.
     send_patient_message(
         $patientId,
-        'appointment_reminder',
+        $isUpdate ? 'appointment_rescheduled' : 'appointment_booked',
         build_appointment_change_message($patientName, $appointment, $reason, $isUpdate, $lang)
     );
 }

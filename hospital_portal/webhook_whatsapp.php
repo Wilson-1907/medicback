@@ -27,6 +27,11 @@ if ($method === 'GET') {
     exit;
 }
 
+$raw = file_get_contents('php://input');
+if (!is_string($raw)) {
+    $raw = '';
+}
+
 header('Content-Type: text/plain');
 echo 'OK';
 if (function_exists('fastcgi_finish_request')) {
@@ -35,10 +40,5 @@ if (function_exists('fastcgi_finish_request')) {
     ob_end_flush();
 }
 flush();
-
-$raw = file_get_contents('php://input');
-if (!is_string($raw)) {
-    $raw = '';
-}
 
 whatsapp_inbound_handle_request($raw, $_GET);

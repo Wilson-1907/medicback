@@ -2,9 +2,12 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/../appointment_utils.php';
 
 try {
     $pdo = db();
+    cancel_duplicate_appointments($pdo);
+
     $stats = [
         'patients' => (int) $pdo->query('SELECT COUNT(*) c FROM patients')->fetch()['c'],
         'registered_today' => (int) $pdo->query(

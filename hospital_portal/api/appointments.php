@@ -2,12 +2,14 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/../appointment_utils.php';
 
 try {
     $pdo = db();
 
     // List booked appointments (for the hospital console appointments viewer).
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+        cancel_duplicate_appointments($pdo);
         $rows = $pdo->query(
             "SELECT a.id, a.patient_id, p.full_name, p.external_mrn AS client_id, a.department, a.provider_name,
                     a.scheduled_start, a.scheduled_end, a.location, a.status,
@@ -57,13 +59,7 @@ try {
         $startSql = api_dt($start);
         $endSql = $end === '' ? null : api_dt($end);
 
-        $dupSt = $pdo->prepare(
-            "SELECT id FROM appointments
-             WHERE patient_id = ? AND scheduled_start = ? AND status IN ('proposed','confirmed')
-             LIMIT 1"
-        );
-        $dupSt->execute([$patientId, $startSql]);
-        if ($dupSt->fetch()) {
+        if (appointment_slot_taken($patientId, $startSql)) {
             api_json([
                 'ok' => false,
                 'error' => 'This patient already has an appointment at that date and time.',
@@ -139,6 +135,13 @@ try {
         }
 
         $lang = in_array($row['preferred_language'], ['en', 'sw']) ? $row['preferred_language'] : 'en';
+
+        if (appointment_slot_taken((int) $row['patient_id'], $newStartSql, $appointmentId)) {
+            api_json([
+                'ok' => false,
+                'error' => 'This patient already has another appointment at that date and time.',
+            ], 409);
+        }
 
         $pdo->beginTransaction();
         try {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/layout.php';
 require_once __DIR__ . '/messaging.php';
+require_once __DIR__ . '/appointment_utils.php';
 require_once __DIR__ . '/hpv_results.php';
 require_login();
 
@@ -64,13 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $providerName = $_POST['provider_name'] !== '' ? trim((string) $_POST['provider_name']) : null;
                     $location = $_POST['location'] !== '' ? trim((string) $_POST['location']) : null;
 
-                    $dupSt = $pdo->prepare(
-                        "SELECT id FROM appointments
-                         WHERE patient_id = ? AND scheduled_start = ? AND status IN ('proposed','confirmed')
-                         LIMIT 1"
-                    );
-                    $dupSt->execute([$id, $startSql]);
-                    if ($dupSt->fetch()) {
+                    if (appointment_slot_taken($id, $startSql)) {
                         $errors[] = 'This patient already has an appointment at that date and time.';
                     } else {
                     $pdo->beginTransaction();
@@ -142,6 +137,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $newStartSql = dt_mysql($newStart);
                         $newEnd = trim((string) ($_POST['new_scheduled_end'] ?? ''));
                         $newEndVal = $newEnd === '' ? null : dt_mysql($newEnd);
+                        if (appointment_slot_taken($id, $newStartSql, $aid)) {
+                            $errors[] = 'This patient already has another appointment at that date and time.';
+                        } else {
                         $pdo->beginTransaction();
                         $up = $pdo->prepare(
                             'UPDATE appointments
@@ -177,6 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             ], $newReason, true, $patientLangForMsgs)
                         );
                         $flash = 'Appointment rescheduled and patient notified.';
+                        }
                     }
                 }
             } elseif ($action === 'remove_patient') {

@@ -241,6 +241,16 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
     $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
     $name = (string) $row['full_name'];
 
+    if ($result === 'positive') {
+        $apptDate = afya_next_appointment_display($patientId);
+        if ($apptDate === '__________') {
+            return [
+                'ok' => false,
+                'error' => 'Book a follow-up appointment first — the HPV positive message needs the appointment date.',
+            ];
+        }
+    }
+
     db()->prepare(
         'UPDATE patients SET hpv_result_confirmed_at = NOW(3), hpv_counseling_index = 0 WHERE id = ?'
     )->execute([$patientId]);
@@ -255,12 +265,6 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
         );
     } else {
         $apptDate = afya_next_appointment_display($patientId);
-        if ($apptDate === '__________') {
-            return [
-                'ok' => false,
-                'error' => 'Book a follow-up appointment first — the HPV positive message needs the appointment date.',
-            ];
-        }
         send_patient_message(
             $patientId,
             'welcome',

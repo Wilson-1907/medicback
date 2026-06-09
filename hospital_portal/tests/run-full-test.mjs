@@ -60,8 +60,15 @@ function randomPhone() {
     return `+2547${String(Math.floor(Math.random() * 100000000)).padStart(8, '0')}`;
 }
 
+/** Unique 6-digit client suffix (avoids NC/NTHC/001/xxx collisions). */
+function randomClientSuffix() {
+    const tail = String(Date.now() % 1000000).padStart(6, '0');
+    const mix = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+    return (tail.slice(0, 3) + mix).slice(0, 6);
+}
+
 function randomSuffix() {
-    return String(850 + Math.floor(Math.random() * 100)).padStart(3, '0');
+    return randomClientSuffix();
 }
 
 /** Local static checks against PHP source + markdown doc */
@@ -96,6 +103,22 @@ function testLocalDocAlignment() {
             pass('Local: counseling EN array has 15 messages');
         } else {
             fail('Local: counseling EN array count', `expected 15, approx ${count}`);
+        }
+    }
+
+    const mtejaPhp = readFileSync(join(ROOT, 'mteja_whatsapp.php'), 'utf8');
+    const docTemplates = [
+        'afya_welcome', 'afya_hpv_neg_hivpos', 'afya_hpv_neg_hivneg', 'afya_hpv_positive',
+        'afya_appt_reminder_7d', 'afya_appt_reminder_3d', 'afya_appt_reminder_1d',
+        'afya_via_referral', 'afya_appt_booked', 'afya_help_menu', 'afya_consent_thanks',
+        'afya_staff_message', 'afya_ai_reply', 'afya_fallback', 'afya_engagement_tip',
+        'afya_appt_updated', 'afya_faq_hpv', 'afya_faq_cancer', 'afya_faq_treat', 'afya_faq_appt',
+    ];
+    for (const tpl of docTemplates) {
+        if (mtejaPhp.includes(`'${tpl}'`)) {
+            pass(`Local Mteja maps ${tpl}`);
+        } else {
+            fail(`Local Mteja maps ${tpl}`, 'not found in mteja_whatsapp.php');
         }
     }
 
@@ -241,8 +264,8 @@ async function testHpvNegativeFlow(patientId) {
     }
 }
 
-async function testHpvPositiveRequiresAppointment() {
-    const suffix = randomSuffix();
+async function testHpvPositiveFullFlow() {
+    const suffix = randomClientSuffix();
     const phone = randomPhone();
     const reg = await fetchJson('/api/patients.php', {
         method: 'POST',
@@ -265,22 +288,115 @@ async function testHpvPositiveRequiresAppointment() {
         return;
     }
     const pid = reg.data.patient_id;
+    pass(`Registered HPV+ test patient id=${pid}`);
 
     await fetchJson('/api/hpv_result.php', {
         method: 'POST',
         body: JSON.stringify({ action: 'set_result', patient_id: pid, result: 'positive' }),
     });
 
+    const confirmNoAppt = await fetchJson('/api/hpv_result.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'confirm_result', patient_id: pid }),
+    });
+    const err = String(confirmNoAppt.data?.error || '');
+    if (confirmNoAppt.data?.ok === false && err.toLowerCase().includes('appointment')) {
+        pass('HPV positive blocked without appointment (§4 study flow)');
+    } else {
+        fail('HPV positive appointment gate', `expected appointment error, got ${JSON.stringify(confirmNoAppt.data).slice(0, 200)}`);
+        return;
+    }
+
+    const appt = await fetchJson('/api/appointments.php', {
+        method: 'POST',
+        body: JSON.stringify({
+            action: 'add',
+            patient_id: pid,
+            scheduled_start: '2026-06-14 10:30:00',
+            reason: 'HPV positive follow-up VIA',
+            department: 'Cervical screening',
+            location: 'Nyeri Town Health Centre',
+        }),
+    });
+    if (!appt.ok || !appt.data?.appointment_id) {
+        fail('Book appointment for HPV+ patient', JSON.stringify(appt.data).slice(0, 200));
+        return;
+    }
+    pass('Appointment booked for HPV+ patient');
+
     const confirm = await fetchJson('/api/hpv_result.php', {
         method: 'POST',
         body: JSON.stringify({ action: 'confirm_result', patient_id: pid }),
     });
-    const err = String(confirm.data?.error || '');
-    if (confirm.data?.ok === false && err.toLowerCase().includes('appointment')) {
-        pass('HPV positive blocked without appointment (per study flow)');
-    } else {
-        fail('HPV positive appointment gate', `expected appointment error, got ${JSON.stringify(confirm.data).slice(0, 200)}`);
+    if (!confirm.ok || confirm.data?.ok === false) {
+        fail('HPV positive confirm with appointment', JSON.stringify(confirm.data).slice(0, 200));
+        return;
     }
+    pass('HPV positive confirmed — welcome + result per §1 + §4');
+
+    const mc = await fetchJson('/api/message_center.php');
+    const rows = (mc.data?.outbound || []).filter((o) => o.full_name?.includes(`TEST HPV+ ${suffix}`));
+    const welcome = rows.find((o) => String(o.body || '').includes('Welcome to Afya Rafiki, Your Cervical'));
+    const positive = rows.find((o) => String(o.body || '').toLowerCase().includes('hpv test result is positive'));
+    if (welcome) {
+        pass(`§1 welcome message logged — status=${welcome.status}`);
+    } else {
+        fail('§1 welcome message after HPV+ confirm', 'not in outbound');
+    }
+    if (positive) {
+        pass(`§4 HPV positive message logged — status=${positive.status}`);
+        if (String(positive.body || '').includes('__________')) {
+            fail('§4 HPV positive date', 'appointment date still blank');
+        }
+    } else {
+        fail('§4 HPV positive message', 'not in outbound');
+    }
+}
+
+async function testInboundWebhook(phone, patientLabel) {
+    if (!phone) {
+        warn('Skip inbound webhook test — no test phone');
+        return;
+    }
+    const digits = phone.replace(/\D/g, '');
+    const payload = {
+        entry: [{
+            changes: [{
+                value: {
+                    messages: [{
+                        from: digits,
+                        type: 'text',
+                        text: { body: 'HELP' },
+                    }],
+                },
+            }],
+        }],
+    };
+    const res = await fetch(`${API}/webhook_whatsapp.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (res.status !== 200) {
+        fail('Inbound webhook POST', `HTTP ${res.status}`);
+        return;
+    }
+    pass('Inbound webhook POST accepted (Meta format)');
+
+    await new Promise((r) => setTimeout(r, 2500));
+    const mc = await fetchJson('/api/message_center.php');
+    const inbound = (mc.data?.inbound || []).find(
+        (i) => String(i.from_address || '').includes(digits.slice(-9)) && String(i.body || '').toUpperCase() === 'HELP'
+    );
+    if (inbound) {
+        pass(`Inbound HELP saved — patient=${inbound.full_name || 'unlinked'}`);
+    } else {
+        warn('Inbound HELP not visible in message_center yet — check WHATSAPP_VERIFY_TOKEN / webhook processing');
+    }
+}
+
+async function testHpvPositiveRequiresAppointment() {
+    /* covered by testHpvPositiveFullFlow */
 }
 
 async function testWebhookReachable() {
@@ -303,8 +419,9 @@ async function main() {
     const reg = await testRegistrationSendsConsentMessage();
     if (reg?.patientId) {
         await testHpvNegativeFlow(reg.patientId);
+        await testInboundWebhook(reg.phone, reg.suffix);
     }
-    await testHpvPositiveRequiresAppointment();
+    await testHpvPositiveFullFlow();
 
     console.log('\n=== Summary ===');
     console.log(`PASS: ${passes.length}`);

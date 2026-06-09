@@ -123,9 +123,18 @@ function afya_test_results(): array
     $pass('Reminder 7d exact day', str_contains($remSrc, 'INTERVAL 7 DAY'));
     $pass('Reminder night at 20:00', str_contains($remSrc, "20:00:00"));
 
-    // --- HPV positive requires appointment before confirm ---
+    // --- HPV positive requires appointment BEFORE confirm is recorded ---
     $hpvSrc = (string) file_get_contents(__DIR__ . '/../hpv_results.php');
     $pass('HPV positive confirm gates on appointment', str_contains($hpvSrc, 'Book a follow-up appointment first'));
+    $confirmBlock = preg_match(
+        '/if \(\$result === \'positive\'\).*?Book a follow-up appointment first.*?hpv_result_confirmed_at = NOW/s',
+        $hpvSrc
+    );
+    $pass(
+        'HPV positive validates appointment before confirmed_at',
+        (bool) $confirmBlock,
+        'appointment check must run before hpv_result_confirmed_at update'
+    );
 
     // --- Doc template index: templates we must map for go-live ---
     $requiredBases = [

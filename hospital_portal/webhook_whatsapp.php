@@ -32,13 +32,7 @@ if (!is_string($raw)) {
     $raw = '';
 }
 
+whatsapp_inbound_handle_request($raw, $_GET);
+
 header('Content-Type: text/plain');
 echo 'OK';
-if (function_exists('fastcgi_finish_request')) {
-    fastcgi_finish_request();
-} elseif (ob_get_level()) {
-    ob_end_flush();
-}
-flush();
-
-whatsapp_inbound_handle_request($raw, $_GET);

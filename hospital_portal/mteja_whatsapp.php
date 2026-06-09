@@ -352,7 +352,7 @@ function mteja_whatsapp_send_template(
         'ok' => false,
         'message_id' => $last['message_id'] ?? null,
         'error' => ($last['error'] ?? 'Mteja send failed')
-            . ' — verify in Mteja: template name afya_welcome_en, language en_US, number +254142830423',
+            . ' — verify in Mteja: template name afya_welcome_en, language en, number +254142830423',
     ];
 }
 

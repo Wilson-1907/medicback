@@ -263,6 +263,11 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
         }
         send_patient_message(
             $patientId,
+            'welcome',
+            build_language_introduction_message($lang)
+        );
+        send_patient_message(
+            $patientId,
             'system',
             build_hpv_positive_result_notification($name, $apptDate, $lang)
         );

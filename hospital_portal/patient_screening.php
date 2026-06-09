@@ -203,25 +203,7 @@ function compute_screening_followups(array $screening): array
 
 function build_referral_message(string $patientName, string $lang, string $appointmentDate = '__________'): string
 {
-    $hospital = NYERI_REFERRAL_HOSPITAL;
-    $name = function_exists('afya_first_name') ? afya_first_name($patientName) : $patientName;
-    $hello = $lang === 'sw'
-        ? ($name !== '' ? "Habari {$name}," : 'Habari,')
-        : ($name !== '' ? "Hello {$name}," : 'Hello,');
-    if ($lang === 'sw') {
-        return "{$hello}\nUchunguzi wako wa VIA ulionyesha mabadiliko kwenye mlango wa kizazi ambayo yanahitaji tathmini zaidi na daktari bingwa. "
-            . 'Hii haimaanishi moja kwa moja kuwa una saratani ya mlango wa kizazi. Hata hivyo, vipimo zaidi vinahitajika ili kuelewa vizuri mabadiliko yaliyoonekana.'
-            . "\nUmepewa rufaa kwenda {$hospital} kwa uchunguzi wa daktari wa magonjwa ya wanawake na matibabu zaidi ikiwa yatahitajika. "
-            . 'Ni muhimu kuhudhuria miadi hii kwa sababu uchunguzi na matibabu ya mapema husaidia kulinda afya yako.'
-            . "\nTarehe ya miadi yako ni:\nTarehe: {$appointmentDate}"
-            . "\nIkiwa una maswali yoyote, tafadhali wasiliana na mhudumu wako wa afya au Afya Rafiki kwa ushauri zaidi.";
-    }
-    return "{$hello}\nYour VIA examination showed changes on the cervix that require further assessment by a specialist. "
-        . 'This does not necessarily mean that you have cervical cancer. However, additional tests are needed to better understand the changes that were seen.'
-        . "\nYou have been referred to {$hospital} for a gynecological review and further management. "
-        . 'Attending this appointment is important because early assessment and treatment, when needed, can help protect your health and improve outcomes.'
-        . "\nPlease attend your scheduled appointment on:\nDate: {$appointmentDate}"
-        . "\nIf you have any questions, please contact your healthcare provider or Afya Rafiki for guidance.";
+    return build_referral_initial_message($patientName, $appointmentDate, $lang);
 }
 
 function build_checkup_reminder_message(

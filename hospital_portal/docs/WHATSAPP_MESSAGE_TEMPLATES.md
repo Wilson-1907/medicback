@@ -1,63 +1,53 @@
 # Afya Rafiki — WhatsApp message templates (Mteja / Meta)
 
-Submit these in the **Mteja** dashboard (or Meta Business Manager) for **Nyeri Town Health Center**.
+Submit these in the **Mteja** dashboard for **Nyeri Town Health Centre** (Afya Rafiki HPV follow-up programme).
+
+**Official script:** Dr Evah Maina et al. — Nyeri County study (June 2026). Live message text: `afya_rafiki_content.php` + `afya_counseling_positive.php`.
 
 | Setting | Value |
 |---------|--------|
-| Business name | Nyeri Town Health Center |
-| Service | Afya Rafiki — HPV follow-up |
-| Recommended category | **UTILITY** (healthcare follow-up, appointments, test results) |
-| Language codes | English: `en` · Kiswahili: `sw` |
+| Chatbot name | Afya Rafiki |
+| Business name | Nyeri Town Health Centre |
+| Category | **UTILITY** |
+| Language codes | `en` · `sw` |
 
-**Variables:** Meta uses `{{1}}`, `{{2}}`, … in order.  
-**Samples** below are for approval only — real values come from the hospital system.
+**Dates:** System sends real dates (e.g. `Saturday, 14 June 2026, 10:30 AM`). Use sample dates in Mteja for approval.
 
----
-
-## How to use this document with Mteja
-
-1. Create **each row** as a separate template (English + Kiswahili = two templates).
-2. Paste **Body** exactly; keep `{{1}}` / `{{2}}` where shown.
-3. Use **Category: UTILITY** unless Mteja advises otherwise.
-4. After approval, send Mteja the **template names** so we can map them in medicback (future step).
-
-| Phase | Templates | Count (EN+SW) |
-|-------|-----------|---------------|
-| **1 — Go-live** | 1–8 | 16 |
-| **2 — System & FAQ replies** | 9–33 | 50 |
-| **3 — HPV counseling (positive)** | 34–49 | 32 |
-| **Total** | **49** | **98** |
-
-**Phase 1:** submit first (urgent go-live).  
-**Phase 2:** appointments, HELP/DOCTOR, missed visit, check-ups, FAQ options 1–6.  
-**Phase 3:** 16 counseling messages (official script) — batch 2 if Meta requires templates for each step.
-
-**Knowledge base (FAQ):** `MTEJA_KNOWLEDGE_BASE_EN.md` + `MTEJA_KNOWLEDGE_BASE_SW.md` — two Mteja knowledge bases (one per language).
+| Phase | Count (EN+SW) |
+|-------|---------------|
+| **1 — Go-live** | 16 |
+| **2 — System & FAQ** | 58 |
+| **3 — Counseling (15 steps)** | 30 |
+| **Total** | **102 submissions** (51 types × 2 languages) |
 
 ---
 
-## 1. Welcome (sent right after registration)
+## 1. Language introduction (HPV positive activation)
 
 | Field | English | Kiswahili |
 |-------|---------|----------|
 | **Template name** | `afya_welcome_en` | `afya_welcome_sw` |
-| **Category** | UTILITY | UTILITY |
-| **When sent** | Patient registered with WhatsApp + message consent | Same |
+| **When sent** | Nurse activates Afya Rafiki after HPV positive counselling call | Same |
 
 **Body (en):**
 
 ```
-Hello. Welcome to Afya Rafiki. We are here to support you after your HPV screening results. This service will provide health information, reminders, and guidance for your follow-up care. Your information will remain confidential.
+Welcome to Afya Rafiki, Your Cervical health journey partner. Do you wish to receive messages in
+1. English
+2. Kiswahili
+If you wish to stop receiving Messages from Afya Rafiki- Press 3
 ```
 
 **Body (sw):**
 
 ```
-Karibu kwenye Afya Rafiki. Tuko hapa kukusaidia baada ya majibu yako ya uchunguzi wa HPV. Huduma hii itakutumia taarifa za afya, vikumbusho, na mwongozo wa huduma ya ufuatiliaji. Taarifa zako zitahifadhiwa kwa siri.
+Karibu kwenye Afya Rafiki, Mshirika wako wa safari ya afya ya mlango wa kizazi. Ungependa kupokea ujumbe kwa:
+1. Kiingereza
+2. Kiswahili
+Ikiwa ungependa kuacha kupokea ujumbe kutoka Afya Rafiki — bonyeza 3
 ```
 
-**Variables:** none  
-**Sample for reviewer:** (static text)
+**Variables:** none
 
 ---
 
@@ -72,13 +62,13 @@ Karibu kwenye Afya Rafiki. Tuko hapa kukusaidia baada ya majibu yako ya uchunguz
 **Body (en):**
 
 ```
-Hello {{1}}, your HPV test result is negative. This means no HPV infection was detected at this time. To continue protecting your health, please return to Nyeri Town Health Center for repeat cervical cancer screening after 3 years, or earlier if advised by your healthcare provider. Thank you for choosing Afya Rafiki.
+Hello {{1}}, Welcome to Afya Rafiki. Your HPV test result is negative. This means no HPV infection was detected at this time. To continue protecting your health, please return to Nyeri Town Health Centre for repeat HPV self-sampling test after 3 years, or earlier if advised by your healthcare provider. Thank you for choosing Afya Rafiki.
 ```
 
 **Body (sw):**
 
 ```
-Habari {{1}}, majibu yako ya HPV ni hasi (negative). Hii inamaanisha kuwa hakuna maambukizi ya HPV yaliyopatikana kwa sasa. Ili kuendelea kulinda afya yako, tafadhali rudi Nyeri Town Health Center kwa uchunguzi mwingine wa virusi vya HPV baada ya miaka 3 au mapema zaidi ikiwa utaelekezwa na mhudumu wa afya. Asante kwa kutumia Afya Rafiki.
+Habari {{1}}, Karibu kwenye Afya Rafiki. Majibu yako ya HPV ni hasi (negative). Hii inamaanisha kuwa hakuna maambukizi ya HPV yaliyopatikana kwa sasa. Ili kuendelea kulinda afya yako, tafadhali rudi Nyeri Town Health Centre kwa uchunguzi mwingine wa virusi vya HPV baada ya miaka 3 au mapema zaidi ikiwa utaelekezwa na mhudumu wa afya. Asante kwa kutumia Afya Rafiki.
 ```
 
 | Variable | Sample |
@@ -97,13 +87,13 @@ Habari {{1}}, majibu yako ya HPV ni hasi (negative). Hii inamaanisha kuwa hakuna
 **Body (en):**
 
 ```
-Hello {{1}}, your HPV test result is negative. This means no HPV infection was detected at this time. To maintain good cervical health, please return to Nyeri Town Health Center for repeat cervical cancer screening after 5 years, or earlier if advised by your healthcare provider. Thank you for choosing Afya Rafiki.
+Hello {{1}}, Welcome to Afya Rafiki. Your HPV test result is negative. This means no HPV infection was detected at this time. To maintain good cervical health, please return to Nyeri Town Health Centre for repeat HPV self-sampling test after 5 years, or earlier if advised by your healthcare provider. Thank you for choosing Afya Rafiki.
 ```
 
 **Body (sw):**
 
 ```
-Habari {{1}}, majibu yako ya HPV ni hasi (negative). Hii inamaanisha kuwa hakuna maambukizi ya HPV yaliyopatikana kwa sasa. Ili kudumisha afya nzuri ya mlango wa kizazi, tafadhali rudi Nyeri Town Health Center kwa uchunguzi mwingine wa saratani ya mlango wa kizazi baada ya miaka 5 au mapema zaidi ikiwa utaelekezwa na mhudumu wa afya. Asante kwa kutumia Afya Rafiki.
+Habari {{1}}, Karibu kwenye Afya Rafiki. Majibu yako ya kipimo cha HPV ni hasi (negative). Hii inamaanisha kuwa hakuna maambukizi ya HPV yaliyopatikana kwa sasa. Ili kuendelea kudumisha afya ya mlango wa kizazi na kuzuia saratani ya mlango wa kizazi, tafadhali rudi Nyeri Town Health Centre kwa uchunguzi mwingine wa virusi vya HPV baada ya miaka 5, au mapema zaidi ikiwa utaelekezwa na mhudumu wako wa afya. Asante kwa kutumia Afya Rafiki.
 ```
 
 | Variable | Sample |
@@ -123,19 +113,19 @@ Habari {{1}}, majibu yako ya HPV ni hasi (negative). Hii inamaanisha kuwa hakuna
 **Body (en):**
 
 ```
-Hello {{1}}, your HPV test result is positive. This does not mean that you have cervical cancer. It means that the HPV virus was detected and further follow-up is needed to help protect your health and prevent cervical cancer. You have been scheduled for a follow-up appointment at Nyeri Town Health Center on: {{2}}. Please attend your appointment as scheduled. If you have any questions, Afya Rafiki is here to support you. Thank you for choosing Afya Rafiki.
+Hello {{1}}, Welcome to Afya Rafiki. Your HPV test result is positive. This does not mean that you have cervical cancer. It means that the HPV virus was detected and further follow-up is needed to help protect your health and prevent cervical cancer. You have been scheduled for a follow-up appointment at Nyeri Town Health Centre on: Date: {{2}}. Please attend your appointment as scheduled. If you have any questions, Afya Rafiki is here to support you. Thank you for choosing Afya Rafiki.
 ```
 
 **Body (sw):**
 
 ```
-Habari {{1}}, majibu yako ya kipimo cha HPV ni chanya (positive). Hii haimaanishi kuwa una saratani ya mlango wa kizazi. Inamaanisha kuwa virusi vya HPV vimepatikana na unahitaji huduma zaidi ya ufuatiliaji ili kulinda afya yako na kusaidia kuzuia saratani ya mlango wa kizazi. Umepangiwa miadi ya ufuatiliaji katika Nyeri Town Health Center tarehe: {{2}}. Tafadhali hudhuria miadi yako kama ulivyopangiwa. Ikiwa una maswali yoyote, Afya Rafiki iko hapa kukusaidia. Asante kwa kutumia Afya Rafiki.
+Habari {{1}}, Karibu kwenye Afya Rafiki. Majibu yako ya kipimo cha HPV ni chanya (positive). Hii haimaanishi kuwa una saratani ya mlango wa kizazi. Inamaanisha kuwa virusi vya HPV vimepatikana na unahitaji huduma zaidi ya ufuatiliaji ili kulinda afya yako na kusaidia kuzuia saratani ya mlango wa kizazi. Umepangiwa miadi(follow up clinic) ya ufuatiliaji katika Nyeri Town Health Centre tarehe: Tarehe: {{2}}. Tafadhali hudhuria miadi yako kama ulivyopangiwa. Ikiwa una maswali yoyote, Afya Rafiki iko hapa kukusaidia. Asante kwa kutumia Afya Rafiki.
 ```
 
 | Variable | Sample |
 |----------|--------|
 | `{{1}}` | Grace |
-| `{{2}}` | Monday, 15 Jun 2026 10:00 AM |
+| `{{2}}` | Saturday, 14 June 2026, 10:30 AM |
 
 ---
 
@@ -1365,7 +1355,7 @@ Reply with template IDs when approved.
 | 33 | `afya_faq_appt` |
 | 34 | `afya_faq_symptoms_hpv` |
 | 35 | `afya_faq_symptoms_cc` |
-| 36–51 | `afya_counsel_pos_01` … `afya_counsel_pos_16` |
+| 36–50 | `afya_counsel_pos_01` … `afya_counsel_pos_15` |
 
 ---
 

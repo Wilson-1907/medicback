@@ -13,7 +13,13 @@ function afya_rafiki_name(): string
 
 function afya_clinic_site(): string
 {
-    return defined('CLINIC_SITE_NAME') ? CLINIC_SITE_NAME : HOSPITAL_NAME;
+    $site = defined('CLINIC_SITE_NAME') ? CLINIC_SITE_NAME : HOSPITAL_NAME;
+    return str_replace('Health Center', 'Health Centre', $site);
+}
+
+function afya_referral_hospital(): string
+{
+    return defined('NYERI_REFERRAL_HOSPITAL') ? NYERI_REFERRAL_HOSPITAL : 'Nyeri County Referral Hospital';
 }
 
 function afya_lang(string $lang): string
@@ -42,21 +48,27 @@ function afya_format_appointment_date(?string $scheduledStart): string
     if ($ts === false) {
         return $scheduledStart;
     }
-    return date('l, j M Y', $ts) . ' ' . date('g:i A', $ts);
+    return date('l, j F Y', $ts) . ', ' . date('g:i A', $ts);
 }
 
-/** Welcome SMS sent immediately when registration with message consent is saved. */
-function build_welcome_message(string $patientName, string $lang = 'en'): string
+/** Language selection when Afya Rafiki is activated for HPV-positive follow-up. */
+function build_language_introduction_message(string $lang = 'en'): string
 {
     $lang = afya_lang($lang);
     if ($lang === 'sw') {
-        return 'Karibu kwenye Afya rafiki. Tuko hapa kukusaidia baada ya majibu yako ya uchunguzi wa HPV. '
-            . 'Huduma hii itakutumia taarifa za afya, vikumbusho, na mwongozo wa huduma ya ufuatiliaji. '
-            . 'Taarifa zako zitahifadhiwa kwa siri.';
+        return "Karibu kwenye Afya Rafiki, Mshirika wako wa safari ya afya ya mlango wa kizazi. Ungependa kupokea ujumbe kwa:\n"
+            . "1. Kiingereza\n2. Kiswahili\n"
+            . 'Ikiwa ungependa kuacha kupokea ujumbe kutoka Afya Rafiki — bonyeza 3';
     }
-    return 'Hello. Welcome to Afya rafiki. We are here to support you after your HPV screening results. '
-        . 'This service will provide health information, reminders, and guidance for your follow-up care. '
-        . 'Your information will remain confidential.';
+    return "Welcome to Afya Rafiki, Your Cervical health journey partner. Do you wish to receive messages in\n"
+        . "1. English\n2. Kiswahili\n"
+        . 'If you wish to stop receiving Messages from Afya Rafiki- Press 3';
+}
+
+/** @deprecated Registration uses paper consent; intro sent on HPV-positive activation. */
+function build_welcome_message(string $patientName, string $lang = 'en'): string
+{
+    return build_language_introduction_message($lang);
 }
 
 /** HIV status from registration (for HPV-negative result SMS: 3 vs 5 year return). */
@@ -105,26 +117,26 @@ function build_hpv_negative_result_notification(string $patientName, string $hiv
 
     if ($lang === 'sw') {
         if ($hivPositive) {
-            return "{$hello}\nMajibu yako ya HPV ni hasi (negative). Hii inamaanisha kuwa hakuna maambukizi ya HPV yaliyopatikana kwa sasa. "
+            return "{$hello}\nKaribu kwenye Afya Rafiki. Majibu yako ya HPV ni hasi (negative). Hii inamaanisha kuwa hakuna maambukizi ya HPV yaliyopatikana kwa sasa. "
                 . "Ili kuendelea kulinda afya yako, tafadhali rudi {$site} kwa uchunguzi mwingine wa virusi vya HPV baada ya miaka 3 "
                 . 'au mapema zaidi ikiwa utaelekezwa na mhudumu wa afya.'
                 . "\nAsante kwa kutumia Afya Rafiki.";
         }
-        return "{$hello}\nMajibu yako ya HPV ni hasi (negative). Hii inamaanisha kuwa hakuna maambukizi ya HPV yaliyopatikana kwa sasa. "
-            . "Ili kudumisha afya nzuri ya mlango wa kizazi, tafadhali rudi {$site} kwa uchunguzi mwingine wa saratani ya mlango wa kizazi baada ya miaka 5 "
-            . 'au mapema zaidi ikiwa utaelekezwa na mhudumu wa afya.'
+        return "{$hello}\nKaribu kwenye Afya Rafiki. Majibu yako ya kipimo cha HPV ni hasi (negative). Hii inamaanisha kuwa hakuna maambukizi ya HPV yaliyopatikana kwa sasa.\n"
+            . "Ili kuendelea kudumisha afya ya mlango wa kizazi na kuzuia saratani ya mlango wa kizazi, tafadhali rudi {$site} kwa uchunguzi mwingine wa virusi vya HPV baada ya miaka 5, "
+            . 'au mapema zaidi ikiwa utaelekezwa na mhudumu wako wa afya.'
             . "\nAsante kwa kutumia Afya Rafiki.";
     }
 
     if ($hivPositive) {
-        return "{$hello}\nYour HPV test result is negative. This means no HPV infection was detected at this time. "
-            . "To continue protecting your health, please return to {$site} for repeat cervical cancer screening after 3 years, "
+        return "{$hello}\nWelcome to Afya Rafiki. Your HPV test result is negative. This means no HPV infection was detected at this time. "
+            . "To continue protecting your health, please return to {$site} for repeat HPV self-sampling test after 3 years, "
             . 'or earlier if advised by your healthcare provider.'
             . "\nThank you for choosing Afya Rafiki.";
     }
 
-    return "{$hello}\nYour HPV test result is negative. This means no HPV infection was detected at this time. "
-        . "To maintain good cervical health, please return to {$site} for repeat cervical cancer screening after 5 years, "
+    return "{$hello}\nWelcome to Afya Rafiki. Your HPV test result is negative. This means no HPV infection was detected at this time. "
+        . "To maintain good cervical health, please return to {$site} for repeat HPV self-sampling test after 5 years, "
         . 'or earlier if advised by your healthcare provider.'
         . "\nThank you for choosing Afya Rafiki.";
 }
@@ -140,14 +152,14 @@ function build_hpv_positive_result_notification(string $patientName, string $app
         : ($name !== '' ? "Hello {$name}," : 'Hello,');
 
     if ($lang === 'sw') {
-        return "{$hello}\nMajibu yako ya kipimo cha HPV ni chanya (positive). Hii haimaanishi kuwa una saratani ya mlango wa kizazi. "
+        return "{$hello}\nKaribu kwenye Afya Rafiki. Majibu yako ya kipimo cha HPV ni chanya (positive). Hii haimaanishi kuwa una saratani ya mlango wa kizazi. "
             . 'Inamaanisha kuwa virusi vya HPV vimepatikana na unahitaji huduma zaidi ya ufuatiliaji ili kulinda afya yako na kusaidia kuzuia saratani ya mlango wa kizazi.'
-            . "\nUmepangiwa miadi ya ufuatiliaji katika {$site} tarehe:\nTarehe: {$appointmentDate}"
+            . "\nUmepangiwa miadi(follow up clinic) ya ufuatiliaji katika {$site} tarehe:\nTarehe: {$appointmentDate}"
             . "\nTafadhali hudhuria miadi yako kama ulivyopangiwa. Ikiwa una maswali yoyote, Afya Rafiki iko hapa kukusaidia."
             . "\nAsante kwa kutumia Afya Rafiki.";
     }
 
-    return "{$hello}\nYour HPV test result is positive. This does not mean that you have cervical cancer. "
+    return "{$hello}\nWelcome to Afya Rafiki. Your HPV test result is positive. This does not mean that you have cervical cancer. "
         . 'It means that the HPV virus was detected and further follow-up is needed to help protect your health and prevent cervical cancer.'
         . "\nYou have been scheduled for a follow-up appointment at {$site} on:\nDate: {$appointmentDate}"
         . "\nPlease attend your appointment as scheduled. If you have any questions, Afya Rafiki is here to support you."
@@ -291,7 +303,7 @@ function is_consent_yes_reply(string $body): bool
 function is_consent_no_reply(string $body): bool
 {
     $msg = strtoupper(trim($body));
-    return in_array($msg, ['2', 'NO', 'HAPANA'], true);
+    return in_array($msg, ['2', '3', 'NO', 'HAPANA', 'STOP', 'STOPALL'], true);
 }
 
 /** Negative HPV: one official result SMS only (no drip counseling). */
@@ -480,7 +492,137 @@ function build_missed_appointment_reschedule_offer(string $lang = 'en'): string
     }
     return "Thank you for your response.\nWe would like to help you continue your follow-up care. "
         . "Would you like to reschedule your appointment at {$site}?\n"
-        . "Reply:\n1. YES - Reschedule my appointment\n2. NO - I will contact the clinic myself\n3. I need to speak with a healthcare provider";
+        . "Reply:\n1. YES -Reschedule my appointment\n2. NO - I will contact the clinic myself\n3. I need to speak with a healthcare provider";
+}
+
+function build_missed_reschedule_confirmation(string $patientName, string $appointmentDate, string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    $name = afya_first_name($patientName);
+    $hello = $lang === 'sw'
+        ? ($name !== '' ? "Habari {$name}," : 'Habari,')
+        : ($name !== '' ? "Hello {$name}," : 'Hello,');
+    if ($lang === 'sw') {
+        return "{$hello}\nAsante kwa kuchagua kuendelea na huduma yako ya ufuatiliaji. Kupanga upya miadi yako ni hatua muhimu katika kulinda afya yako na kuzuia saratani ya mlango wa kizazi.\n"
+            . "Miadi yako mpya imepangwa tarehe:\nTarehe: {$appointmentDate}\nTunatarajia kukuona.";
+    }
+    return "{$hello}\nThank you for choosing to continue your follow-up care. Rescheduling your appointment is an important step in protecting your health and preventing cervical cancer.\n"
+        . "Your new appointment is scheduled for:\nDate: {$appointmentDate}\nWe look forward to seeing you.";
+}
+
+function build_referral_initial_message(string $patientName, string $appointmentDate, string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    $name = afya_first_name($patientName);
+    $site = afya_referral_hospital();
+    $hello = $lang === 'sw'
+        ? ($name !== '' ? "Habari {$name}," : 'Habari,')
+        : ($name !== '' ? "Hello {$name}," : 'Hello,');
+    if ($lang === 'sw') {
+        return "{$hello}\nUchunguzi wako wa hivi karibuni wa mlango wa kizazi ulionyesha matokeo yanayohitaji tathmini zaidi na daktari bingwa. Hii haimaanishi moja kwa moja kuwa una saratani ya mlango wa kizazi. Hata hivyo, uchunguzi zaidi unapendekezwa ili kuelewa vizuri mabadiliko yaliyoonekana kwenye mlango wa kizazi na kubaini huduma inayofaa zaidi.\n"
+            . "Umepewa rufaa kwenda {$site} kwa uchunguzi wa daktari bingwa.\nTarehe ya miadi: {$appointmentDate}\n"
+            . 'Tafadhali hudhuria miadi yako kama ulivyopangiwa. Uchunguzi wa mapema husaidia kuhakikisha kuwa matatizo yoyote ya afya yanagunduliwa na kushughulikiwa ipasavyo.'
+            . "\nAsante kwa kutumia Afya Rafiki.";
+    }
+    return "{$hello}\nYour recent cervical screening showed findings that would benefit from further assessment by a specialist. This does not necessarily mean that you have cervical cancer. However, additional evaluation is recommended to better understand the changes seen on your cervix and determine the most appropriate care.\n"
+        . "You have been referred to {$site} for specialist review.\nAppointment Date: {$appointmentDate}\n"
+        . 'Please attend your appointment as scheduled. Early assessment helps ensure that any health concerns are identified and managed appropriately.'
+        . "\nThank you for choosing Afya Rafiki.";
+}
+
+function build_referral_reassurance_message(string $patientName, string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    $name = afya_first_name($patientName);
+    $hello = $lang === 'sw'
+        ? ($name !== '' ? "Habari {$name}," : 'Habari,')
+        : ($name !== '' ? "Hello {$name}," : 'Hello,');
+    if ($lang === 'sw') {
+        return "{$hello}\nTunaelewa kuwa kupokea rufaa kunaweza kukusababishia wasiwasi. Tafadhali kumbuka kuwa wanawake wengi wanaopewa rufaa kwa uchunguzi wa daktari bingwa hawapatikani na saratani ya mlango wa kizazi. Lengo la rufaa ni kusaidia daktari kuchunguza mlango wa kizazi kwa karibu zaidi na kuhakikisha unapata huduma inayofaa.\n"
+            . "Kuhudhuria miadi yako ni hatua muhimu katika kulinda afya yako.\nAfya Rafiki iko hapa kukusaidia.";
+    }
+    return "{$hello}\nWe understand that receiving a referral may cause concern. Please remember that many women referred for specialist assessment do not have cervical cancer. The purpose of the referral is to allow a closer examination of the cervix and ensure that you receive the most appropriate care.\n"
+        . "Attending your appointment is an important step in protecting your health.\nAfya Rafiki is here to support you.";
+}
+
+function build_referral_appointment_reminder(string $appointmentDate, string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    $site = afya_referral_hospital();
+    if ($lang === 'sw') {
+        return "Kikumbusho kutoka Afya Rafiki\nUna miadi ya uchunguzi wa daktari bingwa katika {$site} tarehe:\nTarehe: {$appointmentDate}\n"
+            . 'Tafadhali hudhuria kama ulivyopangiwa. Ziara hii itasaidia kubaini hatua zinazofuata zinazofaa kwa huduma yako.'
+            . "\nIkiwa hutaweza kuhudhuria, tafadhali wasiliana na mhudumu wako wa afya ili kupanga miadi nyingine.";
+    }
+    return "Reminder from Afya Rafiki\nYou have a specialist review appointment at {$site} on:\nDate: {$appointmentDate}\n"
+        . 'Please attend as scheduled. This visit will help determine the most appropriate next steps for your care.'
+        . "\nIf you are unable to attend, please contact your healthcare provider to arrange another appointment.";
+}
+
+function build_post_visit_via_negative(string $patientName, string $appointmentDate, string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    $name = afya_first_name($patientName);
+    $hello = $lang === 'sw'
+        ? ($name !== '' ? "Habari {$name}," : 'Habari,')
+        : ($name !== '' ? "Hello {$name}," : 'Hello,');
+    if ($lang === 'sw') {
+        return "{$hello}\nMajibu yako ya HPV yalikuwa chanya (positive), lakini uchunguzi wa VIA haukuonyesha mabadiliko kwenye mlango wa kizazi yanayohitaji matibabu kwa sasa.\n"
+            . 'Haya ni matokeo mazuri. Ingawa virusi vya HPV vilipatikana, hakuna mabadiliko yaliyoonekana kwenye mlango wa kizazi kwa sasa. Maambukizi mengi ya HPV huisha yenyewe bila kusababisha matatizo ya kiafya. Hata hivyo, ufuatiliaji wa mara kwa mara ni muhimu kwa sababu baadhi ya maambukizi yanaweza kuendelea kwa muda mrefu na kusababisha mabadiliko kwenye mlango wa kizazi.'
+            . "\nHuhitaji matibabu kwa sasa.\nNi muhimu urudi kwa kipimo kingine cha HPV baada ya mwaka 1 ili kufuatilia afya ya mlango wa kizazi na kuhakikisha kuwa mabadiliko yoyote yatagunduliwa mapema ikiwa yatatokea."
+            . "\nTarehe ya miadi yako ya ufuatiliaji ni:\nTarehe: {$appointmentDate}"
+            . "\nIkiwa utapata dalili kama kutokwa na damu isiyo ya kawaida ukeni, majimaji yenye harufu mbaya kutoka ukeni, au maumivu ya muda mrefu chini ya tumbo, tafadhali tembelea kituo cha afya kwa uchunguzi zaidi."
+            . "\nAsante kwa kutumia Afya Rafiki. Tuko hapa kukusaidia.";
+    }
+    return "{$hello}\nYour HPV test was positive, but your VIA examination did not show any changes on the cervix that require treatment at this time.\n"
+        . 'This is good news. Although HPV was detected, no visible changes were seen on your cervix. Most HPV infections clear naturally without causing health problems. However, regular follow-up is important because a small number of HPV infections may persist and cause changes over time.'
+        . "\nYou do not need treatment at this time.\nIt is important that you return for a repeat HPV test after 1 year to monitor your cervical health and ensure that any future changes are detected early."
+        . "\nYour follow-up appointment is scheduled for:\nDate: {$appointmentDate}"
+        . "\nIf you experience unusual symptoms such as abnormal vaginal bleeding, foul-smelling discharge, or persistent lower abdominal pain, please visit a health facility for assessment."
+        . "\nThank you for choosing Afya Rafiki. We are here to support you.";
+}
+
+function build_post_visit_via_positive_ablation(string $patientName, string $appointmentDate, string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    $name = afya_first_name($patientName);
+    $hello = $lang === 'sw'
+        ? ($name !== '' ? "Habari {$name}," : 'Habari,')
+        : ($name !== '' ? "Hello {$name}," : 'Hello,');
+    if ($lang === 'sw') {
+        return "{$hello}\nMajibu yako ya HPV yalikuwa chanya (positive), na uchunguzi wa VIA ulionyesha mabadiliko kwenye mlango wa kizazi yaliyohitaji matibabu. Thermal Ablation imefanyika kwa mafanikio ili kuondoa seli zisizo za kawaida na kusaidia kuzuia saratani ya mlango wa kizazi.\n"
+            . 'Baada ya matibabu, ni kawaida kupata majimaji kutoka ukeni na maumivu madogo chini ya tumbo kwa siku chache. Unaweza kutumia pedi ikiwa itahitajika.'
+            . "\nTafadhali rudi hospitalini mara moja ikiwa utapata kutokwa na damu nyingi, majimaji yenye harufu mbaya kutoka ukeni, maumivu makali chini ya tumbo, homa, au dalili nyingine zinazokusumbua."
+            . "\nNi muhimu urudi kwa kipimo kingine cha HPV baada ya mwaka 1 ili kuthibitisha kuwa matibabu yalifanikiwa."
+            . "\nTarehe ya miadi yako ya ufuatiliaji ni:\nTarehe: {$appointmentDate}"
+            . "\nAsante kwa kutumia Afya Rafiki. Tuko hapa kukusaidia.";
+    }
+    return "{$hello}\nYour HPV test was positive, and your VIA examination showed changes on the cervix that required treatment. Thermal Ablation was successfully performed to remove the abnormal cells and help prevent cervical cancer.\n"
+        . 'After treatment, it is normal to experience mild watery discharge and mild lower abdominal discomfort for a few days, mild blood spots. Please use a sanitary pad if needed.'
+        . "\nPlease return to the health facility immediately if you experience heavy bleeding, foul-smelling discharge, severe lower abdominal pain, fever, or any other concerning symptoms."
+        . "\nIt is important that you return for a repeat HPV test after 1 year to confirm if treatment was successful."
+        . "\nYour follow-up appointment is scheduled for:\nDate: {$appointmentDate}"
+        . "\nThank you for choosing Afya Rafiki. We are here to support you.";
+}
+
+function build_post_visit_treatment_postponed(string $patientName, string $appointmentDate, string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    $name = afya_first_name($patientName);
+    $site = afya_clinic_site();
+    $hello = $lang === 'sw'
+        ? ($name !== '' ? "Habari {$name}," : 'Habari,')
+        : ($name !== '' ? "Hello {$name}," : 'Hello,');
+    if ($lang === 'sw') {
+        return "{$hello}\nMajibu yako ya HPV yalikuwa chanya (positive), na uchunguzi wa VIA ulionyesha mabadiliko kwenye mlango wa kizazi yanayohitaji matibabu. Hii haimaanishi kuwa una saratani ya mlango wa kizazi. Matibabu ya mapema husaidia kuzuia seli zisizo za kawaida zisigeuke kuwa saratani.\n"
+            . "Matibabu yako yameahirishwa na umepangiwa tarehe nyingine ya matibabu:\nTarehe: {$appointmentDate}\n"
+            . "Ni muhimu uhudhurie miadi hii ili matibabu yaliyopendekezwa yakamilike. Ikiwa hutaweza kuhudhuria, tafadhali wasiliana na mhudumu wako wa afya au tembelea {$site} kupanga tarehe nyingine."
+            . "\nIkiwa una maswali yoyote, Afya Rafiki iko hapa kukusaidia.\nAsante kwa kutumia Afya Rafiki.";
+    }
+    return "{$hello}\nYour HPV test was positive, and your VIA examination showed changes on the cervix that require treatment. This does not mean that you have cervical cancer. Early treatment helps prevent abnormal cells from developing into cervical cancer.\n"
+        . "Your treatment was postponed and has been rescheduled for:\nDate: {$appointmentDate}\n"
+        . "It is important that you attend this appointment so that the recommended treatment can be completed. If you are unable to attend, please contact your healthcare provider or visit {$site} to arrange another appointment."
+        . "\nIf you have any questions, Afya Rafiki is here to support you.\nThank you for choosing Afya Rafiki.";
 }
 
 function build_post_visit_acknowledgement(string $patientName, string $lang = 'en'): string
@@ -491,7 +633,7 @@ function build_post_visit_acknowledgement(string $patientName, string $lang = 'e
         ? ($name !== '' ? "Habari {$name}," : 'Habari,')
         : ($name !== '' ? "Hello {$name}," : 'Hello,');
     if ($lang === 'sw') {
-        return "{$hello}\nAsante kwa kuhudhuria miadi yako ya ufuatiliaji kama ulivyopangiwa. "
+        return "{$hello}\nAsante kwa kuhudhuria miadi (Clinic appointment) yako ya ufuatiliaji kama ulivyopangiwa. "
             . 'Umechukua hatua muhimu katika kulinda afya yako na kuzuia saratani ya mlango wa kizazi.'
             . "\nKwa kuhudhuria miadi yako, umechangia kuhakikisha kwamba mabadiliko yoyote kwenye mlango wa kizazi yanagunduliwa na kushughulikiwa mapema ikiwa yatahitajika. "
             . 'Tunakuhimiza kuendelea kufuata ushauri wa mhudumu wako wa afya na kuhudhuria miadi nyingine yoyote utakayopangiwa.'
@@ -529,8 +671,8 @@ function afya_faq_reply(string $body, string $lang = 'en'): ?string
 
     if ($text === '2' || preg_match('/\b(cervical cancer|do i have cancer|nina saratani|saratani ya mlango)\b/u', $text)) {
         return $lang === 'sw'
-            ? 'Majibu chanya ya HPV hayamaanishi kuwa una saratani. Inamaanisha uko na virusi za HPV. HPV virus huleta saratani ya cervix ikikaa muda mrefu kwa cervix bila matibabu. Inamaanisha kuwa huduma zaidi ya ufuatiliaji inahitajika. Tafadhali hudhuria miadi yako ya kliniki.'
-            : 'A positive HPV result does not mean you have cervical cancer. It means you have HPV virus. HPV virus causes HPV cancer if left untreated after a long period of time. It means additional follow-up care is needed. Please attend your clinic appointment.';
+            ? 'Majibu chanya ya HPV hayamaanishi kuwa una saratani. Inamaanisha uko na virusi za HPV. HPV virus huleta saratani ya cervix ikikaa muda mrefu kwa cervix bila matibabu.Inamaanisha kuwa huduma zaidi ya ufuatiliaji inahitajika. Tafadhali hudhuria miadi yako ya kliniki.'
+            : 'A positive HPV result does not mean you have cervical cancer. It means you have HPV virus. HPV virus causes Cervical cancer if left untreated after a long period of time. It means additional follow-up care is needed. Please attend your clinic appointment.';
     }
 
     if ($text === '3' || preg_match('/\b(can hpv be treated|hpv inatibika|hpv treated)\b/u', $text)) {
@@ -541,14 +683,14 @@ function afya_faq_reply(string $body, string $lang = 'en'): ?string
 
     if ($text === '5' || preg_match('/\b(symptoms of hpv|hpv symptoms|dalili za hpv|dalili za virusi)\b/u', $text)) {
         return $lang === 'sw'
-            ? 'Watu wengi wenye virusi vya HPV hawana dalili zozote. HPV kwa kawaida haisababishi maumivu au muwasho. Mara nyingi mwili huondoa maambukizi wenyewe. Baadhi ya aina zinaweza kusababisha mabadiliko kwenye mlango wa kizazi yanayogundulika kupitia kipimo cha HPV na VIA — ndiyo maana uchunguzi wa mara kwa mara ni muhimu. Ikiwa una damu isiyo ya kawaida, maumivu ya kudumu, au majimaji yasiyo ya kawaida, tembelea mhudumu wa afya.'
-            : 'Most people with HPV do not have any symptoms and may not know they have the virus. HPV usually does not cause pain, itching, or illness. In many cases, the body clears the infection naturally. Some types can cause cervical changes detected only through screening such as HPV testing and VIA — regular screening is important even when you feel healthy. If you have unusual bleeding, persistent pelvic pain, or unusual discharge, please visit a healthcare provider.';
+            ? 'Watu wengi wenye virusi vya HPV hawana dalili zozote na huenda wasijue kuwa wana maambukizi hayo. HPV kwa kawaida haisababishi maumivu, muwasho, au ugonjwa unaoonekana. Mara nyingi mwili huondoa maambukizi haya wenyewe bila matibabu. Baadhi ya aina za HPV zinaweza kusababisha mabadiliko kwenye mlango wa kizazi ambayo yanaweza kugunduliwa tu kupitia vipimo vya uchunguzi kama vile kipimo cha HPV na VIA. Ndiyo maana uchunguzi wa mara kwa mara ni muhimu hata kama unajisikia mzima na huna dalili zozote. Ikiwa una dalili kama kutokwa na damu isiyo ya kawaida ukeni, maumivu ya muda mrefu chini ya tumbo au nyonga, au majimaji yasiyo ya kawaida kutoka ukeni, tafadhali tembelea mhudumu wa afya kwa uchunguzi zaidi.'
+            : 'Most people with HPV do not have any symptoms and may not know they have the virus. HPV usually does not cause pain, itching, or illness. In many cases, the body clears the infection naturally without treatment. Some types of HPV can cause changes on the cervix that can only be detected through screening tests such as HPV testing and VIA. This is why regular screening is important, even when you feel healthy and have no symptoms. If you have any unusual symptoms such as abnormal vaginal bleeding, persistent pelvic pain, or unusual vaginal discharge, please visit a healthcare provider for assessment.';
     }
 
     if ($text === '6' || preg_match('/\b(symptoms of cervical|dalili za saratani|cervical cancer symptoms)\b/u', $text)) {
         return $lang === 'sw'
-            ? 'Wanawake wengi walio na mabadiliko ya awali au saratani ya awali wanaweza wasiwe na dalili. Dalili zinazoweza kuonekana: kutokwa na damu baada ya ngono, kati ya hedhi, au baada ya kukoma hedhi; majimaji yasiyo ya kawaida; maumivu ya kudumu chini ya tumbo; maumivu wakati wa ngono. Kuwa na dalili hizi haimaanishi moja kwa moja saratani — tembelea kituo cha afya kwa uchunguzi.'
-            : 'Most women with early cervical changes or early cervical cancer may not have any symptoms. Possible symptoms may include bleeding after sex, between periods, or after menopause; unusual vaginal discharge; persistent lower abdominal or pelvic pain; pain during sex. Having these symptoms does not necessarily mean cervical cancer — please visit a health facility for assessment.';
+            ? 'Wanawake wengi walio na mabadiliko ya awali kwenye mlango wa kizazi au saratani ya awali ya mlango wa kizazi wanaweza wasiwe na dalili yoyote. Ndiyo maana uchunguzi wa mara kwa mara ni muhimu. Dalili zinazoweza kuonekana ni pamoja na: Kutokwa na damu baada ya kufanya ngono. Kutokwa na damu kati ya hedhi. Kutokwa na damu baada ya kukoma hedhi. Majimaji yasiyo ya kawaida kutoka ukeni, hasa yenye harufu mbaya. Maumivu ya kudumu chini ya tumbo au nyonga. Maumivu wakati wa kufanya ngono. Kuwa na dalili moja au zaidi kati ya hizi haimaanishi moja kwa moja kuwa una saratani ya mlango wa kizazi, kwani zinaweza kusababishwa na matatizo mengine ya kiafya. Ukiona dalili hizi, tafadhali tembelea kituo cha afya kwa uchunguzi zaidi.'
+            : 'Most women with early cervical changes or early cervical cancer may not have any symptoms. This is why regular screening is important. Possible symptoms of cervical cancer may include: Bleeding after sexual intercourse. Bleeding between menstrual periods. Bleeding after menopause. Unusual vaginal discharge, especially if it has a bad smell. Persistent lower abdominal or pelvic pain or lower back pain. Pain during sexual intercourse. Having one or more of these symptoms does not necessarily mean you have cervical cancer, as they can be caused by other health conditions. If you experience any of these symptoms, please visit a health facility for assessment by a healthcare provider.';
     }
 
     if ($text === '4' || $text === '7' || preg_match('/\b(appointment|miadi|reschedule|panga upya)\b/u', $text)) {

@@ -138,3 +138,18 @@ function restart_encouragement_drip(int $patientId, string $firstDelay = '+3 hou
     reset_encouragement_drip_index($patientId);
     return schedule_encouragement_drip_step($patientId, $firstDelay);
 }
+
+/** Stop pre-VIA FAQ drip once VIA result is recorded (result SMS is sent separately). */
+function complete_encouragement_drip_after_via(int $patientId): void
+{
+    cancel_queued_encouragement_drip($patientId);
+    if (!db_table_has_column('patients', 'hpv_counseling_index')) {
+        return;
+    }
+    $st = db()->prepare('SELECT preferred_language FROM patients WHERE id = ? LIMIT 1');
+    $st->execute([$patientId]);
+    $langRaw = (string) ($st->fetchColumn() ?: 'en');
+    $lang = in_array($langRaw, ['en', 'sw'], true) ? $langRaw : 'en';
+    $done = encouragement_drip_message_count($lang);
+    db()->prepare('UPDATE patients SET hpv_counseling_index = ? WHERE id = ?')->execute([$done, $patientId]);
+}

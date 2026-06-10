@@ -83,11 +83,10 @@ function afya_test_results(): array
     $dripSw = afya_simple_encouragement_drip_sw();
     $pass('Simple drip EN count = 10', count($dripEn) === 10, 'got ' . count($dripEn));
     $pass('Simple drip SW count = 10', count($dripSw) === 10, 'got ' . count($dripSw));
-    $pass('Simple drip[0] EN — What is HPV', $contains($dripEn[0], 'What is HPV'));
-    $pass('Simple drip[0] EN — short (no 8 out of 10)', !str_contains($dripEn[0], '8 out of every 10'));
-    require_once __DIR__ . '/../afya_rafiki_content.php';
-    $counselEn = afya_counseling_messages_positive('en');
-    $pass('HPV+ drip uses simple tips', $contains($counselEn[0], 'What is HPV'));
+    $pass('Option A drip[0] EN — afya_faq_hpv text', $contains($dripEn[0], 'common virus that can affect the cervix'));
+    $pass('Option A drip[1] EN — afya_faq_cancer text', $contains($dripEn[1], 'does not mean you have cervical cancer'));
+    $pass('Option A drip[2] EN — afya_faq_treat text', $contains($dripEn[2], 'clear naturally'));
+    $pass('Option A drip[3] EN — afya_engagement_tip text', $contains($dripEn[3], 'Your health matters'));
     $pass('§42 VIA neg counseling EN — HIV 3y / 5y', $contains(afya_counseling_messages_positive_en()[8], 'Repeat HPV screening after 3 years')
         && $contains(afya_counseling_messages_positive_en()[8], 'Repeat HPV screening after 5 years'));
 
@@ -155,8 +154,9 @@ function afya_test_results(): array
     );
     $viaSrc = (string) file_get_contents(__DIR__ . '/../patient_screening.php');
     $pass(
-        'VIA record schedules encouragement drip',
-        str_contains($viaSrc, 'schedule_encouragement_drip_step')
+        'VIA record stops pre-VIA drip and sends script result only',
+        str_contains($viaSrc, 'complete_encouragement_drip_after_via')
+            && str_contains($viaSrc, 'build_via_positive_result_notification')
     );
     $pass(
         'Registration does not send language intro (1/2/3)',

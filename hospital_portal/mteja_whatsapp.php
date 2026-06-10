@@ -208,17 +208,17 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
     }
 
     if ($messageType === 'engagement_boost') {
-        if (str_contains($bodyLower, 'what is hpv') || str_contains($bodyLower, 'hpv ni nini')) {
+        if (str_contains($bodyLower, 'common virus that can affect the cervix')
+            || str_contains($bodyLower, 'virusi vya kawaida vinavyoweza kuathiri')) {
             return $mk('afya_faq_hpv');
         }
-        if (str_contains($bodyLower, 'does not mean cervical cancer') || str_contains($bodyLower, 'hayamaanishi saratani')) {
+        if (str_contains($bodyLower, 'does not mean you have cervical cancer')
+            || str_contains($bodyLower, 'hayamaanishi kuwa una saratani')) {
             return $mk('afya_faq_cancer');
         }
-        if (str_contains($bodyLower, 'clear naturally') || str_contains($bodyLower, 'hupotea yenyewe')) {
+        if (str_contains($bodyLower, 'infections often clear naturally')
+            || str_contains($bodyLower, 'mara nyingi hupotea yenyewe')) {
             return $mk('afya_faq_treat');
-        }
-        if (str_contains($bodyLower, 'what is via') || str_contains($bodyLower, 'via ni nini')) {
-            return $mk('afya_faq_hpv');
         }
         return $mk('afya_engagement_tip');
     }

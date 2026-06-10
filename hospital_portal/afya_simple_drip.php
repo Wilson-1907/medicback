@@ -2,41 +2,48 @@
 declare(strict_types=1);
 
 /**
- * Short, encouraging Afya Rafiki tips — not the long clinical counseling script.
- * Used for post-registration and HPV-positive follow-up drips.
- *
- * @return list<string>
+ * Option A — pre-VIA encouragement drip mapped to approved WhatsApp FAQ templates:
+ * afya_faq_hpv → afya_faq_cancer → afya_faq_treat → afya_engagement_tip (×7).
+ * VIA results use official counsel_pos_09/10 separately (not this drip).
  */
+
+/** @return list<string> */
 function afya_simple_encouragement_drip_en(): array
 {
+    $engagement = 'Your health matters. You have taken a good step by following up on your health. '
+        . 'Reply HELP if you have a question or DOCTOR to speak with a provider. Afya Rafiki — Nyeri Town Health Center.';
+
     return [
-        'What is HPV? HPV is a very common virus. Most infections clear on their own. Regular follow-up protects your health.',
-        'A positive HPV result does not mean cervical cancer. Attend your clinic visit — we are here for you.',
-        'HPV infections often clear naturally. Follow-up helps your provider spot any changes early.',
-        'You have taken a good step by caring for your cervical health. Reply HELP if you have a question.',
-        'Most people with HPV have no symptoms. Screening matters even when you feel well.',
-        'Your next clinic visit is important. Please attend as scheduled — it helps protect your health.',
-        'Feeling worried is normal. A positive result means follow-up care, not a cancer diagnosis.',
-        'What is VIA? A quick clinic exam after HPV positive — your nurse will explain your result the same day.',
-        'If you need help with transport or fear about your visit, reply DOCTOR — a health worker can call you.',
-        'You are not alone on this journey. Afya Rafiki — Nyeri Town Health Center is here to support you.',
+        'HPV is a common virus that can affect the cervix. Some types may cause cervical cancer if not treated early. Follow-up care helps protect your health.',
+        'A positive HPV result does not mean you have cervical cancer. It means you have HPV virus. Additional follow-up care is needed. Please attend your clinic appointment.',
+        'HPV infections often clear naturally. Follow-up care helps health providers monitor and manage any cervical changes early.',
+        $engagement,
+        $engagement,
+        $engagement,
+        $engagement,
+        $engagement,
+        $engagement,
+        $engagement,
     ];
 }
 
 /** @return list<string> */
 function afya_simple_encouragement_drip_sw(): array
 {
+    $engagement = 'Afya yako ni muhimu. Umechukua hatua nzuri kwa kufuatilia afya yako. '
+        . 'Jibu HELP kwa maswali au DOCTOR kwa mhudumu wa afya. Afya Rafiki — Nyeri Town Health Center.';
+
     return [
-        'HPV ni nini? HPV ni virusi vya kawaida sana. Maambukizi mengi huisha yenyewe. Ufuatiliaji wa mara kwa mara unalinda afya yako.',
-        'Majibu chanya ya HPV hayamaanishi saratani. Hudhuria kliniki yako — tuko hapa kukusaidia.',
-        'Maambukizi ya HPV mara nyingi hupotea yenyewe. Ufuatiliaji husaidia kugundua mabadiliko mapema.',
-        'Umechukua hatua nzuri kwa kujali afya ya mlango wa kizazi. Jibu HELP ikiwa una swali.',
-        'Watu wengi wenye HPV hawana dalili. Uchunguzi ni muhimu hata ukiwa na afya njema.',
-        'Ziara yako ijayo ya kliniki ni muhimu. Tafadhali hudhuria kama ulivyopangiwa.',
-        'Wasiwasi ni kawaida. Matokeo chanya yanamaanisha ufuatiliaji, si utambuzi wa saratani.',
-        'VIA ni nini? Uchunguzi mfupi baada ya HPV chanya — mhudumu atakueleza matokeo siku hiyo hiyo.',
-        'Ikiwa unahitaji msaada wa usafiri au una hofu, jibu DOCTOR — mhudumu anaweza kukupigia simu.',
-        'Huko peke yako. Afya Rafiki — Nyeri Town Health Center iko pamoja nawe.',
+        'HPV ni virusi vya kawaida vinavyoweza kuathiri mlango wa kizazi. Aina zingine zinaweza kusababisha saratani ya mlango wa kizazi zisipotibiwa mapema. Huduma ya ufuatiliaji husaidia kulinda afya yako.',
+        'Majibu chanya ya HPV hayamaanishi kuwa una saratani. Inamaanisha una virusi vya HPV. Huduma zaidi ya ufuatiliaji inahitajika. Tafadhali hudhuria miadi yako ya kliniki.',
+        'Maambukizi ya HPV mara nyingi hupotea yenyewe. Huduma ya ufuatiliaji husaidia wahudumu wa afya kufuatilia na kutibu mabadiliko mapema.',
+        $engagement,
+        $engagement,
+        $engagement,
+        $engagement,
+        $engagement,
+        $engagement,
+        $engagement,
     ];
 }
 

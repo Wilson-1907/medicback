@@ -24,7 +24,6 @@ function ensure_patient_screening_schema(): bool
             'place_of_residence' => 'VARCHAR(255) NULL',
             'via_result' => "ENUM('unknown','not_done','negative','positive') NOT NULL DEFAULT 'unknown'",
             'via_date' => 'DATE NULL',
-            'via_result_notified_at' => 'DATETIME(3) NULL',
             'has_cancer' => 'TINYINT(1) NOT NULL DEFAULT 0',
             'treatment_date' => 'DATE NULL',
             'next_checkup_at' => 'DATE NULL',
@@ -36,18 +35,19 @@ function ensure_patient_screening_schema(): bool
                 $pdo->exec("ALTER TABLE patients ADD COLUMN {$column} {$definition}");
             }
         }
-        if (db_table_has_column('patients', 'hiv_status')) {
-            $pdo->exec(
-                "ALTER TABLE patients MODIFY COLUMN hiv_status
-                 ENUM('unknown','not_known','negative','positive') NOT NULL DEFAULT 'unknown'"
-            );
-        }
-        if (db_table_has_column('patients', 'via_result_notified_at')) {
+        if (!db_table_has_column('patients', 'via_result_notified_at')) {
+            $pdo->exec('ALTER TABLE patients ADD COLUMN via_result_notified_at DATETIME(3) NULL');
             $pdo->exec(
                 "UPDATE patients SET via_result_notified_at = CONCAT(via_date, ' 12:00:00')
                  WHERE via_result IN ('positive','negative')
                    AND via_date IS NOT NULL
                    AND via_result_notified_at IS NULL"
+            );
+        }
+        if (db_table_has_column('patients', 'hiv_status')) {
+            $pdo->exec(
+                "ALTER TABLE patients MODIFY COLUMN hiv_status
+                 ENUM('unknown','not_known','negative','positive') NOT NULL DEFAULT 'unknown'"
             );
         }
         return true;

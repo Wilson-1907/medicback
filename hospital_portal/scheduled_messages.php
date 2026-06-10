@@ -100,9 +100,9 @@ function process_due_scheduled_messages(): array
         if ($ok) {
             $upd->execute(['sent', $id]);
             $sent++;
-            if ($chain && function_exists('hpv_on_counseling_step_sent')) {
-                require_once __DIR__ . '/hpv_results.php';
-                hpv_on_counseling_step_sent($patientId);
+            if ($chain && function_exists('encouragement_drip_step_sent')) {
+                require_once __DIR__ . '/encouragement_drip.php';
+                encouragement_drip_step_sent($patientId);
             }
         } else {
             $upd->execute(['failed', $id]);

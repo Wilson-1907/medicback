@@ -367,6 +367,10 @@ function process_via_recorded_messages(
             'via_negative',
             build_via_negative_result_notification($patientName, $hivStatus, $lang)
         );
+        require_once __DIR__ . '/encouragement_drip.php';
+        if (!encouragement_drip_pathway_complete($patientId)) {
+            schedule_encouragement_drip_step($patientId, '+3 hours');
+        }
     } elseif (!empty($screening['has_cancer'])) {
         $refDate = (string) ($screening['via_date'] ?? date('Y-m-d'));
         send_patient_message(
@@ -381,6 +385,10 @@ function process_via_recorded_messages(
             'via_positive',
             build_via_positive_result_notification($patientName, $lang)
         );
+        require_once __DIR__ . '/encouragement_drip.php';
+        if (!encouragement_drip_pathway_complete($patientId)) {
+            schedule_encouragement_drip_step($patientId, '+3 hours');
+        }
     }
 
     $followups = compute_screening_followups($screening);

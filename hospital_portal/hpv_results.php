@@ -260,7 +260,8 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
             'system',
             build_hpv_positive_result_notification($name, $apptDate, $lang)
         );
-        $scheduled = schedule_hpv_counseling_step($patientId, hpv_delay_before_counseling_index(0));
+        require_once __DIR__ . '/encouragement_drip.php';
+        $scheduled = restart_encouragement_drip($patientId, '+3 hours');
     }
 
     $dx = db()->prepare(
@@ -279,7 +280,7 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
         'ok' => true,
         'hpv_screening_result' => $result,
         'counseling_started' => $scheduled,
-        'first_followup_in' => hpv_delay_before_counseling_index(0),
+        'first_followup_in' => '+3 hours',
     ];
 }
 

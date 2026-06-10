@@ -113,9 +113,10 @@ function afya_test_results(): array
     $pass('VIA neg follow-up HIV− — 5 years', ($fuNeg['schedules'][0]['reason'] ?? '') === 'via_neg_hiv_neg_5y');
 
     // --- HPV confirm delays (study: 3h, 5h, then 1 day) ---
-    $pass('HPV tip delay index 0 = +1 day', hpv_delay_before_counseling_index(0) === '+1 day');
-    $pass('HPV tip delay index 1 = +2 days', hpv_delay_before_counseling_index(1) === '+2 days');
-    $pass('HPV tip delay index 2 = +2 days', hpv_delay_before_counseling_index(2) === '+2 days');
+    require_once __DIR__ . '/../encouragement_drip.php';
+    $pass('Encouragement drip delay index 0 = +3 hours', encouragement_drip_delay_before_index(0) === '+3 hours');
+    $pass('Encouragement drip delay index 1 = +1 day', encouragement_drip_delay_before_index(1) === '+1 day');
+    $pass('Encouragement drip delay index 2 = +2 days', encouragement_drip_delay_before_index(2) === '+2 days');
 
     // --- Mteja language codes ---
     $pass('Mteja lang en_US → en', mteja_lang_code('en_US') === 'en');
@@ -149,8 +150,13 @@ function afya_test_results(): array
             && str_contains($enrollSrc, 'build_registration_welcome_message')
     );
     $pass(
-        'Registration schedules first simple HPV tip',
-        str_contains($enrollSrc, 'afya_simple_encouragement_drip')
+        'Registration starts encouragement drip chain',
+        str_contains($enrollSrc, 'schedule_encouragement_drip_step')
+    );
+    $viaSrc = (string) file_get_contents(__DIR__ . '/../patient_screening.php');
+    $pass(
+        'VIA record schedules encouragement drip',
+        str_contains($viaSrc, 'schedule_encouragement_drip_step')
     );
     $pass(
         'Registration does not send language intro (1/2/3)',

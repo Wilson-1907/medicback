@@ -346,13 +346,9 @@ function send_afya_enrollment_messages(int $patientId, string $patientName, stri
         build_registration_welcome_message($lang)
     );
 
-    require_once __DIR__ . '/afya_simple_drip.php';
-    require_once __DIR__ . '/scheduled_messages.php';
-    $tips = afya_simple_encouragement_drip($lang);
-    $firstTip = trim((string) ($tips[0] ?? ''));
-    if ($firstTip !== '') {
-        schedule_patient_message($patientId, 'engagement_boost', $firstTip, '+2 days');
-    }
+    require_once __DIR__ . '/encouragement_drip.php';
+    reset_encouragement_drip_index($patientId);
+    schedule_encouragement_drip_step($patientId, '+3 hours');
 }
 
 function build_appointment_message(string $patientName, array $appointment, string $lang = 'en'): string

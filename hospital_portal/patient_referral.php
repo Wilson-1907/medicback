@@ -98,7 +98,8 @@ function patient_nyeri_referral_status(array $patient): array
 function refer_patient_to_nyeri_hospital(
     int $patientId,
     string $referralAppointmentDate,
-    string $recordedBy = 'staff'
+    string $recordedBy = 'staff',
+    bool $manualOverride = false
 ): array {
     ensure_nyeri_referral_schema();
 
@@ -117,7 +118,7 @@ function refer_patient_to_nyeri_hospital(
         return ['ok' => false, 'error' => 'Patient not found'];
     }
 
-    if (!patient_all_screening_tests_complete($row)) {
+    if (!$manualOverride && !patient_all_screening_tests_complete($row)) {
         return [
             'ok' => false,
             'error' => 'Complete and confirm HPV, then record VIA, before sending a Nyeri referral.',

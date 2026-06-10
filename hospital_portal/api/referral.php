@@ -35,7 +35,8 @@ try {
         api_json(['ok' => false, 'error' => 'patient_id is required'], 422);
     }
 
-    $out = refer_patient_to_nyeri_hospital($patientId, $apptDate, 'hospital_console');
+    $manualOverride = !empty($body['manual_override']);
+    $out = refer_patient_to_nyeri_hospital($patientId, $apptDate, 'hospital_console', $manualOverride);
     api_json($out, !empty($out['ok']) ? 200 : 422);
 } catch (Throwable $e) {
     error_log('referral API: ' . $e->getMessage());

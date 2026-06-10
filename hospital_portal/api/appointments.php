@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../appointment_utils.php';
 require_once __DIR__ . '/../hpv_results.php';
+require_once __DIR__ . '/../patient_screening.php';
 
 try {
     $pdo = db();
@@ -99,6 +100,7 @@ try {
         }
 
         $hpvAuto = try_auto_confirm_hpv_after_appointment_booked($patientId);
+        $viaAuto = try_auto_notify_via_after_appointment_booked($patientId);
 
         send_patient_message(
             $patientId,
@@ -116,6 +118,8 @@ try {
             'appointment_id' => $appointmentId,
             'hpv_result_sent' => !empty($hpvAuto['confirmed']),
             'counseling_started' => !empty($hpvAuto['counseling_started']),
+            'via_result_sent' => !empty($viaAuto['notified']),
+            'via_referral_sent' => !empty($viaAuto['referral_sent']),
         ], 201);
     }
 

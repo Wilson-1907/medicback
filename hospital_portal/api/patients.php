@@ -38,7 +38,8 @@ try {
             $screenCols = patient_screening_ready()
                 ? implode(', ', patient_screening_select_columns())
                 : "NULL AS hiv_status, NULL AS hpv_done_before, NULL AS hpv_prior_result, NULL AS place_of_residence,
-                   NULL AS via_result, NULL AS via_date, 0 AS has_cancer, NULL AS treatment_date, NULL AS next_checkup_at";
+                   NULL AS via_result, NULL AS via_date, NULL AS via_result_notified_at,
+                   0 AS has_cancer, NULL AS treatment_date, NULL AS next_checkup_at";
             $referralCols = db_table_has_column('patients', 'nyeri_referral_at')
                 ? 'nyeri_referral_at, nyeri_referral_appointment_date'
                 : 'NULL AS nyeri_referral_at, NULL AS nyeri_referral_appointment_date';

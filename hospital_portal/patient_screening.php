@@ -24,6 +24,7 @@ function ensure_patient_screening_schema(): bool
             'place_of_residence' => 'VARCHAR(255) NULL',
             'via_result' => "ENUM('unknown','not_done','negative','positive') NOT NULL DEFAULT 'unknown'",
             'via_date' => 'DATE NULL',
+            'via_result_notified_at' => 'DATETIME(3) NULL',
             'has_cancer' => 'TINYINT(1) NOT NULL DEFAULT 0',
             'treatment_date' => 'DATE NULL',
             'next_checkup_at' => 'DATE NULL',
@@ -39,6 +40,14 @@ function ensure_patient_screening_schema(): bool
             $pdo->exec(
                 "ALTER TABLE patients MODIFY COLUMN hiv_status
                  ENUM('unknown','not_known','negative','positive') NOT NULL DEFAULT 'unknown'"
+            );
+        }
+        if (db_table_has_column('patients', 'via_result_notified_at')) {
+            $pdo->exec(
+                "UPDATE patients SET via_result_notified_at = CONCAT(via_date, ' 12:00:00')
+                 WHERE via_result IN ('positive','negative')
+                   AND via_date IS NOT NULL
+                   AND via_result_notified_at IS NULL"
             );
         }
         return true;
@@ -72,6 +81,7 @@ function patient_screening_select_columns(): array
         'place_of_residence',
         'via_result',
         'via_date',
+        'via_result_notified_at',
         'has_cancer',
         'treatment_date',
         'next_checkup_at',
@@ -239,29 +249,136 @@ function record_patient_via_result(
 
     auto_complete_attendance_on_via_record($patientId);
 
-    $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
-    $name = (string) $row['full_name'];
-    $referralSent = false;
-
-    $optSt = db()->prepare(
-        'SELECT 1 FROM contact_channels WHERE patient_id = ? AND opted_in = 1 LIMIT 1'
-    );
-    $optSt->execute([$patientId]);
-    $messageSent = false;
-    if ($optSt->fetchColumn()) {
-        process_via_recorded_messages($patientId, $name, $lang, $screening, true);
-        $messageSent = true;
-        $referralSent = $viaResult === 'positive' && $hasCancerVal === 1;
-    }
+    require_once __DIR__ . '/encouragement_drip.php';
+    complete_encouragement_drip_after_via($patientId);
 
     return [
         'ok' => true,
         'via_result' => $viaResult,
         'via_date' => $viaDate,
         'next_checkup_at' => $followups['next_checkup_at'],
-        'referral_sent' => $referralSent,
-        'via_message_sent' => $messageSent,
+        'referral_sent' => false,
+        'via_message_sent' => false,
+        'book_followup_next' => true,
         'recorded_by' => $recordedBy,
+    ];
+}
+
+function patient_via_result_recorded_row(int $patientId): ?array
+{
+    if (!patient_screening_ready()) {
+        return null;
+    }
+    $st = db()->prepare(
+        'SELECT id, full_name, preferred_language, hiv_status, hpv_done_before, hpv_prior_result,
+                via_result, via_date, via_result_notified_at, has_cancer, treatment_date, place_of_residence
+         FROM patients WHERE id = ? LIMIT 1'
+    );
+    $st->execute([$patientId]);
+    $row = $st->fetch();
+    return $row ?: null;
+}
+
+function patient_via_awaiting_followup_notify(int $patientId): bool
+{
+    $row = patient_via_result_recorded_row($patientId);
+    if (!$row) {
+        return false;
+    }
+    $via = strtolower((string) ($row['via_result'] ?? ''));
+    if (!in_array($via, ['positive', 'negative'], true)) {
+        return false;
+    }
+
+    return empty($row['via_result_notified_at']);
+}
+
+/**
+ * Send VIA result SMS (and stop pre-VIA drip) after follow-up appointment is booked.
+ *
+ * @return array{notified: bool, referral_sent?: bool, error?: string}
+ */
+function notify_patient_via_result(int $patientId, string $notifiedBy = 'staff'): array
+{
+    if (!patient_screening_ready()) {
+        return ['notified' => false, 'error' => 'VIA workflow not available'];
+    }
+
+    $row = patient_via_result_recorded_row($patientId);
+    if (!$row) {
+        return ['notified' => false, 'error' => 'Patient not found'];
+    }
+
+    $via = strtolower((string) ($row['via_result'] ?? ''));
+    if (!in_array($via, ['positive', 'negative'], true)) {
+        return ['notified' => false, 'error' => 'Record a VIA result before notifying'];
+    }
+
+    if (!empty($row['via_result_notified_at'])) {
+        return ['notified' => false, 'error' => 'VIA result was already sent to the patient'];
+    }
+
+    if (afya_next_appointment_display($patientId) === '__________') {
+        return [
+            'notified' => false,
+            'error' => 'Book a follow-up appointment first — the patient message needs the appointment date.',
+        ];
+    }
+
+    $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
+    $name = (string) $row['full_name'];
+    $screening = [
+        'hiv_status' => (string) ($row['hiv_status'] ?? 'not_known'),
+        'hpv_done_before' => (string) ($row['hpv_done_before'] ?? 'unknown'),
+        'hpv_prior_result' => (string) ($row['hpv_prior_result'] ?? 'unknown'),
+        'place_of_residence' => (string) ($row['place_of_residence'] ?? ''),
+        'via_result' => $via,
+        'via_date' => (string) ($row['via_date'] ?? ''),
+        'has_cancer' => (int) ($row['has_cancer'] ?? 0),
+        'treatment_date' => $row['treatment_date'] ?? null,
+    ];
+
+    $optSt = db()->prepare(
+        'SELECT 1 FROM contact_channels WHERE patient_id = ? AND opted_in = 1 LIMIT 1'
+    );
+    $optSt->execute([$patientId]);
+    $messageSent = false;
+    $referralSent = false;
+    if ($optSt->fetchColumn()) {
+        process_via_recorded_messages($patientId, $name, $lang, $screening, true);
+        $messageSent = true;
+        $referralSent = $via === 'positive' && (int) ($row['has_cancer'] ?? 0) === 1;
+    }
+
+    db()->prepare('UPDATE patients SET via_result_notified_at = NOW(3) WHERE id = ?')->execute([$patientId]);
+
+    return [
+        'notified' => true,
+        'via_message_sent' => $messageSent,
+        'referral_sent' => $referralSent,
+        'notified_by' => $notifiedBy,
+    ];
+}
+
+/**
+ * After follow-up appointment booking, auto-send VIA result then caller sends appointment SMS.
+ *
+ * @return array{notified: bool, referral_sent?: bool}
+ */
+function try_auto_notify_via_after_appointment_booked(int $patientId, string $notifiedBy = 'appointment_booked'): array
+{
+    if (!patient_via_awaiting_followup_notify($patientId)) {
+        return ['notified' => false];
+    }
+
+    $out = notify_patient_via_result($patientId, $notifiedBy);
+    if (empty($out['notified'])) {
+        return ['notified' => false, 'error' => (string) ($out['error'] ?? 'VIA notify failed')];
+    }
+
+    return [
+        'notified' => true,
+        'referral_sent' => !empty($out['referral_sent']),
     ];
 }
 
@@ -384,9 +501,6 @@ function process_via_recorded_messages(
             build_via_positive_result_notification($patientName, $lang)
         );
     }
-
-    require_once __DIR__ . '/encouragement_drip.php';
-    complete_encouragement_drip_after_via($patientId);
 
     $followups = compute_screening_followups($screening);
     foreach ($followups['schedules'] as $item) {

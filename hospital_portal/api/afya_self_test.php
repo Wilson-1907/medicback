@@ -77,45 +77,35 @@ function afya_test_results(): array
     $pass('§10 HELP menu EN', $contains(build_help_menu_message('en'), 'What is HPV?'));
     $pass('§10 HELP menu SW', $contains(build_help_menu_message('sw'), 'HPV ni nini?'));
 
-    // --- Counseling pathway (Phase 3) ---
-    require_once __DIR__ . '/../afya_simple_drip.php';
-    $dripEn = afya_simple_encouragement_drip_en();
-    $dripSw = afya_simple_encouragement_drip_sw();
-    $pass('Simple drip EN count = 10', count($dripEn) === 10, 'got ' . count($dripEn));
-    $pass('Simple drip SW count = 10', count($dripSw) === 10, 'got ' . count($dripSw));
-    $pass('Option A drip[0] EN — afya_faq_hpv text', $contains($dripEn[0], 'common virus that can affect the cervix'));
-    $pass('Option A drip[1] EN — afya_faq_cancer text', $contains($dripEn[1], 'does not mean you have cervical cancer'));
-    $pass('Option A drip[2] EN — afya_faq_treat text', $contains($dripEn[2], 'clear naturally'));
-    $pass('Option A drip[3] EN — afya_engagement_tip text', $contains($dripEn[3], 'Your health matters'));
-    $pass('§42 VIA neg counseling EN — HIV 3y / 5y', $contains(afya_counseling_messages_positive_en()[8], 'Repeat HPV screening after 3 years')
-        && $contains(afya_counseling_messages_positive_en()[8], 'Repeat HPV screening after 5 years'));
+    // --- Pre-VIA counseling drip (study messages 1–10) ---
+    require_once __DIR__ . '/../afya_pre_via_counseling.php';
+    $dripEn = afya_pre_via_counseling_messages('en');
+    $dripSw = afya_pre_via_counseling_messages('sw');
+    $pass('Pre-VIA counseling EN count = 10', count($dripEn) === 10, 'got ' . count($dripEn));
+    $pass('Pre-VIA counseling SW count = 10', count($dripSw) === 10, 'got ' . count($dripSw));
+    $pass('Counseling msg 1 EN — 8 in 10', $contains($dripEn[0], '8 out of every 10'));
+    $pass('Counseling msg 2 EN — follow-up clinic', $contains($dripEn[1], 'recommended clinic visit'));
+    $pass('Counseling msg 7 EN — VIA exam', $contains($dripEn[6], 'Visual Inspection with Acetic acid'));
+    $pass('Counseling msg 9 EN — 1 year return', $contains($dripEn[8], 'return for follow up after one year'));
 
     require_once __DIR__ . '/../patient_screening.php';
-    $viaNegHivPos = build_via_negative_result_notification('Jane', 'positive', 'en');
-    $viaNegHivNeg = build_via_negative_result_notification('Mary', 'negative', 'en');
-    $pass('VIA neg HIV+ EN — 3 years only', $contains($viaNegHivPos, 'after 3 years')
-        && !str_contains($viaNegHivPos, 'after 5 years'));
-    $pass('VIA neg HIV− EN — 5 years only', $contains($viaNegHivNeg, 'after 5 years')
-        && !str_contains($viaNegHivNeg, 'after 3 years'));
+    $viaNeg = build_via_negative_result_notification('Jane', 'negative', 'en', 'Monday, 10 June 2027');
+    $pass('VIA neg result EN — §12b 1 year', $contains($viaNeg, 'repeat HPV test after 1 year'));
+    $pass('VIA neg result EN — appointment date', $contains($viaNeg, 'Monday, 10 June 2027'));
 
-    $fuPos = compute_screening_followups([
+    $fu = compute_screening_followups([
         'via_result' => 'negative',
         'via_date' => '2026-06-10',
         'hiv_status' => 'positive',
     ]);
-    $pass('VIA neg follow-up HIV+ — 3 years', ($fuPos['schedules'][0]['reason'] ?? '') === 'via_neg_hiv_pos_3y');
-    $fuNeg = compute_screening_followups([
-        'via_result' => 'negative',
-        'via_date' => '2026-06-10',
-        'hiv_status' => 'negative',
-    ]);
-    $pass('VIA neg follow-up HIV− — 5 years', ($fuNeg['schedules'][0]['reason'] ?? '') === 'via_neg_hiv_neg_5y');
+    $pass('VIA neg follow-up — 1 year (study §12b)', ($fu['schedules'][0]['reason'] ?? '') === 'via_neg_1y'
+        && ($fu['schedules'][0]['years'] ?? 0) === 1.0);
 
     // --- HPV confirm delays (study: 3h, 5h, then 1 day) ---
     require_once __DIR__ . '/../encouragement_drip.php';
     $pass('Encouragement drip delay index 0 = +3 hours', encouragement_drip_delay_before_index(0) === '+3 hours');
-    $pass('Encouragement drip delay index 1 = +1 day', encouragement_drip_delay_before_index(1) === '+1 day');
-    $pass('Encouragement drip delay index 2 = +2 days', encouragement_drip_delay_before_index(2) === '+2 days');
+    $pass('Encouragement drip delay index 1 = +5 hours', encouragement_drip_delay_before_index(1) === '+5 hours');
+    $pass('Encouragement drip delay index 2 = +1 day', encouragement_drip_delay_before_index(2) === '+1 day');
 
     // --- Mteja language codes ---
     $pass('Mteja lang en_US → en', mteja_lang_code('en_US') === 'en');
@@ -176,6 +166,35 @@ function afya_test_results(): array
 
     // --- HPV positive requires appointment BEFORE confirm is recorded ---
     $hpvSrc = (string) file_get_contents(__DIR__ . '/../hpv_results.php');
+    $pass(
+        'HPV negative confirm stops encouragement drip',
+        str_contains($hpvSrc, 'complete_encouragement_drip_after_hpv_negative')
+            && str_contains($dripSrc, 'patient_hpv_negative_confirmed')
+    );
+    $missedSrc = (string) file_get_contents(__DIR__ . '/../missed_appointment_flow.php');
+    $pass(
+        'Missed appointment §13b/13c inbound wired',
+        str_contains($missedSrc, 'try_handle_missed_appointment_inbound')
+            && str_contains($missedSrc, 'try_send_missed_reschedule_confirmation')
+            && str_contains($missedSrc, 'missed_reschedule_offer')
+    );
+    $pass(
+        'Pre-VIA drip uses study counseling 1–10',
+        str_contains((string) file_get_contents(__DIR__ . '/../encouragement_drip.php'), 'hpv_counseling')
+            && str_contains((string) file_get_contents(__DIR__ . '/../afya_pre_via_counseling.php'), 'afya_counseling_messages_positive_en')
+    );
+    $atWebhookSrc = (string) file_get_contents(__DIR__ . '/../webhook_africastalking.php');
+    $pass(
+        'AT inbound ignores delivery reports (no ghost Unknown rows)',
+        str_contains($atWebhookSrc, 'apply_africastalking_delivery_report')
+            && str_contains($atWebhookSrc, 'Empty from+body')
+    );
+    $pass(
+        'Mteja nav template id EN',
+        function_exists('mteja_nav_template_id')
+            && mteja_nav_template_id('afya_nav_edu_01', 'en') === 'afya_nav_edu_01_en'
+            && mteja_nav_template_id('afya_nav_edu_01', 'sw') === 'afya_nav_edu_01_sw'
+    );
     $pass('HPV positive confirm gates on appointment', str_contains($hpvSrc, 'Book a follow-up appointment first'));
     $confirmBlock = preg_match(
         '/if \(\$result === \'positive\'\).*?Book a follow-up appointment first.*?hpv_result_confirmed_at = NOW/s',
@@ -201,10 +220,8 @@ function afya_test_results(): array
 
     // --- Optional templates not yet mapped (informational warnings) ---
     $optionalMissing = [];
-    foreach (['afya_counsel_pos', 'afya_post_visit', 'afya_missed_reschedule', 'afya_unlinked', 'afya_checkup_via_neg'] as $prefix) {
-        if (!str_contains($mtejaSrc, $prefix)) {
-            $optionalMissing[] = $prefix;
-        }
+    foreach (['afya_nav_edu', 'afya_nav_missed_offer', 'afya_nav_missed_confirm', 'afya_nav_via_neg_result', 'afya_nav_checkup_1y'] as $prefix) {
+        $pass("Mteja maps {$prefix}", str_contains($mtejaSrc, "'{$prefix}'") || str_contains($mtejaSrc, "{$prefix}_"));
     }
     $pass(
         'Optional templates pending Mteja mapping',

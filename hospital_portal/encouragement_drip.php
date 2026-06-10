@@ -8,11 +8,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/scheduled_messages.php';
-require_once __DIR__ . '/afya_simple_drip.php';
+require_once __DIR__ . '/afya_pre_via_counseling.php';
 
 function encouragement_drip_message_count(string $lang = 'en'): int
 {
-    return count(afya_simple_encouragement_drip($lang));
+    return afya_pre_via_counseling_count($lang);
 }
 
 function get_encouragement_drip_message_at_index(int $patientId, int $index, ?string $lang = null): ?string
@@ -23,7 +23,7 @@ function get_encouragement_drip_message_at_index(int $patientId, int $index, ?st
         $lang = (string) ($st->fetchColumn() ?: 'en');
         $lang = in_array($lang, ['en', 'sw'], true) ? $lang : 'en';
     }
-    $messages = afya_simple_encouragement_drip($lang);
+    $messages = afya_pre_via_counseling_messages($lang);
     $count = count($messages);
     if ($count < 1) {
         return null;
@@ -62,10 +62,30 @@ function patient_hpv_positive_confirmed(int $patientId): bool
         && !empty($row['hpv_result_confirmed_at']);
 }
 
-/** Drip stops only when VIA is recorded, or the FAQ sequence ended (non HPV+ patients). */
+function patient_hpv_negative_confirmed(int $patientId): bool
+{
+    if (!db_table_has_column('patients', 'hpv_screening_result')) {
+        return false;
+    }
+    $st = db()->prepare(
+        'SELECT hpv_screening_result, hpv_result_confirmed_at FROM patients WHERE id = ? LIMIT 1'
+    );
+    $st->execute([$patientId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return false;
+    }
+    return strtolower((string) ($row['hpv_screening_result'] ?? '')) === 'negative'
+        && !empty($row['hpv_result_confirmed_at']);
+}
+
+/** Drip stops when VIA is recorded, HPV negative is confirmed, or the FAQ sequence ended (non HPV+). */
 function encouragement_drip_pathway_complete(int $patientId): bool
 {
     if (patient_via_result_recorded($patientId)) {
+        return true;
+    }
+    if (patient_hpv_negative_confirmed($patientId)) {
         return true;
     }
 
@@ -87,11 +107,7 @@ function encouragement_drip_pathway_complete(int $patientId): bool
 
 function encouragement_drip_delay_before_index(int $index): string
 {
-    return match ($index) {
-        0 => '+3 hours',
-        1 => '+1 day',
-        default => '+2 days',
-    };
+    return afya_pre_via_counseling_delay_before_index($index);
 }
 
 function patient_has_queued_encouragement_drip(int $patientId): bool
@@ -162,7 +178,7 @@ function schedule_encouragement_drip_step(int $patientId, ?string $delayExpressi
     } else {
         $delay = encouragement_drip_delay_before_index($index);
     }
-    schedule_patient_message($patientId, 'engagement_boost', $msg, $delay, true);
+    schedule_patient_message($patientId, 'hpv_counseling', $msg, $delay, true);
     return true;
 }
 
@@ -172,7 +188,7 @@ function encouragement_drip_step_sent(int $patientId): void
     if (!db_table_has_column('patients', 'hpv_counseling_index')) {
         return;
     }
-    if (patient_via_result_recorded($patientId)) {
+    if (patient_via_result_recorded($patientId) || patient_hpv_negative_confirmed($patientId)) {
         return;
     }
 
@@ -220,6 +236,21 @@ function restart_encouragement_drip(int $patientId, string $firstDelay = '+3 hou
 
 /** Stop HPV FAQ drip once VIA result is recorded (official VIA script SMS is sent separately). */
 function complete_encouragement_drip_after_via(int $patientId): void
+{
+    cancel_queued_encouragement_drip($patientId);
+    if (!db_table_has_column('patients', 'hpv_counseling_index')) {
+        return;
+    }
+    $st = db()->prepare('SELECT preferred_language FROM patients WHERE id = ? LIMIT 1');
+    $st->execute([$patientId]);
+    $langRaw = (string) ($st->fetchColumn() ?: 'en');
+    $lang = in_array($langRaw, ['en', 'sw'], true) ? $langRaw : 'en';
+    $done = encouragement_drip_message_count($lang);
+    db()->prepare('UPDATE patients SET hpv_counseling_index = ? WHERE id = ?')->execute([$done, $patientId]);
+}
+
+/** Stop registration drip once HPV negative is confirmed (one result SMS only; no VIA path). */
+function complete_encouragement_drip_after_hpv_negative(int $patientId): void
 {
     cancel_queued_encouragement_drip($patientId);
     if (!db_table_has_column('patients', 'hpv_counseling_index')) {

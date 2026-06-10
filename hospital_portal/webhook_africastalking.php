@@ -8,6 +8,7 @@ require_once __DIR__ . '/hpv_results.php';
 require_once __DIR__ . '/openai_assistant.php';
 require_once __DIR__ . '/doctor_call_requests.php';
 require_once __DIR__ . '/whatsapp_inbound.php';
+require_once __DIR__ . '/delivery_report_utils.php';
 
 /**
  * Africa's Talking inbound webhook handler.
@@ -18,7 +19,7 @@ require_once __DIR__ . '/whatsapp_inbound.php';
  */
 header('Content-Type: text/plain; charset=UTF-8');
 
-function request_payload(): array
+function request_payload(?string $rawBody = null): array
 {
     $payload = [];
 
@@ -28,15 +29,17 @@ function request_payload(): array
         }
     }
 
-    $raw = file_get_contents('php://input');
-    if (is_string($raw) && trim($raw) !== '') {
-        $json = json_decode($raw, true);
+    if ($rawBody === null) {
+        $rawBody = file_get_contents('php://input');
+    }
+    if (is_string($rawBody) && trim($rawBody) !== '') {
+        $json = json_decode($rawBody, true);
         if (is_array($json)) {
             foreach ($json as $k => $v) {
                 $payload[(string) $k] = is_scalar($v) ? (string) $v : json_encode($v);
             }
         } else {
-            parse_str($raw, $formPairs);
+            parse_str($rawBody, $formPairs);
             if (is_array($formPairs)) {
                 foreach ($formPairs as $k => $v) {
                     $payload[(string) $k] = is_scalar($v) ? (string) $v : json_encode($v);
@@ -135,10 +138,40 @@ error_log("=== WEBHOOK RECEIVED ===");
 error_log("GROQ_API_KEY configured: " . (ai_enabled() ? 'YES' : 'NO'));
 error_log("AFRICASTALKING_API_KEY configured: " . (messaging_enabled() ? 'YES' : 'NO'));
 
-$payload = request_payload();
+$rawBody = file_get_contents('php://input');
+if (!is_string($rawBody)) {
+    $rawBody = '';
+}
+
+// Meta/Mteja JSON sometimes hits the AT callback URL by mistake — forward to WhatsApp handler.
+if ($rawBody !== '') {
+    $jsonProbe = json_decode($rawBody, true);
+    if (is_array($jsonProbe)) {
+        $looksWhatsApp = isset($jsonProbe['entry'])
+            || isset($jsonProbe['customerNumber'])
+            || isset($jsonProbe['messages'])
+            || (isset($jsonProbe['object']) && (string) $jsonProbe['object'] === 'whatsapp_business_account');
+        if ($looksWhatsApp) {
+            error_log('WEBHOOK_REDIRECT: WhatsApp/Mteja payload received on AT webhook — forwarding');
+            whatsapp_inbound_handle_request($rawBody, $_GET);
+            echo 'OK';
+            exit;
+        }
+    }
+}
+
+$payload = request_payload($rawBody);
 error_log("WEBHOOK_PAYLOAD: " . json_encode($payload));
 
-$from = normalize_inbound_phone(payload_value($payload, ['from', 'fromNumber', 'source', 'sender']));
+if (apply_africastalking_delivery_report($payload)) {
+    error_log('WEBHOOK_EXIT: Delivery report processed (not a patient reply)');
+    echo 'OK';
+    exit;
+}
+
+$from = normalize_inbound_phone(payload_value($payload, [
+    'from', 'fromNumber', 'source', 'sender', 'phoneNumber', 'phone', 'msisdn',
+]));
 $body = payload_value($payload, ['text', 'message', 'body', 'content']);
 $channel = channel_from_payload($payload);
 
@@ -150,6 +183,12 @@ if ($channel === 'whatsapp' && defined('WHATSAPP_PROVIDER') && in_array(WHATSAPP
 }
 
 error_log("PARSED: from=$from, channel=$channel, body=$body");
+
+if ($from === '' && $body === '') {
+    error_log('WEBHOOK_EXIT: Empty from+body (ignored — likely misrouted status ping)');
+    echo 'OK';
+    exit;
+}
 
 $patient = find_patient_by_phone($from);
 $patientId = $patient ? (int) $patient['id'] : null;
@@ -177,6 +216,13 @@ if (!$patientId) {
 $msg = strtoupper(trim($body));
 $replyLang = $lang === 'sw' ? 'sw' : 'en';
 $patientFirstName = afya_first_name((string) ($patient['full_name'] ?? ''));
+
+require_once __DIR__ . '/missed_appointment_flow.php';
+$missed = try_handle_missed_appointment_inbound($patientId, $body, $channel, $replyLang);
+if (!empty($missed['handled'])) {
+    echo 'OK';
+    exit;
+}
 
 if (whatsapp_inbound_try_language_reply($patientId, $body, $channel)) {
     echo 'OK';

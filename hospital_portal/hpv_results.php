@@ -234,9 +234,13 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
         }
     }
 
-    db()->prepare(
-        'UPDATE patients SET hpv_result_confirmed_at = NOW(3), hpv_counseling_index = 0 WHERE id = ?'
-    )->execute([$patientId]);
+    if ($result === 'negative') {
+        db()->prepare('UPDATE patients SET hpv_result_confirmed_at = NOW(3) WHERE id = ?')->execute([$patientId]);
+    } else {
+        db()->prepare(
+            'UPDATE patients SET hpv_result_confirmed_at = NOW(3), hpv_counseling_index = 0 WHERE id = ?'
+        )->execute([$patientId]);
+    }
 
     $scheduled = false;
     if ($result === 'negative') {
@@ -246,6 +250,8 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
             'system',
             build_hpv_negative_result_notification($name, $hivStatus, $lang)
         );
+        require_once __DIR__ . '/encouragement_drip.php';
+        complete_encouragement_drip_after_hpv_negative($patientId);
     } else {
         $apptDate = afya_next_appointment_display($patientId);
         if (!patient_has_confirmed_consent($patientId)) {

@@ -5,6 +5,7 @@ require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../appointment_utils.php';
 require_once __DIR__ . '/../hpv_results.php';
 require_once __DIR__ . '/../patient_screening.php';
+require_once __DIR__ . '/../afya_rafiki_content.php';
 
 try {
     $pdo = db();
@@ -102,6 +103,12 @@ try {
         $hpvAuto = try_auto_confirm_hpv_after_appointment_booked($patientId);
         $viaAuto = try_auto_notify_via_after_appointment_booked($patientId);
 
+        require_once __DIR__ . '/../missed_appointment_flow.php';
+        $apptDisplay = afya_next_appointment_display($patientId);
+        if ($apptDisplay === '__________') {
+            $apptDisplay = afya_format_appointment_date($startSql);
+        }
+
         send_patient_message(
             $patientId,
             'appointment_booked',
@@ -113,6 +120,7 @@ try {
                 'location' => $location === '' ? null : $location,
             ], $reason, false, $lang)
         );
+        $missedReschedConfirm = try_send_missed_reschedule_confirmation($patientId, $apptDisplay);
         api_json([
             'ok' => true,
             'appointment_id' => $appointmentId,
@@ -120,6 +128,7 @@ try {
             'counseling_started' => !empty($hpvAuto['counseling_started']),
             'via_result_sent' => !empty($viaAuto['notified']),
             'via_referral_sent' => !empty($viaAuto['referral_sent']),
+            'missed_reschedule_confirm_sent' => $missedReschedConfirm,
         ], 201);
     }
 

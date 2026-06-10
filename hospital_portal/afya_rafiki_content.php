@@ -180,39 +180,15 @@ function build_hpv_positive_result_notification(string $patientName, string $app
         . "\nThank you for choosing Afya Rafiki.";
 }
 
-/** VIA negative result — counseling step 9; return interval depends on HIV status (3 vs 5 years). */
-function build_via_negative_result_notification(string $patientName, string $hivStatus = 'negative', string $lang = 'en'): string
-{
-    require_once __DIR__ . '/afya_counseling_positive.php';
-    $lang = afya_lang($lang);
-    $name = afya_first_name($patientName);
-    $hello = $lang === 'sw'
-        ? ($name !== '' ? "Habari {$name}," : 'Habari,')
-        : ($name !== '' ? "Hello {$name}," : 'Hello,');
-    $messages = $lang === 'sw'
-        ? afya_counseling_messages_positive_sw()
-        : afya_counseling_messages_positive_en();
-    $body = trim((string) ($messages[8] ?? ''));
-    if ($body === '') {
-        return $hello;
-    }
-
-    $hivPositive = $hivStatus === 'positive';
-    if ($lang === 'sw') {
-        $dual = 'Wanawake wanaoishi na HIV: Rudia uchunguzi wa HPV baada ya miaka 3. Wanawake wasio na HIV: Rudia uchunguzi wa HPV baada ya miaka 5.';
-        $interval = $hivPositive
-            ? 'Tafadhali rudia uchunguzi wa HPV baada ya miaka 3.'
-            : 'Tafadhali rudia uchunguzi wa HPV baada ya miaka 5.';
-    } else {
-        $dual = 'Women living with HIV: Repeat HPV screening after 3 years. Women without HIV: Repeat HPV screening after 5 years.';
-        $interval = $hivPositive
-            ? 'Please repeat HPV screening after 3 years.'
-            : 'Please repeat HPV screening after 5 years.';
-    }
-
-    $body = str_replace($dual, $interval, $body);
-
-    return "{$hello}\n{$body}";
+/** VIA negative result — study §12b (sent when follow-up appointment is booked). */
+function build_via_negative_result_notification(
+    string $patientName,
+    string $hivStatus = 'negative',
+    string $lang = 'en',
+    string $appointmentDate = '__________'
+): string {
+    unset($hivStatus);
+    return build_post_visit_via_negative($patientName, $appointmentDate, $lang);
 }
 
 /** VIA positive result — sent when nurse records VIA after the test (counseling step 10 script). */

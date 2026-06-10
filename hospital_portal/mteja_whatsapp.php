@@ -73,6 +73,12 @@ function mteja_template_name(string $base, string $suffix): string
     return $base . '_' . $suffix;
 }
 
+/** Full Mteja template id — e.g. `afya_nav_edu_01_en`, `afya_nav_edu_01_sw`. */
+function mteja_nav_template_id(string $base, string $lang = 'en'): string
+{
+    return mteja_template_name($base, mteja_template_suffix($lang));
+}
+
 function mteja_template_param(string $text, int $max = 980): string
 {
     $text = trim(preg_replace('/\s+/u', ' ', $text) ?? '');
@@ -198,13 +204,37 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
     }
 
     if ($messageType === 'escalation_notice') {
-        if (str_contains($bodyLower, 'missed') || str_contains($bodyLower, 'nilikosa') || str_contains($bodyLower, 'sikuhudhuria')) {
-            return $mk('afya_missed_appt', $name !== '' ? [$name] : ['']);
-        }
         if (str_contains($bodyLower, 'received your message') || str_contains($bodyLower, 'tumepokea ujumbe')) {
             return $mk('afya_doctor_reason_ack');
         }
         return $mk('afya_escalation');
+    }
+
+    if ($messageType === 'missed_survey') {
+        return $mk('afya_missed_appt', $name !== '' ? [$name] : ['']);
+    }
+
+    if ($messageType === 'missed_reschedule_offer') {
+        return $mk('afya_nav_missed_offer');
+    }
+
+    if ($messageType === 'missed_reschedule_confirm') {
+        $date = mteja_extract_appointment_datetime($body, $patientId);
+        if (preg_match('/Date:\s*(.+?)(?:\n|$)/mi', $body, $m) || preg_match('/Tarehe:\s*(.+?)(?:\n|$)/mi', $body, $m)) {
+            $parsed = trim($m[1]);
+            if ($parsed !== '' && !str_contains($parsed, '__________')) {
+                $date = $parsed;
+            }
+        }
+        return $mk('afya_nav_missed_confirm', $name !== '' ? [$name, $date] : ['', $date]);
+    }
+
+    if ($messageType === 'hpv_counseling') {
+        $navEdu = mteja_resolve_nav_edu_template($body, $patientId);
+        if ($navEdu !== null) {
+            return $navEdu;
+        }
+        return $mk('afya_fallback');
     }
 
     if ($messageType === 'engagement_boost') {
@@ -232,11 +262,22 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
     }
 
     if ($messageType === 'via_negative') {
-        return $mk('afya_counsel_pos_09');
+        $date = mteja_extract_appointment_datetime($body, $patientId);
+        return $mk('afya_nav_via_neg_result', $name !== '' ? [$name, $date] : ['', $date]);
     }
 
     if ($messageType === 'via_positive') {
         return $mk('afya_counsel_pos_10');
+    }
+
+    if ($messageType === 'checkup_reminder') {
+        if (str_contains($bodyLower, 'after 1 year') || str_contains($bodyLower, 'mwaka 1')) {
+            $date = 'TBD';
+            if (preg_match('/(?:Reminder date|Tarehe ya kukumbushwa|on|tarehe):\s*(.+?)(?:\n|$)/mi', $body, $m)) {
+                $date = trim($m[1]);
+            }
+            return $mk('afya_nav_checkup_1y', $name !== '' ? [$name, $date] : ['', $date]);
+        }
     }
 
     if ($messageType === 'system' || $messageType === 'ai_reply') {
@@ -311,6 +352,59 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
     }
 
     return $mk('afya_fallback');
+}
+
+/**
+ * Map pre-VIA counseling drip body → afya_nav_edu_01_en/sw … afya_nav_edu_10_en/sw.
+ *
+ * @return array{templateName: string, languageCode: string, components: list<array<string, mixed>>}|null
+ */
+function mteja_resolve_nav_edu_template(string $body, int $patientId): ?array
+{
+    require_once __DIR__ . '/afya_pre_via_counseling.php';
+
+    $lang = function_exists('get_patient_language') ? get_patient_language($patientId) : 'en';
+    $suffix = mteja_template_suffix($lang);
+    $langCode = mteja_lang_code($lang);
+    $bodyLower = mb_strtolower($body);
+
+    $needles = [
+        1 => ['about 8 out of every 10', 'watu 8 kati ya 10'],
+        2 => ['detect and treat changes early before they become serious', 'kugundua na kutibu mabadiliko mapema kabla'],
+        3 => ['more follow-up is needed to help detect abnormal', 'ufuatiliaji zaidi unahitajika'],
+        4 => ['ability to take important steps to protect your health', 'uwezo wa kuchukua hatua muhimu'],
+        5 => ['trusted family member or friend', 'mwanafamilia au rafiki unayemwamini'],
+        6 => ['some infections can persist and cause changes on the cervix', 'baadhi yanaweza kuendelea kwa muda mrefu'],
+        7 => ['visual inspection with acetic acid', 'visual assessment with acetic acid'],
+        8 => ['via negative:', 'via hasi'],
+        9 => ['return for follow up after one year', 'baada ya mwaka mmoja'],
+        10 => ['thermal ablation, a simple procedure', 'thermal ablation, matibabu rahisi'],
+    ];
+
+    $mk = static fn (string $base): array => [
+        'templateName' => mteja_template_name($base, $suffix),
+        'languageCode' => $langCode,
+        'components' => [],
+    ];
+
+    foreach ($needles as $num => $patterns) {
+        foreach ($patterns as $pattern) {
+            if (str_contains($bodyLower, mb_strtolower($pattern))) {
+                return $mk('afya_nav_edu_' . str_pad((string) $num, 2, '0', STR_PAD_LEFT));
+            }
+        }
+    }
+
+    $messages = afya_pre_via_counseling_messages($lang);
+    foreach ($messages as $i => $msg) {
+        $snippet = mb_strtolower(mb_substr(trim($msg), 0, 48));
+        if ($snippet !== '' && str_contains($bodyLower, $snippet)) {
+            $num = str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT);
+            return $mk('afya_nav_edu_' . $num);
+        }
+    }
+
+    return null;
 }
 
 /**

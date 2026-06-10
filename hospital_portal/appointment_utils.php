@@ -232,6 +232,9 @@ function mark_appointment_missed(int $appointmentId, string $recordedBy = 'staff
     $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
     $missedSent = false;
 
+    require_once __DIR__ . '/missed_appointment_flow.php';
+    missed_flow_on_appointment_missed($patientId, $appointmentId);
+
     $optSt = db()->prepare(
         'SELECT 1 FROM contact_channels WHERE patient_id = ? AND opted_in = 1 LIMIT 1'
     );
@@ -239,7 +242,7 @@ function mark_appointment_missed(int $appointmentId, string $recordedBy = 'staff
     if ($optSt->fetchColumn()) {
         $missedSent = send_patient_message(
             $patientId,
-            'escalation_notice',
+            'missed_survey',
             build_missed_appointment_message((string) $row['full_name'], $lang)
         );
     }

@@ -100,17 +100,35 @@ function whatsapp_inbound_parse_messages(array $payload): array
         }
     }
 
-    // Flat messages[] (EnableX / some providers)
-    foreach ($payload['messages'] ?? [] as $msg) {
-        if (!is_array($msg)) {
-            continue;
+    // messages[] array (EnableX) or JSON string (Mteja / MSG91)
+    $messagesField = $payload['messages'] ?? null;
+    if (is_array($messagesField)) {
+        foreach ($messagesField as $msg) {
+            if (!is_array($msg)) {
+                continue;
+            }
+            $from = (string) ($msg['from'] ?? $msg['sender'] ?? $msg['customerNumber'] ?? '');
+            $body = (string) ($msg['text']['body'] ?? $msg['body'] ?? $msg['text'] ?? $msg['message'] ?? '');
+            if (is_array($msg['text'] ?? null)) {
+                $body = (string) (($msg['text']['body'] ?? '') ?: $body);
+            }
+            $add($from, $body);
         }
-        $from = (string) ($msg['from'] ?? $msg['sender'] ?? $msg['customerNumber'] ?? '');
-        $body = (string) ($msg['text']['body'] ?? $msg['body'] ?? $msg['text'] ?? $msg['message'] ?? '');
-        if (is_array($msg['text'] ?? null)) {
-            $body = (string) (($msg['text']['body'] ?? '') ?: $body);
+    } elseif (is_string($messagesField) && trim($messagesField) !== '' && str_starts_with(trim($messagesField), '[')) {
+        $decoded = json_decode($messagesField, true);
+        if (is_array($decoded)) {
+            foreach ($decoded as $msg) {
+                if (!is_array($msg)) {
+                    continue;
+                }
+                $from = (string) ($msg['from'] ?? $msg['sender'] ?? '');
+                $body = (string) ($msg['text']['body'] ?? $msg['body'] ?? $msg['text'] ?? $msg['message'] ?? '');
+                if (is_array($msg['text'] ?? null)) {
+                    $body = (string) (($msg['text']['body'] ?? '') ?: $body);
+                }
+                $add($from, $body);
+            }
         }
-        $add($from, $body);
     }
 
     // Single flat payload (Mteja / custom webhook)
@@ -120,6 +138,15 @@ function whatsapp_inbound_parse_messages(array $payload): array
     $body = whatsapp_inbound_payload_value($payload, [
         'text', 'message', 'body', 'content', 'messageText', 'message_text',
     ]);
+    if ($from === '' && $body !== '') {
+        $contactsRaw = $payload['contacts'] ?? '';
+        if (is_string($contactsRaw) && str_contains($contactsRaw, 'wa_id')) {
+            $contacts = json_decode($contactsRaw, true);
+            if (is_array($contacts) && isset($contacts[0]['wa_id'])) {
+                $from = (string) $contacts[0]['wa_id'];
+            }
+        }
+    }
     if ($from !== '' && $body !== '') {
         $add($from, $body);
     }
@@ -141,6 +168,53 @@ function whatsapp_inbound_parse_messages(array $payload): array
     }
 
     return $out;
+}
+
+/** Meta/Mteja delivery or read receipts — not a patient message. */
+function whatsapp_inbound_is_status_only(array $payload): bool
+{
+    foreach ($payload['entry'] ?? [] as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        foreach ($entry['changes'] ?? [] as $change) {
+            if (!is_array($change)) {
+                continue;
+            }
+            $value = $change['value'] ?? [];
+            if (!is_array($value)) {
+                continue;
+            }
+            if (!empty($value['statuses']) && empty($value['messages'])) {
+                return true;
+            }
+        }
+    }
+
+    $contentType = strtolower(whatsapp_inbound_payload_value($payload, ['contentType', 'content_type', 'type']));
+    if (in_array($contentType, ['status', 'delivery', 'read', 'sent', 'delivered'], true)) {
+        return true;
+    }
+
+    return false;
+}
+
+function whatsapp_inbound_payload_has_message_hints(array $payload): bool
+{
+    if (whatsapp_inbound_payload_value($payload, [
+        'text', 'message', 'body', 'content', 'messageText', 'message_text',
+    ]) !== '') {
+        return true;
+    }
+    if (whatsapp_inbound_payload_value($payload, [
+        'from', 'fromNumber', 'sender', 'customerNumber', 'customer_number', 'phone', 'msisdn', 'wa_id',
+    ]) !== '') {
+        return true;
+    }
+    if (!empty($payload['entry']) || !empty($payload['messages'])) {
+        return true;
+    }
+    return false;
 }
 
 function whatsapp_inbound_phone_variants(string $phone): array
@@ -245,6 +319,12 @@ function whatsapp_inbound_process_registered_patient(array $patient, string $bod
     $msg = strtoupper(trim($body));
     $replyLang = $lang === 'sw' ? 'sw' : 'en';
 
+    require_once __DIR__ . '/missed_appointment_flow.php';
+    $missed = try_handle_missed_appointment_inbound($patientId, $body, 'whatsapp', $replyLang);
+    if (!empty($missed['handled'])) {
+        return;
+    }
+
     if (whatsapp_inbound_try_language_reply($patientId, $body, 'whatsapp')) {
         return;
     }
@@ -319,8 +399,12 @@ function whatsapp_inbound_handle_request(string $rawBody, array $query = []): vo
 
     $messages = whatsapp_inbound_parse_messages($payload);
     if ($messages === []) {
+        if (whatsapp_inbound_is_status_only($payload)) {
+            error_log('WHATSAPP_INBOUND: status/delivery webhook ignored');
+            return;
+        }
         error_log('WHATSAPP_INBOUND: no messages parsed from payload keys: ' . implode(',', array_keys($payload)));
-        if ($payload !== []) {
+        if ($payload !== [] && whatsapp_inbound_payload_has_message_hints($payload)) {
             whatsapp_inbound_save(null, 'unknown', '[unparsed webhook]', $payload);
         }
         return;

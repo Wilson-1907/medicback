@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/delivery_report_utils.php';
 
 /**
  * Africa's Talking delivery report webhook.
@@ -12,43 +13,15 @@ require_once __DIR__ . '/bootstrap.php';
  */
 header('Content-Type: text/plain; charset=UTF-8');
 
-function dr_value(string $key): string
-{
-    $value = $_POST[$key] ?? $_GET[$key] ?? '';
-    return trim((string) $value);
-}
-
-function map_delivery_status(string $rawStatus): string
-{
-    $s = strtoupper($rawStatus);
-    if (in_array($s, ['SUCCESS', 'SENT', 'DELIVERED'], true)) {
-        return 'delivered';
+$payload = [];
+foreach ([$_GET, $_POST] as $source) {
+    foreach ($source as $k => $v) {
+        if (is_scalar($v)) {
+            $payload[(string) $k] = (string) $v;
+        }
     }
-    if (in_array($s, ['FAILED', 'REJECTED', 'EXPIRED', 'UNDELIVERABLE'], true)) {
-        return 'failed';
-    }
-    return 'sent';
 }
 
-$messageId = dr_value('messageId');
-if ($messageId === '') {
-    $messageId = dr_value('id');
-}
-
-$statusRaw = dr_value('status');
-$error = dr_value('failureReason');
-if ($error === '') {
-    $error = dr_value('reason');
-}
-
-if ($messageId !== '') {
-    $status = map_delivery_status($statusRaw);
-    $st = db()->prepare(
-        'UPDATE outbound_messages
-         SET status = ?, error_detail = CASE WHEN ? = "" THEN error_detail ELSE ? END
-         WHERE at_message_id = ?'
-    );
-    $st->execute([$status, $error, $error, $messageId]);
-}
+apply_africastalking_delivery_report($payload);
 
 echo 'OK';

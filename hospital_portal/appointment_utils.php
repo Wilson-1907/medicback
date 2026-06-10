@@ -36,6 +36,26 @@ function appointment_on_or_past_day(array $appointment): bool
     return date('Y-m-d', $start) <= date('Y-m-d');
 }
 
+/** Chronologically first booked appointment for a patient (VIA is only done after this visit). */
+function patient_first_appointment_id(int $patientId): ?int
+{
+    $st = db()->prepare(
+        'SELECT id FROM appointments WHERE patient_id = ? ORDER BY scheduled_start ASC, id ASC LIMIT 1'
+    );
+    $st->execute([$patientId]);
+    $id = $st->fetchColumn();
+
+    return $id !== false ? (int) $id : null;
+}
+
+/** True when this row is the patient's first booked appointment. */
+function appointment_is_patients_first(int $appointmentId, int $patientId): bool
+{
+    $firstId = patient_first_appointment_id($patientId);
+
+    return $firstId !== null && $firstId === $appointmentId;
+}
+
 /** Appointment day has arrived and nurse has not recorded attendance yet. */
 function appointment_needs_attendance_check(array $appointment): bool
 {
@@ -82,7 +102,9 @@ function mark_appointment_attended(int $appointmentId, string $recordedBy = 'sta
     $up->execute([$appointmentId]);
 
     $via = strtolower((string) ($row['via_result'] ?? 'not_done'));
-    $recordViaNext = !in_array($via, ['negative', 'positive'], true);
+    $patientId = (int) $row['patient_id'];
+    $recordViaNext = !in_array($via, ['negative', 'positive'], true)
+        && appointment_is_patients_first($appointmentId, $patientId);
 
     return [
         'ok' => true,

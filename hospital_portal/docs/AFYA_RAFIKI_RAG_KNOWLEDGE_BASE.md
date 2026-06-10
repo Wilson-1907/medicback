@@ -120,12 +120,15 @@ When the appointment date/time has passed, the patient record shows **Patient at
 
 | Nurse action | System | Patient message |
 |--------------|--------|-----------------|
-| **Patient attended** | Status → `completed` | None (next: record VIA) |
+| **Patient attended** (first appointment) | Status → `completed` | None (next: record VIA) |
+| **Patient attended** (2nd+ appointment) | Status → `completed` | None — VIA is only done once, at the first visit |
 | **Did not attend** | Status → `no_show` | Missed-appointment SMS (`afya_missed_appt`) — asks reason (1–7) |
 
 API: `POST /api/appointments.php` with `action=mark_attended` or `action=mark_missed` and `appointment_id`.
 
-**If attended:** nurse scrolls to **VIA result** card and records positive/negative after the test.
+**If attended (first appointment):** nurse scrolls to **VIA result** card and records positive/negative after the test.
+
+**If attended (follow-up appointment):** attendance only — no VIA step.
 
 **If missed:** patient receives the missed message; staff may book a new appointment when patient is ready to return.
 

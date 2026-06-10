@@ -593,7 +593,10 @@ layout_header($patient['full_name']);
       foreach ($appointments as $a) {
           if (strtolower((string) $a['status']) === 'completed') {
               $vr = strtolower((string) ($patient['via_result'] ?? 'not_done'));
-              if (!in_array($vr, ['negative', 'positive'], true)) {
+              if (
+                  !in_array($vr, ['negative', 'positive'], true)
+                  && appointment_is_patients_first((int) $a['id'], $id)
+              ) {
                   $completedForVia = $a;
               }
               break;

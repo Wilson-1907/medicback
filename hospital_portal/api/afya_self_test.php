@@ -84,6 +84,31 @@ function afya_test_results(): array
     $pass('§Phase3 counseling SW count = 15', count($counselSw) === 15, 'got ' . count($counselSw));
     $pass('§Phase3 counseling[0] EN — HPV common', $contains($counselEn[0], '8 out of every 10'));
     $pass('§Phase3 counseling[6] EN — VIA', $contains($counselEn[6], 'Visual Inspection with Acetic acid (VIA)'));
+    $pass('§42 VIA neg counseling EN — HIV 3y / 5y', $contains($counselEn[8], 'Repeat HPV screening after 3 years')
+        && $contains($counselEn[8], 'Repeat HPV screening after 5 years'));
+    $pass('§42 VIA neg counseling EN — not 1 year', !str_contains($counselEn[8], 'after one year'));
+
+    require_once __DIR__ . '/../afya_rafiki_content.php';
+    require_once __DIR__ . '/../patient_screening.php';
+    $viaNegHivPos = build_via_negative_result_notification('Jane', 'positive', 'en');
+    $viaNegHivNeg = build_via_negative_result_notification('Mary', 'negative', 'en');
+    $pass('VIA neg HIV+ EN — 3 years only', $contains($viaNegHivPos, 'after 3 years')
+        && !str_contains($viaNegHivPos, 'after 5 years'));
+    $pass('VIA neg HIV− EN — 5 years only', $contains($viaNegHivNeg, 'after 5 years')
+        && !str_contains($viaNegHivNeg, 'after 3 years'));
+
+    $fuPos = compute_screening_followups([
+        'via_result' => 'negative',
+        'via_date' => '2026-06-10',
+        'hiv_status' => 'positive',
+    ]);
+    $pass('VIA neg follow-up HIV+ — 3 years', ($fuPos['schedules'][0]['reason'] ?? '') === 'via_neg_hiv_pos_3y');
+    $fuNeg = compute_screening_followups([
+        'via_result' => 'negative',
+        'via_date' => '2026-06-10',
+        'hiv_status' => 'negative',
+    ]);
+    $pass('VIA neg follow-up HIV− — 5 years', ($fuNeg['schedules'][0]['reason'] ?? '') === 'via_neg_hiv_neg_5y');
 
     // --- HPV confirm delays (study: 3h, 5h, then 1 day) ---
     $pass('HPV counseling delay index 0 = +3 hours', hpv_delay_before_counseling_index(0) === '+3 hours');

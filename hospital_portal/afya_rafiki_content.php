@@ -303,13 +303,11 @@ function build_consent_message(string $lang = 'en'): string
     return '';
 }
 
-/** @return list<string> Positive HPV pathway — 16 official counseling messages. */
+/** @return list<string> HPV-positive drip — short encouraging tips (not long clinical script). */
 function afya_counseling_messages_positive(string $lang = 'en'): array
 {
-    require_once __DIR__ . '/afya_counseling_positive.php';
-    return afya_lang($lang) === 'sw'
-        ? afya_counseling_messages_positive_sw()
-        : afya_counseling_messages_positive_en();
+    require_once __DIR__ . '/afya_simple_drip.php';
+    return afya_simple_encouragement_drip($lang);
 }
 
 function patient_has_confirmed_consent(int $patientId): bool

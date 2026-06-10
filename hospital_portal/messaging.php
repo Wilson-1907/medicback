@@ -345,6 +345,14 @@ function send_afya_enrollment_messages(int $patientId, string $patientName, stri
         'registration_welcome',
         build_registration_welcome_message($lang)
     );
+
+    require_once __DIR__ . '/afya_simple_drip.php';
+    require_once __DIR__ . '/scheduled_messages.php';
+    $tips = afya_simple_encouragement_drip($lang);
+    $firstTip = trim((string) ($tips[0] ?? ''));
+    if ($firstTip !== '') {
+        schedule_patient_message($patientId, 'engagement_boost', $firstTip, '+2 days');
+    }
 }
 
 function build_appointment_message(string $patientName, array $appointment, string $lang = 'en'): string

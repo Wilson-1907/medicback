@@ -78,17 +78,19 @@ function afya_test_results(): array
     $pass('§10 HELP menu SW', $contains(build_help_menu_message('sw'), 'HPV ni nini?'));
 
     // --- Counseling pathway (Phase 3) ---
-    $counselEn = afya_counseling_messages_positive_en();
-    $counselSw = afya_counseling_messages_positive_sw();
-    $pass('§Phase3 counseling EN count = 15', count($counselEn) === 15, 'got ' . count($counselEn));
-    $pass('§Phase3 counseling SW count = 15', count($counselSw) === 15, 'got ' . count($counselSw));
-    $pass('§Phase3 counseling[0] EN — HPV common', $contains($counselEn[0], '8 out of every 10'));
-    $pass('§Phase3 counseling[6] EN — VIA', $contains($counselEn[6], 'Visual Inspection with Acetic acid (VIA)'));
-    $pass('§42 VIA neg counseling EN — HIV 3y / 5y', $contains($counselEn[8], 'Repeat HPV screening after 3 years')
-        && $contains($counselEn[8], 'Repeat HPV screening after 5 years'));
-    $pass('§42 VIA neg counseling EN — not 1 year', !str_contains($counselEn[8], 'after one year'));
-
+    require_once __DIR__ . '/../afya_simple_drip.php';
+    $dripEn = afya_simple_encouragement_drip_en();
+    $dripSw = afya_simple_encouragement_drip_sw();
+    $pass('Simple drip EN count = 10', count($dripEn) === 10, 'got ' . count($dripEn));
+    $pass('Simple drip SW count = 10', count($dripSw) === 10, 'got ' . count($dripSw));
+    $pass('Simple drip[0] EN — What is HPV', $contains($dripEn[0], 'What is HPV'));
+    $pass('Simple drip[0] EN — short (no 8 out of 10)', !str_contains($dripEn[0], '8 out of every 10'));
     require_once __DIR__ . '/../afya_rafiki_content.php';
+    $counselEn = afya_counseling_messages_positive('en');
+    $pass('HPV+ drip uses simple tips', $contains($counselEn[0], 'What is HPV'));
+    $pass('§42 VIA neg counseling EN — HIV 3y / 5y', $contains(afya_counseling_messages_positive_en()[8], 'Repeat HPV screening after 3 years')
+        && $contains(afya_counseling_messages_positive_en()[8], 'Repeat HPV screening after 5 years'));
+
     require_once __DIR__ . '/../patient_screening.php';
     $viaNegHivPos = build_via_negative_result_notification('Jane', 'positive', 'en');
     $viaNegHivNeg = build_via_negative_result_notification('Mary', 'negative', 'en');
@@ -111,9 +113,9 @@ function afya_test_results(): array
     $pass('VIA neg follow-up HIV− — 5 years', ($fuNeg['schedules'][0]['reason'] ?? '') === 'via_neg_hiv_neg_5y');
 
     // --- HPV confirm delays (study: 3h, 5h, then 1 day) ---
-    $pass('HPV counseling delay index 0 = +3 hours', hpv_delay_before_counseling_index(0) === '+3 hours');
-    $pass('HPV counseling delay index 1 = +5 hours', hpv_delay_before_counseling_index(1) === '+5 hours');
-    $pass('HPV counseling delay index 2 = +1 day', hpv_delay_before_counseling_index(2) === '+1 day');
+    $pass('HPV tip delay index 0 = +1 day', hpv_delay_before_counseling_index(0) === '+1 day');
+    $pass('HPV tip delay index 1 = +2 days', hpv_delay_before_counseling_index(1) === '+2 days');
+    $pass('HPV tip delay index 2 = +2 days', hpv_delay_before_counseling_index(2) === '+2 days');
 
     // --- Mteja language codes ---
     $pass('Mteja lang en_US → en', mteja_lang_code('en_US') === 'en');
@@ -145,6 +147,10 @@ function afya_test_results(): array
         'Registration sends thank-you then welcome',
         str_contains($enrollSrc, 'build_consent_thank_you_message')
             && str_contains($enrollSrc, 'build_registration_welcome_message')
+    );
+    $pass(
+        'Registration schedules first simple HPV tip',
+        str_contains($enrollSrc, 'afya_simple_encouragement_drip')
     );
     $pass(
         'Registration does not send language intro (1/2/3)',

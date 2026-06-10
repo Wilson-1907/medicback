@@ -283,13 +283,12 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
     ];
 }
 
-/** Delay before sending counseling message at this index (0 = first message after confirm). */
+/** Delay before each short encouragement tip (gentle pace, not rapid long messages). */
 function hpv_delay_before_counseling_index(int $index): string
 {
     return match ($index) {
-        0 => '+3 hours',
-        1 => '+5 hours',
-        default => '+1 day',
+        0 => '+1 day',
+        default => '+2 days',
     };
 }
 
@@ -367,7 +366,7 @@ function schedule_hpv_counseling_step(int $patientId, string $delayExpression): 
     if ($msg === null) {
         return false;
     }
-    schedule_patient_message($patientId, 'education_menu', $msg, $delayExpression, true);
+    schedule_patient_message($patientId, 'engagement_boost', $msg, $delayExpression, true);
     return true;
 }
 

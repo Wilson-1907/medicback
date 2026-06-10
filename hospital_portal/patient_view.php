@@ -580,8 +580,54 @@ layout_header($patient['full_name']);
   </div>
 </div>
 
-<div class="card">
-  <h2>Appointments</h2>
+  <?php
+    $pendingAttendanceAppt = null;
+    foreach ($appointments as $a) {
+        if (appointment_needs_attendance_check($a)) {
+            $pendingAttendanceAppt = $a;
+            break;
+        }
+    }
+    $completedForVia = null;
+  if (patient_screening_ready() && $pendingAttendanceAppt === null) {
+      foreach ($appointments as $a) {
+          if (strtolower((string) $a['status']) === 'completed') {
+              $vr = strtolower((string) ($patient['via_result'] ?? 'not_done'));
+              if (!in_array($vr, ['negative', 'positive'], true)) {
+                  $completedForVia = $a;
+              }
+              break;
+          }
+      }
+  }
+  ?>
+  <?php if ($pendingAttendanceAppt !== null): ?>
+  <div class="card" style="border-left:4px solid var(--accent);">
+    <h2>Clinic visit — confirm attendance</h2>
+    <p class="field-hint">Appointment: <?= h($pendingAttendanceAppt['scheduled_start']) ?>. Did the patient attend?</p>
+    <form method="post" style="display:inline" action="patient_view.php?id=<?= $id ?>">
+      <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+      <input type="hidden" name="action" value="mark_attended">
+      <input type="hidden" name="appointment_id" value="<?= (int) $pendingAttendanceAppt['id'] ?>">
+      <button class="btn" type="submit">Patient attended</button>
+    </form>
+    <form method="post" style="display:inline;margin-left:8px" action="patient_view.php?id=<?= $id ?>"
+          onsubmit="return confirm('Mark as missed and notify the patient?');">
+      <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+      <input type="hidden" name="action" value="mark_missed">
+      <input type="hidden" name="appointment_id" value="<?= (int) $pendingAttendanceAppt['id'] ?>">
+      <button class="btn" type="submit" style="background:#b42318">Did not attend</button>
+    </form>
+  </div>
+  <?php elseif ($completedForVia !== null): ?>
+  <div class="card" style="border-left:4px solid #6f42c1;">
+    <h2>Record VIA from clinic visit</h2>
+    <p class="field-hint">Patient attended on <?= h($completedForVia['scheduled_start']) ?>. Record VIA result in the VIA section below.</p>
+  </div>
+  <?php endif; ?>
+
+  <div class="card">
+    <h2>Appointments</h2>
   <?php if ($appointments === []): ?>
     <p style="color:var(--muted)">No appointments yet. Use the form above.</p>
   <?php else: ?>

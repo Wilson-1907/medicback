@@ -26,15 +26,24 @@ function ensure_appointment_attendance_schema(): bool
     }
 }
 
-/** Appointment date/time has passed and nurse has not recorded attendance yet. */
+/** True on the appointment calendar day or any day after. */
+function appointment_on_or_past_day(array $appointment): bool
+{
+    $start = strtotime((string) ($appointment['scheduled_start'] ?? ''));
+    if ($start === false) {
+        return false;
+    }
+    return date('Y-m-d', $start) <= date('Y-m-d');
+}
+
+/** Appointment day has arrived and nurse has not recorded attendance yet. */
 function appointment_needs_attendance_check(array $appointment): bool
 {
     $status = strtolower((string) ($appointment['status'] ?? ''));
     if (!in_array($status, ['proposed', 'confirmed'], true)) {
         return false;
     }
-    $start = strtotime((string) ($appointment['scheduled_start'] ?? ''));
-    return $start !== false && $start <= time();
+    return appointment_on_or_past_day($appointment);
 }
 
 /**
@@ -61,8 +70,8 @@ function mark_appointment_attended(int $appointmentId, string $recordedBy = 'sta
     if (!in_array($row['status'], ['proposed', 'confirmed'], true)) {
         return ['ok' => false, 'error' => 'Attendance was already recorded for this appointment'];
     }
-    if (strtotime((string) $row['scheduled_start']) > time()) {
-        return ['ok' => false, 'error' => 'This appointment has not happened yet'];
+    if (!appointment_on_or_past_day($row)) {
+        return ['ok' => false, 'error' => 'Attendance can be recorded on or after the appointment day'];
     }
 
     $up = db()->prepare(
@@ -108,8 +117,8 @@ function mark_appointment_missed(int $appointmentId, string $recordedBy = 'staff
     if (!in_array($row['status'], ['proposed', 'confirmed'], true)) {
         return ['ok' => false, 'error' => 'Attendance was already recorded for this appointment'];
     }
-    if (strtotime((string) $row['scheduled_start']) > time()) {
-        return ['ok' => false, 'error' => 'Cannot mark missed before the appointment time'];
+    if (!appointment_on_or_past_day($row)) {
+        return ['ok' => false, 'error' => 'Missed visits can be recorded on or after the appointment day'];
     }
 
     $up = db()->prepare(

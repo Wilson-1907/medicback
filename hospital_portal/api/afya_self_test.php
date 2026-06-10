@@ -158,6 +158,12 @@ function afya_test_results(): array
         str_contains($viaSrc, 'complete_encouragement_drip_after_via')
             && str_contains($viaSrc, 'build_via_positive_result_notification')
     );
+    $dripSrc = (string) file_get_contents(__DIR__ . '/../encouragement_drip.php');
+    $pass(
+        'HPV+ drip continues until VIA is recorded',
+        str_contains($dripSrc, 'patient_hpv_positive_confirmed')
+            && str_contains($dripSrc, 'patient_via_result_recorded')
+    );
     $pass(
         'Registration does not send language intro (1/2/3)',
         !str_contains($enrollSrc, 'build_language_introduction_message($lang)')

@@ -24,17 +24,62 @@ function get_encouragement_drip_message_at_index(int $patientId, int $index, ?st
         $lang = in_array($lang, ['en', 'sw'], true) ? $lang : 'en';
     }
     $messages = afya_simple_encouragement_drip($lang);
+    $count = count($messages);
+    if ($count < 1) {
+        return null;
+    }
+    if ($index >= $count) {
+        return $messages[$count - 1];
+    }
     return $messages[$index] ?? null;
 }
 
+function patient_via_result_recorded(int $patientId): bool
+{
+    if (!db_table_has_column('patients', 'via_result')) {
+        return false;
+    }
+    $st = db()->prepare('SELECT via_result FROM patients WHERE id = ? LIMIT 1');
+    $st->execute([$patientId]);
+    $via = strtolower((string) ($st->fetchColumn() ?: ''));
+    return in_array($via, ['positive', 'negative'], true);
+}
+
+function patient_hpv_positive_confirmed(int $patientId): bool
+{
+    if (!db_table_has_column('patients', 'hpv_screening_result')) {
+        return false;
+    }
+    $st = db()->prepare(
+        'SELECT hpv_screening_result, hpv_result_confirmed_at FROM patients WHERE id = ? LIMIT 1'
+    );
+    $st->execute([$patientId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return false;
+    }
+    return strtolower((string) ($row['hpv_screening_result'] ?? '')) === 'positive'
+        && !empty($row['hpv_result_confirmed_at']);
+}
+
+/** Drip stops only when VIA is recorded, or the FAQ sequence ended (non HPV+ patients). */
 function encouragement_drip_pathway_complete(int $patientId): bool
 {
+    if (patient_via_result_recorded($patientId)) {
+        return true;
+    }
+
     $st = db()->prepare('SELECT preferred_language, hpv_counseling_index FROM patients WHERE id = ? LIMIT 1');
     $st->execute([$patientId]);
     $row = $st->fetch();
     if (!$row) {
         return true;
     }
+
+    if (patient_hpv_positive_confirmed($patientId)) {
+        return false;
+    }
+
     $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
     $index = (int) ($row['hpv_counseling_index'] ?? 0);
     return $index >= encouragement_drip_message_count($lang);
@@ -85,6 +130,9 @@ function reset_encouragement_drip_index(int $patientId): void
 /** Schedule the next short tip at the patient's current hpv_counseling_index. */
 function schedule_encouragement_drip_step(int $patientId, ?string $delayExpression = null): bool
 {
+    if (patient_via_result_recorded($patientId)) {
+        return false;
+    }
     if (encouragement_drip_pathway_complete($patientId)) {
         return false;
     }
@@ -101,12 +149,19 @@ function schedule_encouragement_drip_step(int $patientId, ?string $delayExpressi
 
     $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
     $index = (int) ($row['hpv_counseling_index'] ?? 0);
+    $count = encouragement_drip_message_count($lang);
     $msg = get_encouragement_drip_message_at_index($patientId, $index, $lang);
     if ($msg === null || trim($msg) === '') {
         return false;
     }
 
-    $delay = $delayExpression ?? encouragement_drip_delay_before_index($index);
+    if ($delayExpression !== null) {
+        $delay = $delayExpression;
+    } elseif ($index >= $count) {
+        $delay = '+2 days';
+    } else {
+        $delay = encouragement_drip_delay_before_index($index);
+    }
     schedule_patient_message($patientId, 'engagement_boost', $msg, $delay, true);
     return true;
 }
@@ -117,18 +172,42 @@ function encouragement_drip_step_sent(int $patientId): void
     if (!db_table_has_column('patients', 'hpv_counseling_index')) {
         return;
     }
-    db()->prepare(
-        'UPDATE patients SET hpv_counseling_index = hpv_counseling_index + 1 WHERE id = ?'
-    )->execute([$patientId]);
-
-    if (encouragement_drip_pathway_complete($patientId)) {
+    if (patient_via_result_recorded($patientId)) {
         return;
     }
 
-    $st = db()->prepare('SELECT hpv_counseling_index FROM patients WHERE id = ?');
+    $st = db()->prepare('SELECT preferred_language, hpv_counseling_index FROM patients WHERE id = ? LIMIT 1');
     $st->execute([$patientId]);
-    $nextIndex = (int) ($st->fetchColumn() ?: 0);
-    schedule_encouragement_drip_step($patientId, encouragement_drip_delay_before_index($nextIndex));
+    $row = $st->fetch();
+    if (!$row) {
+        return;
+    }
+
+    $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
+    $count = encouragement_drip_message_count($lang);
+    $index = (int) ($row['hpv_counseling_index'] ?? 0);
+
+    if ($index < $count - 1) {
+        db()->prepare(
+            'UPDATE patients SET hpv_counseling_index = hpv_counseling_index + 1 WHERE id = ?'
+        )->execute([$patientId]);
+        $nextIndex = $index + 1;
+        schedule_encouragement_drip_step($patientId, encouragement_drip_delay_before_index($nextIndex));
+        return;
+    }
+
+    if (patient_hpv_positive_confirmed($patientId)) {
+        db()->prepare('UPDATE patients SET hpv_counseling_index = ? WHERE id = ?')->execute([$count, $patientId]);
+        schedule_encouragement_drip_step($patientId, '+2 days');
+        return;
+    }
+
+    db()->prepare(
+        'UPDATE patients SET hpv_counseling_index = hpv_counseling_index + 1 WHERE id = ?'
+    )->execute([$patientId]);
+    if (!encouragement_drip_pathway_complete($patientId)) {
+        schedule_encouragement_drip_step($patientId, encouragement_drip_delay_before_index($index + 1));
+    }
 }
 
 /** Restart drip from tip 1 (e.g. after HPV confirm). */
@@ -139,7 +218,7 @@ function restart_encouragement_drip(int $patientId, string $firstDelay = '+3 hou
     return schedule_encouragement_drip_step($patientId, $firstDelay);
 }
 
-/** Stop pre-VIA FAQ drip once VIA result is recorded (result SMS is sent separately). */
+/** Stop HPV FAQ drip once VIA result is recorded (official VIA script SMS is sent separately). */
 function complete_encouragement_drip_after_via(int $patientId): void
 {
     cancel_queued_encouragement_drip($patientId);
@@ -152,4 +231,32 @@ function complete_encouragement_drip_after_via(int $patientId): void
     $lang = in_array($langRaw, ['en', 'sw'], true) ? $langRaw : 'en';
     $done = encouragement_drip_message_count($lang);
     db()->prepare('UPDATE patients SET hpv_counseling_index = ? WHERE id = ?')->execute([$done, $patientId]);
+}
+
+/** Re-queue drip for HPV+ patients who finished the FAQ sequence but have no VIA yet. */
+function repair_stalled_hpv_positive_drips(): int
+{
+    if (!db_table_has_column('patients', 'hpv_screening_result') || !db_table_has_column('patients', 'via_result')) {
+        return 0;
+    }
+
+    $rows = db()->query(
+        "SELECT id FROM patients
+         WHERE hpv_screening_result = 'positive'
+           AND hpv_result_confirmed_at IS NOT NULL
+           AND via_result NOT IN ('positive', 'negative')"
+    )->fetchAll();
+
+    $repaired = 0;
+    foreach ($rows as $row) {
+        $patientId = (int) ($row['id'] ?? 0);
+        if ($patientId < 1 || patient_has_queued_encouragement_drip($patientId)) {
+            continue;
+        }
+        if (schedule_encouragement_drip_step($patientId, '+2 days')) {
+            $repaired++;
+        }
+    }
+
+    return $repaired;
 }

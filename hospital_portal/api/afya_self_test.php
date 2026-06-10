@@ -114,8 +114,13 @@ function afya_test_results(): array
     // --- Registration enrollment sends message (source check) ---
     $enrollSrc = (string) file_get_contents(__DIR__ . '/../messaging.php');
     $pass(
-        'Registration calls handle_consent_accepted',
-        str_contains($enrollSrc, 'handle_consent_accepted($patientId')
+        'Registration sends one welcome message only',
+        str_contains($enrollSrc, "message_type = 'welcome'")
+            || (str_contains($enrollSrc, "'welcome'") && str_contains($enrollSrc, 'build_language_introduction_message'))
+    );
+    $pass(
+        'Registration does not also send consent thank-you',
+        !str_contains($enrollSrc, 'handle_consent_accepted($patientId')
     );
 
     // --- Reminder cron SQL guards (exact-day only) ---

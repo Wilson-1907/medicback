@@ -123,10 +123,10 @@ function testLocalDocAlignment() {
     }
 
     const messagingPhp = readFileSync(join(ROOT, 'messaging.php'), 'utf8');
-    if (messagingPhp.includes('handle_consent_accepted($patientId')) {
-        pass('Local: registration enrollment sends consent message');
+    if (messagingPhp.includes('build_language_introduction_message($lang)')) {
+        pass('Local: registration enrollment sends welcome only');
     } else {
-        fail('Local: registration enrollment', 'handle_consent_accepted not called');
+        fail('Local: registration enrollment', 'build_language_introduction_message not used');
     }
 }
 
@@ -213,15 +213,21 @@ async function testRegistrationSendsConsentMessage() {
     const mc = await fetchJson('/api/message_center.php');
     const outbound = (mc.data?.outbound || []).filter((o) => o.full_name?.includes(`TEST AUTO ${suffix}`));
     const consentMsg = outbound.find((o) =>
-        String(o.body || '').toLowerCase().includes('appreciate you agreeing')
+        String(o.body || '').includes('Welcome to Afya Rafiki, Your Cervical health journey partner')
     );
     if (consentMsg) {
         pass(`Registration outbound logged — status=${consentMsg.status}, type=${consentMsg.message_type}`);
         if (consentMsg.status === 'failed') {
-            warn(`Consent message failed: ${consentMsg.error_detail || 'unknown'} — check Mteja template afya_consent_thanks_en`);
+            warn(`Welcome message failed: ${consentMsg.error_detail || 'unknown'} — check Mteja template afya_welcome_en`);
+        }
+        const duplicateThankYou = outbound.filter((o) =>
+            String(o.body || '').toLowerCase().includes('appreciate you agreeing')
+        );
+        if (duplicateThankYou.length > 0) {
+            fail('Registration should not send consent thank-you', 'duplicate thank-you message found');
         }
     } else {
-        fail('Registration consent message in outbound_messages', `found ${outbound.length} outbound row(s) for patient`);
+        fail('Registration welcome message in outbound_messages', `found ${outbound.length} outbound row(s) for patient`);
     }
 
     return { patientId, suffix, phone };

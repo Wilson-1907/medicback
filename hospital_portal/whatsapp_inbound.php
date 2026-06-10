@@ -251,7 +251,7 @@ function whatsapp_inbound_process_registered_patient(array $patient, string $bod
 
     $faqReply = afya_faq_reply($body, $replyLang);
     if ($faqReply !== null) {
-        send_patient_message($patientId, 'system', $faqReply);
+        send_patient_message($patientId, 'ai_reply', $faqReply);
         return;
     }
 
@@ -286,7 +286,7 @@ function whatsapp_inbound_process_registered_patient(array $patient, string $bod
         return;
     }
 
-    send_patient_message($patientId, 'system', ai_fallback_reply($lang));
+    send_patient_message($patientId, 'ai_reply', ai_fallback_reply($lang));
 }
 
 /** Handle one inbound WhatsApp POST body (JSON or form). */

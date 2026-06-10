@@ -65,7 +65,7 @@ function build_language_introduction_message(string $lang = 'en'): string
         . 'If you wish to stop receiving Messages from Afya Rafiki- Press 3';
 }
 
-/** @deprecated Registration uses paper consent; intro sent on HPV-positive activation. */
+/** @deprecated Registration uses paper consent; welcome sent once at enrollment. */
 function build_welcome_message(string $patientName, string $lang = 'en'): string
 {
     return build_language_introduction_message($lang);

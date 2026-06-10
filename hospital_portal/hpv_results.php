@@ -265,11 +265,13 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
         );
     } else {
         $apptDate = afya_next_appointment_display($patientId);
-        send_patient_message(
-            $patientId,
-            'welcome',
-            build_language_introduction_message($lang)
-        );
+        if (!patient_has_confirmed_consent($patientId)) {
+            send_patient_message(
+                $patientId,
+                'welcome',
+                build_language_introduction_message($lang)
+            );
+        }
         send_patient_message(
             $patientId,
             'system',

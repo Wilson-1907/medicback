@@ -213,9 +213,6 @@ try {
              VALUES (?,?,?,?)'
         );
         $ev->execute([$pid, $channel, $optIn ? 'opt_in' : 'opt_out', 'frontend_registration']);
-        if ($optIn) {
-            record_registration_consent($pid, $channel);
-        }
         $pdo->commit();
 
         if ($optIn) {

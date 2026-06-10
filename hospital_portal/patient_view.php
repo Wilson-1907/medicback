@@ -242,10 +242,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } elseif ($action === 'hpv_set_positive') {
                 $out = set_patient_hpv_result($id, 'positive', (string) ($_SESSION['staff_username'] ?? 'staff'));
-                $flash = !empty($out['ok']) ? 'HPV result recorded as POSITIVE (not yet sent to patient).' : ($out['error'] ?? 'Failed');
-                if (empty($out['ok'])) {
-                    $errors[] = $flash;
+                if (!empty($out['ok'])) {
+                    header('Location: patient_view.php?id=' . $id . '&book_appt=1#add-appointment');
+                    exit;
                 }
+                $flash = $out['error'] ?? 'Failed to record HPV positive';
+                $errors[] = $flash;
             } elseif ($action === 'hpv_set_negative') {
                 $out = set_patient_hpv_result($id, 'negative', (string) ($_SESSION['staff_username'] ?? 'staff'));
                 $flash = !empty($out['ok']) ? 'HPV result recorded as NEGATIVE (not yet sent to patient).' : ($out['error'] ?? 'Failed');
@@ -386,7 +388,7 @@ layout_header($patient['full_name']);
 
 <div class="grid-2">
   <div class="card">
-    <h2>Add appointment</h2>
+    <h2 id="add-appointment">Add appointment</h2>
     <form method="post" action="patient_view.php?id=<?= $id ?>">
       <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
       <input type="hidden" name="action" value="new_appt">
@@ -715,5 +717,11 @@ layout_header($patient['full_name']);
     </table>
   <?php endif; ?>
 </div>
+<?php if (!empty($_GET['book_appt'])): ?>
+<script>
+document.getElementById('add-appointment')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+document.getElementById('scheduled_start')?.focus();
+</script>
+<?php endif; ?>
 <?php
 layout_footer();

@@ -189,10 +189,15 @@ function set_patient_hpv_result(int $patientId, string $result, string $recorded
         error_log('diagnosis_results insert: ' . $e->getMessage());
     }
 
+    $message = $result === 'positive'
+        ? 'Recorded HPV positive. Book a follow-up appointment, then confirm to notify the patient.'
+        : 'Recorded HPV ' . $result . '. You can now confirm to notify the patient.';
+
     return [
         'ok' => true,
-        'message' => 'Recorded HPV ' . $result . '. You can now confirm to notify the patient.',
+        'message' => $message,
         'hpv_screening_result' => $result,
+        'book_appointment' => $result === 'positive',
     ];
 }
 

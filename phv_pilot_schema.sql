@@ -73,6 +73,7 @@ CREATE TABLE appointments (
   reminder_7d_sent_at DATETIME(3) NULL,
   reminder_3d_sent_at DATETIME(3) NULL,
   reminder_night_sent_at DATETIME(3) NULL,
+  attendance_recorded_at DATETIME(3) NULL,
   created_at      DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at      DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   KEY idx_appt_patient (patient_id),

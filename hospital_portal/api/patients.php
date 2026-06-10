@@ -6,6 +6,7 @@ require_once __DIR__ . '/../hpv_results.php';
 require_once __DIR__ . '/../patient_screening.php';
 require_once __DIR__ . '/../patient_client_id.php';
 require_once __DIR__ . '/../patient_age.php';
+require_once __DIR__ . '/../patient_referral.php';
 require_once __DIR__ . '/../afya_rafiki_content.php';
 
 try {
@@ -14,6 +15,7 @@ try {
 
     ensure_patient_screening_schema();
     ensure_hpv_workflow_schema();
+    ensure_nyeri_referral_schema();
     ensure_client_id_unique_index();
     ensure_outbound_message_types();
 
@@ -36,9 +38,12 @@ try {
                 ? implode(', ', patient_screening_select_columns())
                 : "NULL AS hiv_status, NULL AS hpv_done_before, NULL AS hpv_prior_result, NULL AS place_of_residence,
                    NULL AS via_result, NULL AS via_date, 0 AS has_cancer, NULL AS treatment_date, NULL AS next_checkup_at";
+            $referralCols = db_table_has_column('patients', 'nyeri_referral_at')
+                ? 'nyeri_referral_at, nyeri_referral_appointment_date'
+                : 'NULL AS nyeri_referral_at, NULL AS nyeri_referral_appointment_date';
             $st = $pdo->prepare(
                 "SELECT id, full_name, date_of_birth, age, preferred_language, external_mrn, notes, status, registration_at,
-                        {$hpvCols}, {$screenCols}
+                        {$hpvCols}, {$screenCols}, {$referralCols}
                  FROM patients WHERE id = ? LIMIT 1"
             );
             $st->execute([$id]);
@@ -83,6 +88,8 @@ try {
             $patient['hpv_workflow_enabled'] = hpv_workflow_ready();
             $patient['screening_enabled'] = patient_screening_ready();
             $patient['client_id'] = $patient['external_mrn'] ?? null;
+
+            $patient['nyeri_referral_status'] = patient_nyeri_referral_status($patient);
 
             api_json(['ok' => true, 'patient' => $patient]);
         }

@@ -206,6 +206,11 @@ After the patient has been tested, nurse opens **patient record → VIA result c
 - Specialist review and further tests — does not always mean cancer
 - Referral appointment reminders when scheduled
 
+### Manual referral after all tests complete
+When **HPV is confirmed** and **VIA is recorded**, staff open the patient record → **Refer to Nyeri County Referral Hospital** card, enter the specialist appointment date, and send. Patient receives `afya_via_referral` SMS/WhatsApp plus a reassurance follow-up message.
+
+API: `POST /api/referral.php` with `patient_id` and `referral_appointment_date` (YYYY-MM-DD).
+
 ### Ongoing patient support
 - Appointment reminders for all booked visits
 - FAQ (HELP menu) and AI replies on WhatsApp

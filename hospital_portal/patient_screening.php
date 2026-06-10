@@ -6,6 +6,7 @@ require_once __DIR__ . '/hpv_results.php';
 require_once __DIR__ . '/scheduled_messages.php';
 require_once __DIR__ . '/messaging.php';
 require_once __DIR__ . '/afya_rafiki_content.php';
+require_once __DIR__ . '/patient_referral.php';
 
 const NYERI_REFERRAL_HOSPITAL = 'Nyeri County Referral Hospital';
 
@@ -25,6 +26,8 @@ function ensure_patient_screening_schema(): bool
             'has_cancer' => 'TINYINT(1) NOT NULL DEFAULT 0',
             'treatment_date' => 'DATE NULL',
             'next_checkup_at' => 'DATE NULL',
+            'nyeri_referral_at' => 'DATETIME(3) NULL',
+            'nyeri_referral_appointment_date' => 'DATE NULL',
         ];
         foreach ($cols as $column => $definition) {
             if (!db_table_has_column('patients', $column)) {
@@ -374,11 +377,13 @@ function process_via_recorded_messages(
             build_via_negative_result_notification($patientName, $lang)
         );
     } elseif (!empty($screening['has_cancer'])) {
+        $refDate = (string) ($screening['via_date'] ?? date('Y-m-d'));
         send_patient_message(
             $patientId,
             'referral',
-            build_referral_message($patientName, $lang)
+            build_referral_message($patientName, $lang, afya_format_appointment_date($refDate . ' 09:00:00'))
         );
+        mark_nyeri_referral_recorded($patientId, $refDate);
     } else {
         send_patient_message(
             $patientId,

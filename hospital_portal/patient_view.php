@@ -6,6 +6,7 @@ require_once __DIR__ . '/layout.php';
 require_once __DIR__ . '/messaging.php';
 require_once __DIR__ . '/appointment_utils.php';
 require_once __DIR__ . '/hpv_results.php';
+require_once __DIR__ . '/patient_screening.php';
 require_login();
 
 $id = (int) ($_GET['id'] ?? 0);
@@ -113,6 +114,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     );
                     $u->execute([$aid, $id]);
                     $flash = 'Appointment marked confirmed.';
+                }
+            } elseif ($action === 'mark_attended') {
+                $out = mark_appointment_attended((int) ($_POST['appointment_id'] ?? 0), (string) ($_SESSION['staff_username'] ?? 'staff'));
+                if (!empty($out['ok'])) {
+                    $flash = !empty($out['record_via_next'])
+                        ? 'Marked as attended. Record the VIA result below.'
+                        : 'Marked as attended.';
+                } else {
+                    $errors[] = $out['error'] ?? 'Failed to mark attended';
+                }
+            } elseif ($action === 'mark_missed') {
+                $out = mark_appointment_missed((int) ($_POST['appointment_id'] ?? 0), (string) ($_SESSION['staff_username'] ?? 'staff'));
+                if (!empty($out['ok'])) {
+                    $flash = !empty($out['missed_message_sent'])
+                        ? 'Marked as missed. Patient notified by SMS/WhatsApp.'
+                        : 'Marked as missed.';
+                } else {
+                    $errors[] = $out['error'] ?? 'Failed to mark missed';
                 }
             } elseif ($action === 'reschedule_appt') {
                 $aid = (int) ($_POST['appointment_id'] ?? 0);
@@ -239,6 +258,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     : ($out['error'] ?? 'Failed');
                 if (empty($out['ok'])) {
                     $errors[] = $flash;
+                }
+            } elseif ($action === 'record_via') {
+                $viaResult = (string) ($_POST['via_result'] ?? '');
+                $viaDate = trim((string) ($_POST['via_date'] ?? ''));
+                $hasCancer = !empty($_POST['has_cancer']);
+                $treatmentDate = trim((string) ($_POST['treatment_date'] ?? ''));
+                $out = record_patient_via_result(
+                    $id,
+                    $viaResult,
+                    $viaDate,
+                    $hasCancer,
+                    $treatmentDate === '' ? null : $treatmentDate,
+                    (string) ($_SESSION['staff_username'] ?? 'staff')
+                );
+                if (!empty($out['ok'])) {
+                    $flash = 'VIA result recorded.';
+                    if (!empty($out['referral_sent'])) {
+                        $flash .= ' Referral SMS sent.';
+                    }
+                } else {
+                    $errors[] = $out['error'] ?? 'Failed to record VIA result.';
                 }
             }
         } catch (Throwable $e) {
@@ -406,6 +446,50 @@ layout_header($patient['full_name']);
   </div>
   <?php endif; ?>
 
+  <?php if (patient_screening_ready()): ?>
+  <?php
+    $viaRecorded = in_array(strtolower((string) ($patient['via_result'] ?? '')), ['positive', 'negative'], true);
+  ?>
+  <div class="card" style="border-left:4px solid #6f42c1;">
+    <h2>VIA result (after test)</h2>
+    <?php if ($viaRecorded): ?>
+      <p><strong>Result:</strong> <?= h(strtoupper((string) $patient['via_result'])) ?>
+        · <strong>Date:</strong> <?= h((string) $patient['via_date']) ?>
+        <?php if ((int) ($patient['has_cancer'] ?? 0) === 1): ?> · <span style="color:var(--warning)">Cancer — referral sent</span><?php endif; ?>
+      </p>
+      <?php if (!empty($patient['next_checkup_at'])): ?>
+        <p style="color:var(--muted)">Next check-up: <?= h($patient['next_checkup_at']) ?></p>
+      <?php endif; ?>
+    <?php else: ?>
+      <p class="field-hint">Record VIA after the patient has been tested. Follow-up SMS is sent when opted in.</p>
+      <form method="post" action="patient_view.php?id=<?= $id ?>">
+        <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+        <input type="hidden" name="action" value="record_via">
+        <div class="field">
+          <label for="via_result">Result</label>
+          <select id="via_result" name="via_result" required>
+            <option value="">—</option>
+            <option value="negative">Negative</option>
+            <option value="positive">Positive</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="via_date">Date of VIA test</label>
+          <input id="via_date" name="via_date" type="date" required>
+        </div>
+        <div class="field">
+          <label><input type="checkbox" name="has_cancer" value="1"> Patient has cancer — send referral to Nyeri County Referral Hospital</label>
+        </div>
+        <div class="field">
+          <label for="treatment_date">Treatment date (optional)</label>
+          <input id="treatment_date" name="treatment_date" type="date">
+        </div>
+        <button class="btn" type="submit">Save VIA result &amp; notify</button>
+      </form>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
+
   <div class="card">
     <h2>Record diagnosis result</h2>
     <form method="post" action="patient_view.php?id=<?= $id ?>">
@@ -527,6 +611,20 @@ layout_header($patient['full_name']);
                   <input type="hidden" name="action" value="confirm_appt">
                   <input type="hidden" name="appointment_id" value="<?= (int) $a['id'] ?>">
                   <button class="btn" type="submit" style="padding:0.35rem 0.65rem;font-size:0.85rem">Confirm</button>
+                </form>
+              <?php elseif (appointment_needs_attendance_check($a)): ?>
+                <form method="post" action="patient_view.php?id=<?= $id ?>" style="display:inline">
+                  <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+                  <input type="hidden" name="action" value="mark_attended">
+                  <input type="hidden" name="appointment_id" value="<?= (int) $a['id'] ?>">
+                  <button class="btn" type="submit" style="padding:0.35rem 0.65rem;font-size:0.85rem">Attended</button>
+                </form>
+                <form method="post" action="patient_view.php?id=<?= $id ?>" style="display:inline;margin-left:4px"
+                      onsubmit="return confirm('Mark as missed and notify the patient?');">
+                  <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+                  <input type="hidden" name="action" value="mark_missed">
+                  <input type="hidden" name="appointment_id" value="<?= (int) $a['id'] ?>">
+                  <button class="btn" type="submit" style="padding:0.35rem 0.65rem;font-size:0.85rem;background:#b42318">Missed</button>
                 </form>
               <?php else: ?>
                 —

@@ -195,8 +195,6 @@ async function testRegistrationSendsConsentMessage() {
         hiv_status: 'negative',
         hpv_done_before: 'no',
         place_of_residence: 'Nyeri Town',
-        via_result: 'negative',
-        via_date: '2026-01-10',
     };
 
     const created = await fetchJson('/api/patients.php', {
@@ -288,8 +286,6 @@ async function testHpvPositiveFullFlow() {
             hiv_status: 'negative',
             hpv_done_before: 'no',
             place_of_residence: 'Nyeri',
-            via_result: 'negative',
-            via_date: '2026-01-01',
         }),
     });
     if (!reg.data?.patient_id) {

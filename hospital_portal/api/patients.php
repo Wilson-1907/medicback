@@ -140,6 +140,11 @@ try {
 
     $screening = parse_screening_from_body($body);
     if (patient_screening_ready()) {
+        // VIA is recorded after the test on the patient page, not at registration.
+        $screening['via_result'] = 'not_done';
+        $screening['via_date'] = null;
+        $screening['has_cancer'] = 0;
+        $screening['treatment_date'] = null;
         $screenErr = validate_screening_registration($screening);
         if ($screenErr !== null) {
             api_json(['ok' => false, 'error' => $screenErr], 422);
@@ -217,7 +222,6 @@ try {
 
         if ($optIn) {
             send_afya_enrollment_messages($pid, $name, $lang);
-            process_registration_screening_messages($pid, $name, $lang, $screening, true);
         }
 
         api_json([

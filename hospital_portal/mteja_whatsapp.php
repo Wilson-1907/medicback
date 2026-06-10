@@ -216,6 +216,14 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
         return $mk('afya_via_referral', $name !== '' ? [$name, $date] : ['', $date]);
     }
 
+    if ($messageType === 'via_negative') {
+        return $mk('afya_counsel_pos_09');
+    }
+
+    if ($messageType === 'via_positive') {
+        return $mk('afya_counsel_pos_10');
+    }
+
     if ($messageType === 'system' || $messageType === 'ai_reply') {
         if (str_contains($bodyLower, 'appreciate you agreeing') || str_contains($bodyLower, 'kukubali kupokea ujumbe')) {
             return $mk('afya_consent_thanks', $name !== '' ? [$name] : ['']);

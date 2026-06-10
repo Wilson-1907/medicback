@@ -180,6 +180,38 @@ function build_hpv_positive_result_notification(string $patientName, string $app
         . "\nThank you for choosing Afya Rafiki.";
 }
 
+/** VIA negative result — sent when nurse records VIA after the test (counseling step 9 script). */
+function build_via_negative_result_notification(string $patientName, string $lang = 'en'): string
+{
+    require_once __DIR__ . '/afya_counseling_positive.php';
+    $lang = afya_lang($lang);
+    $name = afya_first_name($patientName);
+    $hello = $lang === 'sw'
+        ? ($name !== '' ? "Habari {$name}," : 'Habari,')
+        : ($name !== '' ? "Hello {$name}," : 'Hello,');
+    $messages = $lang === 'sw'
+        ? afya_counseling_messages_positive_sw()
+        : afya_counseling_messages_positive_en();
+    $body = trim((string) ($messages[8] ?? ''));
+    return $body === '' ? $hello : "{$hello}\n{$body}";
+}
+
+/** VIA positive result — sent when nurse records VIA after the test (counseling step 10 script). */
+function build_via_positive_result_notification(string $patientName, string $lang = 'en'): string
+{
+    require_once __DIR__ . '/afya_counseling_positive.php';
+    $lang = afya_lang($lang);
+    $name = afya_first_name($patientName);
+    $hello = $lang === 'sw'
+        ? ($name !== '' ? "Habari {$name}," : 'Habari,')
+        : ($name !== '' ? "Hello {$name}," : 'Hello,');
+    $messages = $lang === 'sw'
+        ? afya_counseling_messages_positive_sw()
+        : afya_counseling_messages_positive_en();
+    $body = trim((string) ($messages[9] ?? ''));
+    return $body === '' ? $hello : "{$hello}\n{$body}";
+}
+
 /** Written consent signed at registration — no SMS opt-in question. */
 function record_registration_consent(int $patientId, string $channel): void
 {

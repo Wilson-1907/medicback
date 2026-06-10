@@ -6,6 +6,7 @@ require_once __DIR__ . '/../appointment_utils.php';
 
 try {
     $pdo = db();
+    ensure_appointment_attendance_schema();
 
     // List booked appointments (for the hospital console appointments viewer).
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
@@ -21,7 +22,7 @@ try {
                      ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS reason
              FROM appointments a
              INNER JOIN patients p ON p.id = a.patient_id
-             WHERE a.status IN ('proposed','confirmed','completed')
+             WHERE a.status IN ('proposed','confirmed','completed','no_show')
              ORDER BY a.scheduled_start DESC
              LIMIT 300"
         )->fetchAll();
@@ -185,6 +186,24 @@ try {
             ], $reason, true, $lang)
         );
         api_json(['ok' => true, 'appointment_id' => $appointmentId]);
+    }
+
+    if ($action === 'mark_attended') {
+        $appointmentId = (int) ($body['appointment_id'] ?? 0);
+        if ($appointmentId < 1) {
+            api_json(['ok' => false, 'error' => 'appointment_id is required'], 422);
+        }
+        $out = mark_appointment_attended($appointmentId, 'hospital_console');
+        api_json($out, !empty($out['ok']) ? 200 : 422);
+    }
+
+    if ($action === 'mark_missed') {
+        $appointmentId = (int) ($body['appointment_id'] ?? 0);
+        if ($appointmentId < 1) {
+            api_json(['ok' => false, 'error' => 'appointment_id is required'], 422);
+        }
+        $out = mark_appointment_missed($appointmentId, 'hospital_console');
+        api_json($out, !empty($out['ok']) ? 200 : 422);
     }
 
     api_json(['ok' => false, 'error' => 'Unknown action'], 422);

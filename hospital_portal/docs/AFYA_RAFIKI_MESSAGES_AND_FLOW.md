@@ -29,9 +29,9 @@ At registration the patient signs the hospital form agreeing to receive messages
 
 ## Step 1 — Registration at the hospital
 
-The nurse registers the patient on the HPV console: client number, name, date of birth, phone, language (English or Kiswahili), SMS or WhatsApp, and screening details (HIV status, HPV history, residence, VIA result and date, and related fields).
+The nurse registers the patient on the HPV console: client number, name, date of birth, phone, language (English or Kiswahili), SMS or WhatsApp, and screening details (HIV status, HPV history, residence). **VIA is not recorded at registration** — it is uploaded on the patient page after the VIA test.
 
-When registration is saved and the patient agreed to receive messages on paper, the **welcome SMS is sent immediately** (English or Kiswahili below). HPV result messages are sent when staff confirm the result.
+When registration is saved and the patient agreed to receive messages on paper, **two messages** are sent in order: (1) thank-you for agreeing, (2) registration welcome below. HPV result messages are sent when staff confirm the lab result. VIA result messages are sent when staff record VIA after the test.
 
 ### Welcome — sent on successful registration (opt-in)
 
@@ -118,9 +118,13 @@ Hello [Name], we noticed you may have missed your scheduled follow-up… Reply 1
 
 ---
 
-## VIA suspicious / referral (registration or clinical pathway)
+## VIA results (after the test — not at registration)
 
-Referral SMS to **Nyeri County Referral Hospital** with appointment date — see `build_referral_message()` when VIA positive with cancer flag at registration.
+When the patient attends clinic for VIA and staff record the result on the patient page:
+
+- **VIA negative** → immediate negative result SMS (counseling step 9) + annual check-up scheduled
+- **VIA positive** → immediate positive result SMS (counseling step 10; Thermal Ablation pathway)
+- **VIA positive + cancer/suspicious** → referral SMS to **Nyeri County Referral Hospital** — see `build_referral_message()` and `afya_via_referral` template
 
 ---
 

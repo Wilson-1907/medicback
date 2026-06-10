@@ -97,9 +97,9 @@ function parse_screening_from_body(array $body): array
         $hpvPrior = 'unknown';
     }
 
-    $via = strtolower(trim((string) ($body['via_result'] ?? 'unknown')));
-    if (!in_array($via, ['not_done', 'negative', 'positive'], true)) {
-        $via = 'unknown';
+    $via = strtolower(trim((string) ($body['via_result'] ?? 'not_done')));
+    if (!in_array($via, ['not_done', 'negative', 'positive', 'unknown'], true)) {
+        $via = 'not_done';
     }
 
     $viaDate = trim((string) ($body['via_date'] ?? ''));
@@ -140,13 +140,117 @@ function validate_screening_registration(array $screening): ?string
     if ($screening['place_of_residence'] === '') {
         return 'Place of residence is required.';
     }
-    if ($screening['via_result'] === 'unknown') {
-        return 'VIA result is required.';
+    return null;
+}
+
+/**
+ * @param array<string, mixed> $data
+ */
+function validate_via_record(array $data): ?string
+{
+    $via = strtolower(trim((string) ($data['via_result'] ?? '')));
+    if (!in_array($via, ['negative', 'positive'], true)) {
+        return 'VIA result must be positive or negative.';
     }
-    if (in_array($screening['via_result'], ['positive', 'negative'], true) && $screening['via_date'] === null) {
-        return 'Date of VIA is required when a VIA result is recorded.';
+    $viaDate = trim((string) ($data['via_date'] ?? ''));
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $viaDate)) {
+        return 'Date of VIA test is required.';
     }
     return null;
+}
+
+/**
+ * Record VIA after the patient has been tested (not at registration).
+ *
+ * @return array{ok: bool, error?: string, referral_sent?: bool, next_checkup_at?: ?string}
+ */
+function record_patient_via_result(
+    int $patientId,
+    string $viaResult,
+    string $viaDate,
+    bool $hasCancer,
+    ?string $treatmentDate,
+    string $recordedBy = 'staff'
+): array {
+    if (!patient_screening_ready()) {
+        return ['ok' => false, 'error' => 'VIA recording is not available on this server.'];
+    }
+
+    $err = validate_via_record([
+        'via_result' => $viaResult,
+        'via_date' => $viaDate,
+    ]);
+    if ($err !== null) {
+        return ['ok' => false, 'error' => $err];
+    }
+
+    $viaResult = strtolower(trim($viaResult));
+    $st = db()->prepare(
+        'SELECT id, full_name, preferred_language, hiv_status, hpv_done_before, hpv_prior_result,
+                place_of_residence, via_result
+         FROM patients WHERE id = ? LIMIT 1'
+    );
+    $st->execute([$patientId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return ['ok' => false, 'error' => 'Patient not found'];
+    }
+
+    $treatmentVal = ($treatmentDate !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $treatmentDate))
+        ? $treatmentDate
+        : null;
+    $hasCancerVal = $viaResult === 'positive' && $hasCancer ? 1 : 0;
+
+    $screening = [
+        'hiv_status' => (string) ($row['hiv_status'] ?? 'not_known'),
+        'hpv_done_before' => (string) ($row['hpv_done_before'] ?? 'unknown'),
+        'hpv_prior_result' => (string) ($row['hpv_prior_result'] ?? 'unknown'),
+        'place_of_residence' => (string) ($row['place_of_residence'] ?? ''),
+        'via_result' => $viaResult,
+        'via_date' => $viaDate,
+        'has_cancer' => $hasCancerVal,
+        'treatment_date' => $treatmentVal,
+    ];
+    $followups = compute_screening_followups($screening);
+
+    $up = db()->prepare(
+        'UPDATE patients
+         SET via_result = ?, via_date = ?, has_cancer = ?, treatment_date = ?, next_checkup_at = ?
+         WHERE id = ?'
+    );
+    $up->execute([
+        $viaResult,
+        $viaDate,
+        $hasCancerVal,
+        $treatmentVal,
+        $followups['next_checkup_at'],
+        $patientId,
+    ]);
+
+    $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
+    $name = (string) $row['full_name'];
+    $referralSent = false;
+
+    $optSt = db()->prepare(
+        'SELECT 1 FROM contact_channels WHERE patient_id = ? AND opted_in = 1 LIMIT 1'
+    );
+    $optSt->execute([$patientId]);
+    $messageSent = false;
+    if ($optSt->fetchColumn()) {
+        process_via_recorded_messages($patientId, $name, $lang, $screening, true);
+        $messageSent = true;
+        $referralSent = $viaResult === 'positive' && $hasCancerVal === 1;
+    }
+
+    return [
+        'ok' => true,
+        'via_result' => $viaResult,
+        'via_date' => $viaDate,
+        'next_checkup_at' => $followups['next_checkup_at'],
+        'referral_sent' => $referralSent,
+        'via_message_sent' => $messageSent,
+        'recorded_by' => $recordedBy,
+    ];
 }
 
 /**
@@ -241,9 +345,11 @@ function build_checkup_reminder_message(
 }
 
 /**
+ * Messages after nurse records VIA on the patient page (post-test).
+ *
  * @param array<string, mixed> $screening
  */
-function process_registration_screening_messages(
+function process_via_recorded_messages(
     int $patientId,
     string $patientName,
     string $lang,
@@ -256,11 +362,27 @@ function process_registration_screening_messages(
 
     ensure_patient_screening_schema();
 
-    if ($screening['via_result'] === 'positive' && !empty($screening['has_cancer'])) {
+    if (!in_array($screening['via_result'], ['negative', 'positive'], true)) {
+        return;
+    }
+
+    if ($screening['via_result'] === 'negative') {
+        send_patient_message(
+            $patientId,
+            'via_negative',
+            build_via_negative_result_notification($patientName, $lang)
+        );
+    } elseif (!empty($screening['has_cancer'])) {
         send_patient_message(
             $patientId,
             'referral',
             build_referral_message($patientName, $lang)
+        );
+    } else {
+        send_patient_message(
+            $patientId,
+            'via_positive',
+            build_via_positive_result_notification($patientName, $lang)
         );
     }
 
@@ -280,4 +402,15 @@ function process_registration_screening_messages(
             (string) $item['send_at']
         );
     }
+}
+
+/** @deprecated VIA is no longer recorded at registration; use process_via_recorded_messages(). */
+function process_registration_screening_messages(
+    int $patientId,
+    string $patientName,
+    string $lang,
+    array $screening,
+    bool $optedIn
+): void {
+    process_via_recorded_messages($patientId, $patientName, $lang, $screening, $optedIn);
 }

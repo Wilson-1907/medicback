@@ -81,7 +81,7 @@ try {
                 $startSql,
                 $endSql,
                 $location === '' ? null : $location,
-                'proposed',
+                'confirmed',
             ]);
             $appointmentId = (int) $pdo->lastInsertId();
             $h = $pdo->prepare(

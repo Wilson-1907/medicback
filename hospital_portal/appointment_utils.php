@@ -72,13 +72,13 @@ function patient_has_upcoming_appointment(int $patientId, ?array $appointments =
     return (bool) $st->fetchColumn();
 }
 
-/** Patient has at least one appointment past the proposed stage (confirmed by staff). */
+/** Patient has at least one active booked visit (staff booking counts as confirmed). */
 function patient_has_confirmed_appointment(int $patientId, ?array $appointments = null): bool
 {
     if ($appointments !== null) {
         foreach ($appointments as $a) {
             $status = strtolower((string) ($a['status'] ?? ''));
-            if (in_array($status, ['confirmed', 'completed', 'no_show'], true)) {
+            if (in_array($status, ['proposed', 'confirmed', 'completed', 'no_show'], true)) {
                 return true;
             }
         }
@@ -88,7 +88,7 @@ function patient_has_confirmed_appointment(int $patientId, ?array $appointments 
 
     $st = db()->prepare(
         "SELECT 1 FROM appointments
-         WHERE patient_id = ? AND status IN ('confirmed','completed','no_show')
+         WHERE patient_id = ? AND status IN ('proposed','confirmed','completed','no_show')
          LIMIT 1"
     );
     $st->execute([$patientId]);

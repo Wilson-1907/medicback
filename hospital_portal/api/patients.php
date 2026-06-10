@@ -8,6 +8,7 @@ require_once __DIR__ . '/../patient_client_id.php';
 require_once __DIR__ . '/../patient_age.php';
 require_once __DIR__ . '/../patient_referral.php';
 require_once __DIR__ . '/../afya_rafiki_content.php';
+require_once __DIR__ . '/../appointment_utils.php';
 
 try {
     $pdo = db();
@@ -71,6 +72,17 @@ try {
             );
             $appts->execute([$id]);
             $patient['appointments'] = $appts->fetchAll();
+
+            $viaRecorded = in_array(
+                strtolower((string) ($patient['via_result'] ?? '')),
+                ['positive', 'negative'],
+                true
+            );
+            if ($viaRecorded) {
+                auto_complete_attendance_on_via_record($id);
+                $appts->execute([$id]);
+                $patient['appointments'] = $appts->fetchAll();
+            }
 
             $esc = $pdo->prepare(
                 'SELECT id, reason, urgency, status, created_at

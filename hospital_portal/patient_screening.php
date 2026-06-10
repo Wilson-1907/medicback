@@ -237,6 +237,8 @@ function record_patient_via_result(
         $patientId,
     ]);
 
+    auto_complete_attendance_on_via_record($patientId);
+
     $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
     $name = (string) $row['full_name'];
     $referralSent = false;

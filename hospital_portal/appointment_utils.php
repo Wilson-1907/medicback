@@ -115,6 +115,36 @@ function appointment_needs_attendance_check(array $appointment): bool
 }
 
 /**
+ * When VIA is saved, the patient clearly attended — mark the earliest open visit completed.
+ */
+function auto_complete_attendance_on_via_record(int $patientId): void
+{
+    ensure_appointment_attendance_schema();
+
+    $st = db()->prepare(
+        "SELECT id, scheduled_start, status
+         FROM appointments
+         WHERE patient_id = ? AND status IN ('proposed','confirmed')
+         ORDER BY scheduled_start ASC
+         LIMIT 1"
+    );
+    $st->execute([$patientId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return;
+    }
+    if (!appointment_on_or_past_day($row)) {
+        return;
+    }
+
+    db()->prepare(
+        "UPDATE appointments
+         SET status = 'completed', attendance_recorded_at = NOW(3), updated_at = NOW(3)
+         WHERE id = ?"
+    )->execute([(int) $row['id']]);
+}
+
+/**
  * Nurse confirms patient attended — mark completed; next step is VIA recording.
  *
  * @return array{ok: bool, error?: string, record_via_next?: bool}

@@ -620,7 +620,14 @@ layout_header($patient['full_name']);
       }
   }
   ?>
-  <?php if ($pendingAttendanceAppt !== null): ?>
+  <?php
+    $viaAlreadyRecorded = in_array(
+        strtolower((string) ($patient['via_result'] ?? '')),
+        ['negative', 'positive'],
+        true
+    );
+  ?>
+  <?php if ($pendingAttendanceAppt !== null && !$viaAlreadyRecorded): ?>
   <div class="card" style="border-left:4px solid var(--accent);">
     <h2>Clinic visit — confirm attendance</h2>
     <p class="field-hint">Appointment: <?= h($pendingAttendanceAppt['scheduled_start']) ?>. Did the patient attend?</p>

@@ -7,6 +7,7 @@ require_once __DIR__ . '/scheduled_messages.php';
 require_once __DIR__ . '/messaging.php';
 require_once __DIR__ . '/afya_rafiki_content.php';
 require_once __DIR__ . '/patient_referral.php';
+require_once __DIR__ . '/appointment_utils.php';
 
 const NYERI_REFERRAL_HOSPITAL = 'Nyeri County Referral Hospital';
 
@@ -178,6 +179,9 @@ function record_patient_via_result(
 ): array {
     if (!patient_screening_ready()) {
         return ['ok' => false, 'error' => 'VIA recording is not available on this server.'];
+    }
+    if (!patient_has_confirmed_appointment($patientId)) {
+        return ['ok' => false, 'error' => 'Confirm the patient appointment before recording VIA.'];
     }
 
     $err = validate_via_record([

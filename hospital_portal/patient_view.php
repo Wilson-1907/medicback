@@ -448,7 +448,7 @@ layout_header($patient['full_name']);
   </div>
   <?php endif; ?>
 
-  <?php if (patient_screening_ready()): ?>
+  <?php if (patient_screening_ready() && patient_has_confirmed_appointment($id, $appointments)): ?>
   <?php
     $viaRecorded = in_array(strtolower((string) ($patient['via_result'] ?? '')), ['positive', 'negative'], true);
   ?>
@@ -624,7 +624,7 @@ layout_header($patient['full_name']);
       <button class="btn" type="submit" style="background:#b42318">Did not attend</button>
     </form>
   </div>
-  <?php elseif ($completedForVia !== null): ?>
+  <?php elseif ($completedForVia !== null && patient_has_confirmed_appointment($id, $appointments)): ?>
   <div class="card" style="border-left:4px solid #6f42c1;">
     <h2>Record VIA from clinic visit</h2>
     <p class="field-hint">Patient attended on <?= h($completedForVia['scheduled_start']) ?>. Record VIA result in the VIA section below.</p>

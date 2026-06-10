@@ -48,6 +48,30 @@ function patient_first_appointment_id(int $patientId): ?int
     return $id !== false ? (int) $id : null;
 }
 
+/** Patient has at least one appointment past the proposed stage (confirmed by staff). */
+function patient_has_confirmed_appointment(int $patientId, ?array $appointments = null): bool
+{
+    if ($appointments !== null) {
+        foreach ($appointments as $a) {
+            $status = strtolower((string) ($a['status'] ?? ''));
+            if (in_array($status, ['confirmed', 'completed', 'no_show'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    $st = db()->prepare(
+        "SELECT 1 FROM appointments
+         WHERE patient_id = ? AND status IN ('confirmed','completed','no_show')
+         LIMIT 1"
+    );
+    $st->execute([$patientId]);
+
+    return (bool) $st->fetchColumn();
+}
+
 /** True when this row is the patient's first booked appointment. */
 function appointment_is_patients_first(int $appointmentId, int $patientId): bool
 {

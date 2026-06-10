@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/layout.php';
 require_once __DIR__ . '/messaging.php';
+require_once __DIR__ . '/patient_age.php';
 require_once __DIR__ . '/patient_client_id.php';
 require_login();
 
@@ -41,7 +42,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Invalid session. Please refresh and try again.';
     } else {
         $name = trim((string) ($_POST['full_name'] ?? ''));
-        $dob = trim((string) ($_POST['date_of_birth'] ?? ''));
+        $ageDob = resolve_registration_age_dob(
+            isset($_POST['date_of_birth']) ? (string) $_POST['date_of_birth'] : null,
+            $_POST['age'] ?? null
+        );
+        $dob = null;
+        $age = null;
+        if (isset($ageDob['error'])) {
+            $errors[] = $ageDob['error'];
+        } else {
+            $dob = $ageDob['date_of_birth'];
+            $age = (int) $ageDob['age'];
+        }
         $lang = trim((string) ($_POST['preferred_language'] ?? 'en')) ?: 'en';
         $mrn = trim((string) ($_POST['external_mrn'] ?? ''));
         $notes = trim((string) ($_POST['notes'] ?? ''));
@@ -64,16 +76,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($errors === []) {
-            $dobVal = $dob === '' ? null : $dob;
             $mrnVal = $mrn === '' ? null : $mrn;
             $pdo = db();
             try {
                 $pdo->beginTransaction();
                 $st = $pdo->prepare(
-                    'INSERT INTO patients (full_name, date_of_birth, preferred_language, external_mrn, notes, status)
-                     VALUES (?,?,?,?,?,?)'
+                    'INSERT INTO patients (full_name, date_of_birth, age, preferred_language, external_mrn, notes, status)
+                     VALUES (?,?,?,?,?,?,?)'
                 );
-                $st->execute([$name, $dobVal, $lang, $mrnVal, $notes === '' ? null : $notes, 'active']);
+                $st->execute([$name, $dob, $age, $lang, $mrnVal, $notes === '' ? null : $notes, 'active']);
                 $pid = (int) $pdo->lastInsertId();
 
                 $opted = $optIn ? 1 : 0;
@@ -142,8 +153,14 @@ layout_header('Register patient');
 
     <div class="row-inline">
       <div class="field">
-        <label for="date_of_birth">Date of birth</label>
+        <label for="date_of_birth">Date of birth (optional)</label>
         <input id="date_of_birth" name="date_of_birth" type="date" value="<?= h($_POST['date_of_birth'] ?? '') ?>">
+      </div>
+      <div class="field">
+        <label for="age">Age *</label>
+        <input id="age" name="age" type="number" min="1" max="120" inputmode="numeric"
+               value="<?= h((string) ($_POST['age'] ?? '')) ?>" placeholder="e.g. 35">
+        <p class="field-hint">Enter age, or pick date of birth to calculate it automatically.</p>
       </div>
       <div class="field">
         <label for="preferred_language">Preferred language *</label>

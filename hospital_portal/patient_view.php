@@ -5,6 +5,7 @@ require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/layout.php';
 require_once __DIR__ . '/messaging.php';
 require_once __DIR__ . '/appointment_utils.php';
+require_once __DIR__ . '/patient_age.php';
 require_once __DIR__ . '/hpv_results.php';
 require_once __DIR__ . '/patient_screening.php';
 require_login();
@@ -349,7 +350,8 @@ layout_header($patient['full_name']);
   </p>
   <table class="data" style="margin-top:1rem;max-width:520px">
     <tbody>
-      <tr><th style="width:140px">Date of birth</th><td><?= $patient['date_of_birth'] ? h($patient['date_of_birth']) : '—' ?></td></tr>
+      <tr><th style="width:140px">Age</th><td><?php $dispAge = patient_display_age($patient); echo $dispAge !== null ? h((string) $dispAge) : '—'; ?></td></tr>
+      <tr><th>Date of birth</th><td><?= $patient['date_of_birth'] ? h($patient['date_of_birth']) : '—' ?></td></tr>
       <tr><th>Language</th><td><?= h($patient['preferred_language']) ?></td></tr>
       <tr><th>Registered</th><td><?= h($patient['registration_at']) ?></td></tr>
       <?php if (!empty($patient['notes'])): ?>

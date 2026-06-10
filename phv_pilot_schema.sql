@@ -17,6 +17,7 @@ CREATE TABLE patients (
   external_mrn    VARCHAR(128) NULL COMMENT 'Hospital MRN if integrated',
   full_name       VARCHAR(255) NOT NULL,
   date_of_birth   DATE NULL,
+  age             SMALLINT UNSIGNED NULL COMMENT 'Stored when DOB unknown; auto-set from DOB when provided',
   preferred_language VARCHAR(16) NOT NULL DEFAULT 'en',
   registration_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   status          ENUM('registered','active','completed_pilot','withdrawn') NOT NULL DEFAULT 'registered',

@@ -15,6 +15,7 @@ function ensure_patient_screening_schema(): bool
     try {
         $pdo = db();
         $cols = [
+            'age' => 'SMALLINT UNSIGNED NULL',
             'hiv_status' => "ENUM('unknown','not_known','negative','positive') NOT NULL DEFAULT 'unknown'",
             'hpv_done_before' => "ENUM('unknown','no','yes') NOT NULL DEFAULT 'unknown'",
             'hpv_prior_result' => "ENUM('unknown','negative','positive') NOT NULL DEFAULT 'unknown'",

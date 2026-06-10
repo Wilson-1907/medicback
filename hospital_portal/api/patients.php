@@ -5,6 +5,7 @@ require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../hpv_results.php';
 require_once __DIR__ . '/../patient_screening.php';
 require_once __DIR__ . '/../patient_client_id.php';
+require_once __DIR__ . '/../patient_age.php';
 require_once __DIR__ . '/../afya_rafiki_content.php';
 
 try {
@@ -36,7 +37,7 @@ try {
                 : "NULL AS hiv_status, NULL AS hpv_done_before, NULL AS hpv_prior_result, NULL AS place_of_residence,
                    NULL AS via_result, NULL AS via_date, 0 AS has_cancer, NULL AS treatment_date, NULL AS next_checkup_at";
             $st = $pdo->prepare(
-                "SELECT id, full_name, date_of_birth, preferred_language, external_mrn, notes, status, registration_at,
+                "SELECT id, full_name, date_of_birth, age, preferred_language, external_mrn, notes, status, registration_at,
                         {$hpvCols}, {$screenCols}
                  FROM patients WHERE id = ? LIMIT 1"
             );
@@ -115,7 +116,15 @@ try {
 
     $body = api_body();
     $name = trim((string) ($body['full_name'] ?? ''));
-    $dob = trim((string) ($body['date_of_birth'] ?? ''));
+    $ageDob = resolve_registration_age_dob(
+        isset($body['date_of_birth']) ? (string) $body['date_of_birth'] : null,
+        $body['age'] ?? null
+    );
+    if (isset($ageDob['error'])) {
+        api_json(['ok' => false, 'error' => $ageDob['error']], 422);
+    }
+    $dob = $ageDob['date_of_birth'];
+    $age = (int) $ageDob['age'];
     $lang = trim((string) ($body['preferred_language'] ?? 'en')) ?: 'en';
     $clientId = parse_client_id_from_body($body);
     $notes = trim((string) ($body['notes'] ?? ''));
@@ -159,14 +168,15 @@ try {
         if (patient_screening_ready()) {
             $st = $pdo->prepare(
                 'INSERT INTO patients (
-                    full_name, date_of_birth, preferred_language, external_mrn, notes, status,
+                    full_name, date_of_birth, age, preferred_language, external_mrn, notes, status,
                     hiv_status, hpv_done_before, hpv_prior_result, place_of_residence,
                     via_result, via_date, has_cancer, treatment_date, next_checkup_at
-                 ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+                 ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
             );
             $st->execute([
                 $name,
-                $dob === '' ? null : $dob,
+                $dob,
+                $age,
                 $lang,
                 $clientId,
                 $notes === '' ? null : $notes,
@@ -183,12 +193,13 @@ try {
             ]);
         } else {
             $st = $pdo->prepare(
-                'INSERT INTO patients (full_name, date_of_birth, preferred_language, external_mrn, notes, status)
-                 VALUES (?,?,?,?,?,?)'
+                'INSERT INTO patients (full_name, date_of_birth, age, preferred_language, external_mrn, notes, status)
+                 VALUES (?,?,?,?,?,?,?)'
             );
             $st->execute([
                 $name,
-                $dob === '' ? null : $dob,
+                $dob,
+                $age,
                 $lang,
                 $clientId,
                 $notes === '' ? null : $notes,

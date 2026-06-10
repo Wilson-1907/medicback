@@ -284,6 +284,39 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
     ];
 }
 
+/**
+ * After a clinic appointment is booked, auto-notify HPV positive patients:
+ * sends the lab result SMS (with appointment date), then caller sends appointment confirmation.
+ *
+ * @return array{confirmed: bool, counseling_started?: bool, error?: string}
+ */
+function try_auto_confirm_hpv_after_appointment_booked(int $patientId, string $confirmedBy = 'appointment_booked'): array
+{
+    if (!hpv_workflow_ready()) {
+        return ['confirmed' => false];
+    }
+
+    $row = get_patient_hpv_row($patientId);
+    if (!$row || !empty($row['hpv_result_confirmed_at'])) {
+        return ['confirmed' => false];
+    }
+
+    $result = strtolower((string) ($row['hpv_screening_result'] ?? ''));
+    if ($result !== 'positive' || empty($row['hpv_result_recorded_at'])) {
+        return ['confirmed' => false];
+    }
+
+    $out = confirm_patient_hpv_result($patientId, $confirmedBy);
+    if (empty($out['ok'])) {
+        return ['confirmed' => false, 'error' => (string) ($out['error'] ?? 'HPV confirm failed')];
+    }
+
+    return [
+        'confirmed' => true,
+        'counseling_started' => !empty($out['counseling_started']),
+    ];
+}
+
 /** Delay before each short encouragement tip (gentle pace, not rapid long messages). */
 function hpv_delay_before_counseling_index(int $index): string
 {

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../appointment_utils.php';
+require_once __DIR__ . '/../hpv_results.php';
 
 try {
     $pdo = db();
@@ -97,6 +98,8 @@ try {
             throw $e;
         }
 
+        $hpvAuto = try_auto_confirm_hpv_after_appointment_booked($patientId);
+
         send_patient_message(
             $patientId,
             'appointment_booked',
@@ -108,7 +111,12 @@ try {
                 'location' => $location === '' ? null : $location,
             ], $reason, false, $lang)
         );
-        api_json(['ok' => true, 'appointment_id' => $appointmentId], 201);
+        api_json([
+            'ok' => true,
+            'appointment_id' => $appointmentId,
+            'hpv_result_sent' => !empty($hpvAuto['confirmed']),
+            'counseling_started' => !empty($hpvAuto['counseling_started']),
+        ], 201);
     }
 
     if ($action === 'reschedule') {

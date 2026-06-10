@@ -421,32 +421,44 @@ layout_header($patient['full_name']);
   </div>
 
   <?php if (hpv_workflow_ready()): ?>
+  <?php
+    $hpvResult = strtolower((string) ($patient['hpv_screening_result'] ?? 'pending'));
+    $hpvRecorded = !empty($patient['hpv_result_recorded_at']);
+    $hpvConfirmed = !empty($patient['hpv_result_confirmed_at']);
+    $hpvHasResult = in_array($hpvResult, ['positive', 'negative'], true);
+    $hpvNeedsAppt = $hpvResult === 'positive' && !patient_has_upcoming_appointment($id, $appointments);
+  ?>
   <div class="card" style="border-left:4px solid var(--accent);">
     <h2>HPV screening result (Afya Rafiki)</h2>
-    <p class="field-hint">Step 1: Record positive or negative after lab review. Step 2: Confirm to notify the patient and start the right message pathway.</p>
-    <p><strong>Status:</strong>
-      <?= h(strtoupper((string) ($patient['hpv_screening_result'] ?? 'pending'))) ?>
-      <?php if (!empty($patient['hpv_result_confirmed_at'])): ?>
-        — <span style="color:var(--success)">Sent to patient <?= h($patient['hpv_result_confirmed_at']) ?></span>
-      <?php elseif (!empty($patient['hpv_result_recorded_at'])): ?>
-        — <span style="color:var(--muted)">Recorded <?= h($patient['hpv_result_recorded_at']) ?>, awaiting confirm</span>
+    <?php if ($hpvConfirmed && $hpvHasResult): ?>
+      <p><strong>Status:</strong> <?= h(strtoupper($hpvResult)) ?>
+        — <span style="color:var(--success)">Sent to patient <?= h((string) $patient['hpv_result_confirmed_at']) ?></span>
+      </p>
+    <?php elseif ($hpvRecorded && $hpvHasResult): ?>
+      <p><strong><?= h(strtoupper($hpvResult)) ?></strong> recorded on <?= h((string) $patient['hpv_result_recorded_at']) ?>.</p>
+      <p class="field-hint">Awaiting confirm — notify the patient when ready.</p>
+      <?php if ($hpvNeedsAppt): ?>
+        <p class="field-hint" style="color:var(--warning)">Book a follow-up appointment first — the HPV positive message needs the date.</p>
+      <?php else: ?>
+        <form method="post" style="margin-top:12px" action="patient_view.php?id=<?= $id ?>" onsubmit="return confirm('Send confirmed result and start guidance messages to this patient?');">
+          <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+          <input type="hidden" name="action" value="hpv_confirm">
+          <button class="btn" type="submit" style="background:#198754;color:#fff">Confirm &amp; notify patient</button>
+        </form>
       <?php endif; ?>
-    </p>
-    <form method="post" style="display:inline" action="patient_view.php?id=<?= $id ?>">
-      <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
-      <input type="hidden" name="action" value="hpv_set_positive">
-      <button class="btn" type="submit">Record POSITIVE</button>
-    </form>
-    <form method="post" style="display:inline;margin-left:8px" action="patient_view.php?id=<?= $id ?>">
-      <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
-      <input type="hidden" name="action" value="hpv_set_negative">
-      <button class="btn btn-secondary" type="submit">Record NEGATIVE</button>
-    </form>
-    <form method="post" style="display:inline;margin-left:8px" action="patient_view.php?id=<?= $id ?>" onsubmit="return confirm('Send confirmed result and start guidance messages to this patient?');">
-      <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
-      <input type="hidden" name="action" value="hpv_confirm">
-      <button class="btn" type="submit" style="background:#198754;color:#fff">Confirm &amp; notify patient</button>
-    </form>
+    <?php else: ?>
+      <p class="field-hint">Record the lab result after review. You can confirm and notify the patient once recorded.</p>
+      <form method="post" style="display:inline" action="patient_view.php?id=<?= $id ?>">
+        <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+        <input type="hidden" name="action" value="hpv_set_positive">
+        <button class="btn" type="submit">Record POSITIVE</button>
+      </form>
+      <form method="post" style="display:inline;margin-left:8px" action="patient_view.php?id=<?= $id ?>">
+        <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+        <input type="hidden" name="action" value="hpv_set_negative">
+        <button class="btn btn-secondary" type="submit">Record NEGATIVE</button>
+      </form>
+    <?php endif; ?>
   </div>
   <?php endif; ?>
 

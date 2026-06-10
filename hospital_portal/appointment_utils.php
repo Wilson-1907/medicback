@@ -48,6 +48,30 @@ function patient_first_appointment_id(int $patientId): ?int
     return $id !== false ? (int) $id : null;
 }
 
+/** Patient has a proposed or confirmed appointment (for HPV positive confirm gate). */
+function patient_has_upcoming_appointment(int $patientId, ?array $appointments = null): bool
+{
+    if ($appointments !== null) {
+        foreach ($appointments as $a) {
+            $status = strtolower((string) ($a['status'] ?? ''));
+            if (in_array($status, ['proposed', 'confirmed'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    $st = db()->prepare(
+        "SELECT 1 FROM appointments
+         WHERE patient_id = ? AND status IN ('proposed','confirmed')
+         LIMIT 1"
+    );
+    $st->execute([$patientId]);
+
+    return (bool) $st->fetchColumn();
+}
+
 /** Patient has at least one appointment past the proposed stage (confirmed by staff). */
 function patient_has_confirmed_appointment(int $patientId, ?array $appointments = null): bool
 {

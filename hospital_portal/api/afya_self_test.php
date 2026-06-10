@@ -59,10 +59,13 @@ function afya_test_results(): array
     $pass('§4 HPV positive EN — not cancer', $contains($posEn, 'does not mean that you have cervical cancer'));
     $pass('§4 HPV positive EN — appointment date', $contains($posEn, 'Saturday, 14 June 2026, 10:30 AM'));
 
-    // --- Section 25: Consent thank-you (registration) ---
+    // --- Section 25: Consent thank-you (registration, message 1) ---
     $consentEn = build_consent_thank_you_message('Jane', 'en');
     $pass('§25 consent thanks EN', $contains($consentEn, 'appreciate you agreeing to receive messages from Afya Rafiki'));
-    $pass('§25 consent thanks EN — results promise', $contains($consentEn, 'confirmed by the clinic'));
+
+    $regWelcomeEn = build_registration_welcome_message('en');
+    $pass('Registration welcome EN — confidential', $contains($regWelcomeEn, 'Your information will remain confidential'));
+    $pass('Registration welcome SW', $contains(build_registration_welcome_message('sw'), 'itahifadhiwa kwa siri'));
 
     // --- Reminders (§5–7) ---
     $appt = ['scheduled_start' => '2026-06-14 10:30:00'];
@@ -114,13 +117,13 @@ function afya_test_results(): array
     // --- Registration enrollment sends message (source check) ---
     $enrollSrc = (string) file_get_contents(__DIR__ . '/../messaging.php');
     $pass(
-        'Registration sends one welcome message only',
-        str_contains($enrollSrc, "message_type = 'welcome'")
-            || (str_contains($enrollSrc, "'welcome'") && str_contains($enrollSrc, 'build_language_introduction_message'))
+        'Registration sends thank-you then welcome',
+        str_contains($enrollSrc, 'build_consent_thank_you_message')
+            && str_contains($enrollSrc, 'build_registration_welcome_message')
     );
     $pass(
-        'Registration does not also send consent thank-you',
-        !str_contains($enrollSrc, 'handle_consent_accepted($patientId')
+        'Registration does not send language intro (1/2/3)',
+        !str_contains($enrollSrc, 'build_language_introduction_message($lang)')
     );
 
     // --- Reminder cron SQL guards (exact-day only) ---

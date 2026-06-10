@@ -149,6 +149,10 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
         return $mk('afya_welcome');
     }
 
+    if ($messageType === 'registration_welcome') {
+        return $mk('afya_welcome');
+    }
+
     if ($messageType === 'staff_custom') {
         return $mk('afya_staff_message', [mteja_template_param($body)]);
     }

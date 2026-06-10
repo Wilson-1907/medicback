@@ -51,6 +51,20 @@ function afya_format_appointment_date(?string $scheduledStart): string
     return date('l, j F Y', $ts) . ', ' . date('g:i A', $ts);
 }
 
+/** Official registration welcome — sent after consent thank-you (paper consent already signed). */
+function build_registration_welcome_message(string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    if ($lang === 'sw') {
+        return 'Karibu kwenye Afya rafiki. Tuko hapa kukusaidia baada ya majibu yako ya uchunguzi wa HPV. '
+            . 'Huduma hii itakutumia taarifa za afya, vikumbusho, na mwongozo wa huduma ya ufuatiliaji. '
+            . 'Taarifa zako zitahifadhiwa kwa siri.';
+    }
+    return 'Hello. Welcome to Afya rafiki. We are here to support you after your HPV screening results. '
+        . 'This service will provide health information, reminders, and guidance for your follow-up care. '
+        . 'Your information will remain confidential.';
+}
+
 /** Language selection when Afya Rafiki is activated for HPV-positive follow-up. */
 function build_language_introduction_message(string $lang = 'en'): string
 {

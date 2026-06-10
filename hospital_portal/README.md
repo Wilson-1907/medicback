@@ -55,7 +55,7 @@ Backend and staff UI for the PHV engagement pilot.
 
 **Afya Rafiki** patient SMS/WhatsApp flow (official script):
 
-1. **Registration** — paper consent; one welcome WhatsApp/SMS (language intro) when opted in; HPV result sent after staff confirm
+1. **Registration** — paper consent; thank-you SMS then registration welcome when opted in; HPV result after staff confirm
 2. Staff records **HPV positive or negative**, then **Confirm & notify**
 3. **HPV negative** — one SMS (3-year return if HIV+, 5-year if HIV−)
 4. **HPV positive** — welcome + positive result SMS with appointment date, then **16** counseling messages on a drip schedule (**3 hours**, **5 hours**, then **1 day** between each)

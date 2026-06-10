@@ -123,10 +123,10 @@ function testLocalDocAlignment() {
     }
 
     const messagingPhp = readFileSync(join(ROOT, 'messaging.php'), 'utf8');
-    if (messagingPhp.includes('build_language_introduction_message($lang)')) {
-        pass('Local: registration enrollment sends welcome only');
+    if (messagingPhp.includes('build_consent_thank_you_message') && messagingPhp.includes('build_registration_welcome_message')) {
+        pass('Local: registration sends thank-you then welcome');
     } else {
-        fail('Local: registration enrollment', 'build_language_introduction_message not used');
+        fail('Local: registration enrollment', 'expected thank-you + registration welcome');
     }
 }
 
@@ -212,22 +212,25 @@ async function testRegistrationSendsConsentMessage() {
 
     const mc = await fetchJson('/api/message_center.php');
     const outbound = (mc.data?.outbound || []).filter((o) => o.full_name?.includes(`TEST AUTO ${suffix}`));
-    const consentMsg = outbound.find((o) =>
-        String(o.body || '').includes('Welcome to Afya Rafiki, Your Cervical health journey partner')
+    const thankYou = outbound.find((o) =>
+        String(o.body || '').toLowerCase().includes('appreciate you agreeing')
     );
-    if (consentMsg) {
-        pass(`Registration outbound logged — status=${consentMsg.status}, type=${consentMsg.message_type}`);
-        if (consentMsg.status === 'failed') {
-            warn(`Welcome message failed: ${consentMsg.error_detail || 'unknown'} — check Mteja template afya_welcome_en`);
-        }
-        const duplicateThankYou = outbound.filter((o) =>
-            String(o.body || '').toLowerCase().includes('appreciate you agreeing')
-        );
-        if (duplicateThankYou.length > 0) {
-            fail('Registration should not send consent thank-you', 'duplicate thank-you message found');
+    const regWelcome = outbound.find((o) =>
+        String(o.body || '').toLowerCase().includes('remain confidential')
+            || String(o.body || '').toLowerCase().includes('itahifadhiwa kwa siri')
+    );
+    if (thankYou) {
+        pass(`Registration thank-you logged — status=${thankYou.status}`);
+    } else {
+        fail('Registration thank-you message', `found ${outbound.length} outbound row(s) for patient`);
+    }
+    if (regWelcome) {
+        pass(`Registration welcome logged — status=${regWelcome.status}, type=${regWelcome.message_type}`);
+        if (regWelcome.status === 'failed') {
+            warn(`Welcome failed: ${regWelcome.error_detail || 'unknown'} — check Mteja afya_welcome_en`);
         }
     } else {
-        fail('Registration welcome message in outbound_messages', `found ${outbound.length} outbound row(s) for patient`);
+        fail('Registration welcome message after thank-you', 'not found in outbound');
     }
 
     return { patientId, suffix, phone };

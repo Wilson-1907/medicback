@@ -326,7 +326,7 @@ function get_patient_language(int $patientId): string
     return in_array($lang, ['en', 'sw']) ? $lang : 'en';
 }
 
-/** Sent after registration when patient opted in — one welcome message only (language intro). */
+/** Sent after registration when patient opted in — thank-you then registration welcome. */
 function send_afya_enrollment_messages(int $patientId, string $patientName, string $lang = 'en'): void
 {
     $contact = patient_primary_contact($patientId);
@@ -337,8 +337,13 @@ function send_afya_enrollment_messages(int $patientId, string $patientName, stri
     record_registration_consent($patientId, (string) $contact['channel']);
     send_patient_message(
         $patientId,
-        'welcome',
-        build_language_introduction_message($lang)
+        'system',
+        build_consent_thank_you_message($patientName, $lang)
+    );
+    send_patient_message(
+        $patientId,
+        'registration_welcome',
+        build_registration_welcome_message($lang)
     );
 }
 

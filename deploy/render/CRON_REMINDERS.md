@@ -12,7 +12,7 @@ Recipients must have **opted in** and replied **YES/NDIO** to the consent messag
 
 ## Schedule on Render
 
-Create a **Cron Job** (or use [cron-job.org](https://cron-job.org)) that calls every **30–60 minutes**:
+Create a **Cron Job** (or use [cron-job.org](https://cron-job.org)) that calls every **5–15 minutes** (HPV counseling drips use `scheduled_messages` and need frequent runs; **30–60 min is too slow** for +2 min / +1 h steps):
 
 ```http
 GET https://medicback.onrender.com/cron_run_reminders.php?key=YOUR_CRON_SECRET
@@ -32,7 +32,9 @@ Response example:
 {
   "ok": true,
   "appointment_reminders": { "7d": 0, "3d": 1, "night": 0 },
-  "engagement_boost": { "sent": 0 }
+  "scheduled_messages": { "processed": 1, "sent": 1, "failed": 0 },
+  "engagement_boost": { "sent": 0 },
+  "hpv_drip_repaired": 0
 }
 ```
 

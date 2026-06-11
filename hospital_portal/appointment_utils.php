@@ -154,7 +154,7 @@ function mark_appointment_attended(int $appointmentId, string $recordedBy = 'sta
     ensure_appointment_attendance_schema();
 
     $st = db()->prepare(
-        'SELECT a.id, a.patient_id, a.scheduled_start, a.status, p.via_result
+        'SELECT a.id, a.patient_id, a.scheduled_start, a.status, p.full_name, p.preferred_language, p.via_result
          FROM appointments a
          INNER JOIN patients p ON p.id = a.patient_id
          WHERE a.id = ?
@@ -181,6 +181,22 @@ function mark_appointment_attended(int $appointmentId, string $recordedBy = 'sta
 
     $via = strtolower((string) ($row['via_result'] ?? 'not_done'));
     $patientId = (int) $row['patient_id'];
+    $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
+    $patientName = (string) $row['full_name'];
+
+    $optSt = db()->prepare(
+        'SELECT 1 FROM contact_channels WHERE patient_id = ? AND opted_in = 1 LIMIT 1'
+    );
+    $optSt->execute([$patientId]);
+    if ($optSt->fetchColumn()) {
+        require_once __DIR__ . '/afya_rafiki_content.php';
+        send_patient_message(
+            $patientId,
+            'post_visit_ack',
+            build_post_visit_acknowledgement($patientName, $lang)
+        );
+    }
+
     $recordViaNext = !in_array($via, ['negative', 'positive'], true)
         && appointment_is_patients_first($appointmentId, $patientId);
 

@@ -265,21 +265,21 @@ function whatsapp_inbound_try_language_reply(int $patientId, string $body, strin
     $trim = trim($body);
     if ($trim === '1') {
         db()->prepare('UPDATE patients SET preferred_language = ? WHERE id = ?')->execute(['en', $patientId]);
-        send_patient_message($patientId, 'system', 'Thank you. Afya Rafiki will send messages in English. Reply HELP anytime.');
+        send_patient_message($patientId, 'lang_set_ack', build_language_set_ack_message('en'));
         return true;
     }
     if ($trim === '2') {
         db()->prepare('UPDATE patients SET preferred_language = ? WHERE id = ?')->execute(['sw', $patientId]);
-        send_patient_message($patientId, 'system', 'Asante. Afya Rafiki itatumia Kiswahili. Jibu HELP wakati wowote.');
+        send_patient_message($patientId, 'lang_set_ack', build_language_set_ack_message('sw'));
         return true;
     }
     if ($trim === '3' || is_consent_no_reply($body)) {
         record_consent_no($patientId, $channel);
-        $lang = 'en';
+        $lang = function_exists('get_patient_language') ? get_patient_language($patientId) : 'en';
         send_patient_message(
             $patientId,
-            'system',
-            'You have been unsubscribed from Afya Rafiki messages. Contact Nyeri Town Health Centre if you need help.'
+            'opt_out_ack',
+            build_unsubscribe_ack_message($lang)
         );
         return true;
     }
@@ -372,6 +372,9 @@ function whatsapp_inbound_process_registered_patient(array $patient, string $bod
 /** Handle one inbound WhatsApp POST body (JSON or form). */
 function whatsapp_inbound_handle_request(string $rawBody, array $query = []): void
 {
+    require_once __DIR__ . '/scheduled_messages.php';
+    maybe_flush_due_scheduled_messages();
+
     error_log('WHATSAPP_INBOUND_RAW: ' . substr($rawBody, 0, 4000));
 
     $payload = [];

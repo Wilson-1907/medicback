@@ -32,7 +32,7 @@ Missed **survey** (§13) still uses **`afya_missed_appt_en`** / **`afya_missed_a
 
 ## Pre-VIA counseling (study messages 1–10)
 
-**Schedule:** +3h, +5h, then +1 day between messages (stops when VIA is recorded).
+**Schedule:** HPV+ **recorded** arms the pathway; on **confirm & notify** msg 1 sends **immediately** after the result SMS, then msg 2 **+3 h**, msg 3 **+1 h**, msgs 4–10 **+21 h** each (~**6.3 days**, within **6.5 day** limit). Stops when VIA is recorded. Cron: `process_due_scheduled_messages` every **5–15 min** for msgs 2–10.
 
 ### `afya_nav_edu_01_en` — Understanding HPV
 
@@ -203,7 +203,7 @@ Thank you for your response. We would like to help you continue your follow-up c
 ### `afya_nav_missed_offer_sw`
 
 ```
-Asante kwa majibu yako. Tungependa kukusaidia kuendelea na huduma yako ya ufuatiliaji. Je, ungependa kupanga upya miadi yako katika Nyeri Town Health Centre? Jibu: 1. NDIO - Nipangie miadi nyingine 2. HAPANA - Nitawasiliana na kliniki mwenyewe 3. Ningependa kuzungumza na mhudumu wa afya
+Asante kwa majibu yako. Tungependa kukusaidia kuendelea na huduma yako ya ufuatiliaji. Je, ungependa kupanga upya miadi yako katika Nyeri Town Health Centre? Jibu: 1. NDIO - Nipangie miadi nyingine 2. HAPANA - Nitawasiliana na kliniki mwenyewe 3. Ningepeda kuzungumza na mhudumu wa afya
 ```
 
 ---
@@ -226,7 +226,7 @@ Habari {{1}}, asante kwa kuchagua kuendelea na huduma yako ya ufuatiliaji. Kupan
 
 ---
 
-## Mteja submit checklist
+## Mteja submit checklist (Batch 1)
 
 - [ ] Create **28 templates** using exact names above (`*_en` and `*_sw`)
 - [ ] Category: **UTILITY**
@@ -235,6 +235,172 @@ Habari {{1}}, asante kwa kuchagua kuendelea na huduma yako ya ufuatiliaji. Kupan
 - [ ] After approval, redeploy medicback — code resolves via `mteja_nav_template_id()`
 
 **Optional Render overrides:** `MTEJA_TEMPLATE_AFYA_NAV_EDU_01_EN=...` if Mteja uses a different registered name.
+
+**Batch 2 (registration, referral, post-visit, inbound ack) starts below.**
+
+---
+
+## Batch 2 — registration, referral, post-visit, inbound ack (16 templates)
+
+**Not in your 102 pack.** Names use `afya_nav_*` because content differs from older templates. Submit as **UTILITY**.
+
+### Batch 2 index
+
+| # | English | Kiswahili | When sent |
+|---|---------|-----------|-----------|
+| 15 | `afya_nav_registration_welcome_en` | `afya_nav_registration_welcome_sw` | Registration message #2 (after consent thank-you) |
+| 16 | `afya_nav_referral_reassurance_en` | `afya_nav_referral_reassurance_sw` | +2 min after Nyeri referral SMS |
+| 17 | `afya_nav_referral_appt_reminder_en` | `afya_nav_referral_appt_reminder_sw` | 7 days before specialist appointment |
+| 18 | `afya_nav_post_visit_en` | `afya_nav_post_visit_sw` | Staff marks appointment **attended** |
+| 19 | `afya_nav_via_ablation_en` | `afya_nav_via_ablation_sw` | VIA+ with treatment done (Thermal Ablation) |
+| 20 | `afya_nav_tx_postponed_en` | `afya_nav_tx_postponed_sw` | VIA+ with future treatment date (postponed) |
+| 21 | `afya_nav_lang_set_en` | — | Patient replies **1** (English) |
+| 22 | — | `afya_nav_lang_set_sw` | Patient replies **2** (Kiswahili) |
+| 23 | `afya_nav_unsubscribe_en` | `afya_nav_unsubscribe_sw` | Patient replies **3** or **STOP** |
+
+**Batch 1 + Batch 2 total: 44 templates** (42 EN/SW pairs + 2 single-language lang-set).
+
+---
+
+### `afya_nav_registration_welcome_en`
+
+**When:** Immediately after `afya_consent_thanks` at registration (102 pack).
+
+```
+Hello. Welcome to Afya rafiki. We are here to support you after your HPV screening results. This service will provide health information, reminders, and guidance for your follow-up care. Your information will remain confidential.
+```
+
+### `afya_nav_registration_welcome_sw`
+
+```
+Karibu kwenye Afya rafiki. Tuko hapa kukusaidia baada ya majibu yako ya uchunguzi wa HPV. Huduma hii itakutumia taarifa za afya, vikumbusho, na mwongozo wa huduma ya ufuatiliaji. Taarifa zako zitahifadhiwa kwa siri.
+```
+
+---
+
+### `afya_nav_referral_reassurance_en`
+
+Variable: `{{1}}` = first name
+
+```
+Hello {{1}}, we understand that receiving a referral may cause concern. Please remember that many women referred for specialist assessment do not have cervical cancer. The purpose of the referral is to allow a closer examination of the cervix and ensure that you receive the most appropriate care. Attending your appointment is an important step in protecting your health. Afya Rafiki is here to support you.
+```
+
+### `afya_nav_referral_reassurance_sw`
+
+```
+Habari {{1}}, tunaelewa kuwa kupokea rufaa kunaweza kukusababishia wasiwasi. Tafadhali kumbuka kuwa wanawake wengi wanaopewa rufaa kwa uchunguzi wa daktari bingwa hawapatikani na saratani ya mlango wa kizazi. Lengo la rufaa ni kusaidia daktari kuchunguza mlango wa kizazi kwa karibu zaidi na kuhakikisha unapata huduma inayofaa. Kuhudhuria miadi yako ni hatua muhimu katika kulinda afya yako. Afya Rafiki iko hapa kukusaidia.
+```
+
+---
+
+### `afya_nav_referral_appt_reminder_en`
+
+Variable: `{{1}}` = appointment date/time
+
+```
+Reminder from Afya Rafiki. You have a specialist review appointment at Nyeri County Referral Hospital on {{1}}. Please attend as scheduled. This visit will help determine the most appropriate next steps for your care. If you are unable to attend, please contact your healthcare provider to arrange another appointment.
+```
+
+### `afya_nav_referral_appt_reminder_sw`
+
+```
+Kikumbusho kutoka Afya Rafiki. Una miadi ya uchunguzi wa daktari bingwa katika Hospitali ya Rufaa ya Kaunti ya Nyeri tarehe {{1}}. Tafadhali hudhuria kama ulivyopangiwa. Ziara hii itasaidia kubaini hatua zinazofuata zinazofaa kwa huduma yako. Ikiwa hutaweza kuhudhuria, tafadhali wasiliana na mhudumu wako wa afya ili kupanga miadi nyingine.
+```
+
+---
+
+### `afya_nav_post_visit_en`
+
+Variable: `{{1}}` = first name
+
+```
+Hello {{1}}, thank you for attending your scheduled follow-up appointment. You have taken an important step in protecting your health and preventing cervical cancer. By attending your appointment, you have helped ensure that any cervical changes can be identified and managed early if needed. We encourage you to continue following the advice of your healthcare provider and attend any future appointments that may be recommended. Keep taking positive steps for your health. Afya Rafiki is proud to support you on your journey. Thank you for choosing Afya Rafiki.
+```
+
+### `afya_nav_post_visit_sw`
+
+```
+Habari {{1}}, asante kwa kuhudhuria miadi yako ya ufuatiliaji kama ulivyopangiwa. Umechukua hatua muhimu katika kulinda afya yako na kuzuia saratani ya mlango wa kizazi. Kwa kuhudhuria miadi yako, umechangia kuhakikisha kwamba mabadiliko yoyote kwenye mlango wa kizazi yanagunduliwa na kushughulikiwa mapema ikiwa yatahitajika. Tunakuhimiza kuendelea kufuata ushauri wa mhudumu wako wa afya na kuhudhuria miadi nyingine yoyote utakayopangiwa. Endelea kuchukua hatua chanya kwa afya yako. Afya Rafiki inajivunia kuwa sehemu ya safari yako ya afya. Asante kwa kutumia Afya Rafiki.
+```
+
+---
+
+### `afya_nav_via_ablation_en`
+
+Variables: `{{1}}` name, `{{2}}` 1-year follow-up date
+
+```
+Hello {{1}}, your HPV test was positive, and your VIA examination showed changes on the cervix that required treatment. Thermal Ablation was successfully performed to remove the abnormal cells and help prevent cervical cancer. After treatment, it is normal to experience mild watery discharge and mild lower abdominal discomfort for a few days, mild blood spots. Please use a sanitary pad if needed. Please return to the health facility immediately if you experience heavy bleeding, foul-smelling discharge, severe lower abdominal pain, fever, or any other concerning symptoms. It is important that you return for a repeat HPV test after 1 year to confirm if treatment was successful. Your follow-up appointment is scheduled for: Date: {{2}} Thank you for choosing Afya Rafiki. We are here to support you.
+```
+
+### `afya_nav_via_ablation_sw`
+
+```
+Habari {{1}}, majibu yako ya HPV yalikuwa chanya (positive), na uchunguzi wa VIA ulionyesha mabadiliko kwenye mlango wa kizazi yaliyohitaji matibabu. Thermal Ablation imefanyika kwa mafanikio ili kuondoa seli zisizo za kawaida na kusaidia kuzuia saratani ya mlango wa kizazi. Baada ya matibabu, ni kawaida kupata majimaji kutoka ukeni na maumivu madogo chini ya tumbo kwa siku chache. Unaweza kutumia pedi ikiwa itahitajika. Tafadhali rudi hospitalini mara moja ikiwa utapata kutokwa na damu nyingi, majimaji yenye harufu mbaya kutoka ukeni, maumivu makali chini ya tumbo, homa, au dalili nyingine zinazokusumbua. Ni muhimu urudi kwa kipimo kingine cha HPV baada ya mwaka 1 ili kuthibitisha kuwa matibabu yalifanikiwa. Tarehe ya miadi yako ya ufuatiliaji ni: Tarehe: {{2}} Asante kwa kutumia Afya Rafiki. Tuko hapa kukusaidia.
+```
+
+---
+
+### `afya_nav_tx_postponed_en`
+
+Variables: `{{1}}` name, `{{2}}` rescheduled treatment date
+
+```
+Hello {{1}}, your HPV test was positive, and your VIA examination showed changes on the cervix that require treatment. This does not mean that you have cervical cancer. Early treatment helps prevent abnormal cells from developing into cervical cancer. Your treatment was postponed and has been rescheduled for: Date: {{2}} It is important that you attend this appointment so that the recommended treatment can be completed. If you are unable to attend, please contact your healthcare provider or visit Nyeri Town Health Center to arrange another appointment. If you have any questions, Afya Rafiki is here to support you. Thank you for choosing Afya Rafiki.
+```
+
+### `afya_nav_tx_postponed_sw`
+
+```
+Habari {{1}}, majibu yako ya HPV yalikuwa chanya (positive), na uchunguzi wa VIA ulionyesha mabadiliko kwenye mlango wa kizazi yanayohitaji matibabu. Hii haimaanishi kuwa una saratani ya mlango wa kizazi. Matibabu ya mapema husaidia kuzuia seli zisizo za kawaida zisigeuke kuwa saratani. Matibabu yako yameahirishwa na umepangiwa tarehe nyingine ya matibabu: Tarehe: {{2}} Ni muhimu uhudhurie miadi hii ili matibabu yaliyopendekezwa yakamilike. Ikiwa hutaweza kuhudhuria, tafadhali wasiliana na mhudumu wako wa afya au tembelea Nyeri Town Health Center kupanga tarehe nyingine. Ikiwa una maswali yoyote, Afya Rafiki iko hapa kukusaidia. Asante kwa kutumia Afya Rafiki.
+```
+
+---
+
+### `afya_nav_lang_set_en`
+
+**When:** Patient replies **1** to language menu (`afya_welcome` from 102 pack).
+
+```
+Thank you. Afya Rafiki will send messages in English. Reply HELP anytime.
+```
+
+### `afya_nav_lang_set_sw`
+
+**When:** Patient replies **2**.
+
+```
+Asante. Afya Rafiki itatumia Kiswahili. Jibu HELP wakati wowote.
+```
+
+---
+
+### `afya_nav_unsubscribe_en`
+
+**When:** Patient replies **3**, **STOP**, **NO**, etc.
+
+```
+You have been unsubscribed from Afya Rafiki messages. Contact Nyeri Town Health Centre if you need help.
+```
+
+### `afya_nav_unsubscribe_sw`
+
+```
+Umejiondoa kupokea ujumbe kutoka Afya Rafiki. Wasiliana na Nyeri Town Health Centre ikiwa unahitaji msaada.
+```
+
+---
+
+## Combined Mteja checklist (Batch 1 + 2)
+
+- [ ] Batch 1: **28** `afya_nav_edu_*`, `afya_nav_via_neg_result_*`, `afya_nav_checkup_1y_*`, `afya_nav_missed_*`
+- [ ] Batch 2: **16** templates above (registration through unsubscribe)
+- [ ] Keep using **102 pack** for: consent thank-you, welcome menu, HPV results, appt booked/updated, reminders, missed survey, referral initial, FAQ, etc.
+- [ ] Category: **UTILITY** · languages **en** / **sw** per suffix
+- [ ] Redeploy medicback after Mteja approval
+
+**Optional Render overrides:** `MTEJA_TEMPLATE_AFYA_NAV_REGISTRATION_WELCOME_EN=...` etc.
 
 ---
 

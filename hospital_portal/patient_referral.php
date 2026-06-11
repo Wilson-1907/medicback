@@ -91,6 +91,31 @@ function patient_nyeri_referral_status(array $patient): array
 }
 
 /**
+ * Schedule reassurance (+2 min) and specialist reminder (7 days before appt).
+ */
+function schedule_referral_followup_messages(
+    int $patientId,
+    string $patientName,
+    string $lang,
+    string $referralAppointmentDateYmd
+): void {
+    $displayDate = afya_format_appointment_date($referralAppointmentDateYmd . ' 09:00:00');
+    $reassurance = build_referral_reassurance_message($patientName, $lang);
+    if ($reassurance !== '') {
+        schedule_patient_message($patientId, 'referral_reassurance', $reassurance, '+2 minutes');
+    }
+    $reminderTs = strtotime($referralAppointmentDateYmd . ' -7 days 09:00:00');
+    if ($reminderTs !== false && $reminderTs > time()) {
+        schedule_patient_message_at(
+            $patientId,
+            'referral_appt_reminder',
+            build_referral_appointment_reminder($displayDate, $lang),
+            date('Y-m-d H:i:s', $reminderTs)
+        );
+    }
+}
+
+/**
  * Refer patient to Nyeri County Referral Hospital after all screening tests are done.
  *
  * @return array{ok: bool, error?: string, referral_sent?: bool, referral_at?: string}
@@ -147,10 +172,7 @@ function refer_patient_to_nyeri_hospital(
             'referral',
             build_referral_initial_message($name, $displayDate, $lang)
         );
-        $reassurance = build_referral_reassurance_message($name, $lang);
-        if ($reassurance !== '') {
-            schedule_patient_message($patientId, 'education_menu', $reassurance, '+2 minutes');
-        }
+        schedule_referral_followup_messages($patientId, $name, $lang, $referralAppointmentDate);
         $referralSent = true;
     }
 

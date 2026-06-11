@@ -103,8 +103,16 @@ function afya_test_results(): array
 
     // --- HPV confirm delays (study: 3h, 5h, then 1 day) ---
     require_once __DIR__ . '/../encouragement_drip.php';
-    $pass('Encouragement drip delay index 0 = +3 hours', encouragement_drip_delay_before_index(0) === '+3 hours');
-    $pass('Encouragement drip delay index 1 = +5 hours', encouragement_drip_delay_before_index(1) === '+5 hours');
+    $pass('Encouragement drip delay index 0 = +2 minutes', encouragement_drip_delay_before_index(0) === '+2 minutes');
+    $pass('Encouragement drip delay index 1 = +3 hours', encouragement_drip_delay_before_index(1) === '+3 hours');
+    $pass('Encouragement drip delay index 2 = +1 hour', encouragement_drip_delay_before_index(2) === '+1 hour');
+    $pass('Encouragement drip delay index 3 = +21 hours', encouragement_drip_delay_before_index(3) === '+21 hours');
+    $spanDays = round(afya_pre_via_counseling_total_span_minutes() / 60 / 24, 2);
+    $pass(
+        'All 10 counseling messages within 6.5 days',
+        afya_pre_via_counseling_within_max_span(),
+        "span={$spanDays} days"
+    );
     $pass('Encouragement drip delay index 2 = +1 day', encouragement_drip_delay_before_index(2) === '+1 day');
 
     // --- Mteja language codes ---
@@ -139,8 +147,18 @@ function afya_test_results(): array
             && str_contains($enrollSrc, 'build_registration_welcome_message')
     );
     $pass(
-        'Registration starts encouragement drip chain',
-        str_contains($enrollSrc, 'schedule_encouragement_drip_step')
+        'Registration does not start pre-VIA drip (waits for HPV+ confirm)',
+        str_contains($enrollSrc, 'cancel_queued_encouragement_drip')
+            && !preg_match('/send_afya_enrollment_messages[\s\S]*?schedule_encouragement_drip_step/s', $enrollSrc)
+    );
+    $hpvSrc = (string) file_get_contents(__DIR__ . '/../hpv_results.php');
+    $pass(
+        'HPV+ record arms counseling drip pathway',
+        str_contains($hpvSrc, 'arm_hpv_positive_counseling_drip')
+    );
+    $pass(
+        'HPV+ confirm sends counseling msg 1 immediately',
+        str_contains($hpvSrc, 'start_hpv_positive_counseling_drip_on_confirm')
     );
     $viaSrc = (string) file_get_contents(__DIR__ . '/../patient_screening.php');
     $pass(
@@ -220,9 +238,33 @@ function afya_test_results(): array
 
     // --- Optional templates not yet mapped (informational warnings) ---
     $optionalMissing = [];
-    foreach (['afya_nav_edu', 'afya_nav_missed_offer', 'afya_nav_missed_confirm', 'afya_nav_via_neg_result', 'afya_nav_checkup_1y'] as $prefix) {
+    foreach ([
+        'afya_nav_edu', 'afya_nav_missed_offer', 'afya_nav_missed_confirm', 'afya_nav_via_neg_result',
+        'afya_nav_checkup_1y', 'afya_nav_registration_welcome', 'afya_nav_referral_reassurance',
+        'afya_nav_referral_appt_reminder', 'afya_nav_post_visit', 'afya_nav_via_ablation',
+        'afya_nav_tx_postponed', 'afya_nav_lang_set', 'afya_nav_unsubscribe',
+    ] as $prefix) {
         $pass("Mteja maps {$prefix}", str_contains($mtejaSrc, "'{$prefix}'") || str_contains($mtejaSrc, "{$prefix}_"));
     }
+    $pass(
+        'Registration welcome maps to afya_nav_registration_welcome',
+        str_contains($mtejaSrc, "messageType === 'registration_welcome'")
+            && str_contains($mtejaSrc, 'afya_nav_registration_welcome')
+    );
+    $pass(
+        'Mark attended sends post_visit_ack',
+        str_contains((string) file_get_contents(__DIR__ . '/../appointment_utils.php'), "'post_visit_ack'")
+            && str_contains((string) file_get_contents(__DIR__ . '/../appointment_utils.php'), 'build_post_visit_acknowledgement')
+    );
+    $pass(
+        'Referral reassurance uses dedicated message type',
+        str_contains((string) file_get_contents(__DIR__ . '/../patient_referral.php'), "'referral_reassurance'")
+    );
+    $pass(
+        'Language/stop replies use nav ack builders',
+        str_contains((string) file_get_contents(__DIR__ . '/../whatsapp_inbound.php'), 'build_language_set_ack_message')
+            && str_contains((string) file_get_contents(__DIR__ . '/../whatsapp_inbound.php'), 'build_unsubscribe_ack_message')
+    );
     $pass(
         'Optional templates pending Mteja mapping',
         true,

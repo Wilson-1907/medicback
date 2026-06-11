@@ -347,8 +347,8 @@ function send_afya_enrollment_messages(int $patientId, string $patientName, stri
     );
 
     require_once __DIR__ . '/encouragement_drip.php';
+    cancel_queued_encouragement_drip($patientId);
     reset_encouragement_drip_index($patientId);
-    schedule_encouragement_drip_step($patientId, '+3 hours');
 }
 
 function build_appointment_message(string $patientName, array $appointment, string $lang = 'en'): string

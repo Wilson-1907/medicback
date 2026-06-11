@@ -156,10 +156,59 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
     }
 
     if ($messageType === 'registration_welcome') {
-        if (str_contains($bodyLower, 'remain confidential') || str_contains($bodyLower, 'itahifadhiwa kwa siri')) {
-            return $mk('afya_engagement_tip');
+        return $mk('afya_nav_registration_welcome');
+    }
+
+    if ($messageType === 'referral_reassurance') {
+        return $mk('afya_nav_referral_reassurance', $name !== '' ? [$name] : ['']);
+    }
+
+    if ($messageType === 'referral_appt_reminder') {
+        $date = 'TBD';
+        if (preg_match('/Date:\s*(.+?)(?:\n|$)/mi', $body, $m) || preg_match('/Tarehe:\s*(.+?)(?:\n|$)/mi', $body, $m)) {
+            $parsed = trim($m[1]);
+            if ($parsed !== '' && !str_contains($parsed, '__________')) {
+                $date = $parsed;
+            }
         }
-        return $mk('afya_welcome');
+        if ($date === 'TBD' && preg_match('/ on (.+?)\./mi', $body, $m)) {
+            $date = trim($m[1]);
+        }
+        return $mk('afya_nav_referral_appt_reminder', [$date]);
+    }
+
+    if ($messageType === 'post_visit_ack') {
+        return $mk('afya_nav_post_visit', $name !== '' ? [$name] : ['']);
+    }
+
+    if ($messageType === 'via_ablation') {
+        $date = mteja_extract_appointment_datetime($body, $patientId);
+        if (preg_match('/Date:\s*(.+?)(?:\n|$)/mi', $body, $m) || preg_match('/Tarehe:\s*(.+?)(?:\n|$)/mi', $body, $m)) {
+            $parsed = trim($m[1]);
+            if ($parsed !== '' && !str_contains($parsed, '__________')) {
+                $date = $parsed;
+            }
+        }
+        return $mk('afya_nav_via_ablation', $name !== '' ? [$name, $date] : ['', $date]);
+    }
+
+    if ($messageType === 'via_tx_postponed') {
+        $date = 'TBD';
+        if (preg_match('/Date:\s*(.+?)(?:\n|$)/mi', $body, $m) || preg_match('/Tarehe:\s*(.+?)(?:\n|$)/mi', $body, $m)) {
+            $parsed = trim($m[1]);
+            if ($parsed !== '' && !str_contains($parsed, '__________')) {
+                $date = $parsed;
+            }
+        }
+        return $mk('afya_nav_tx_postponed', $name !== '' ? [$name, $date] : ['', $date]);
+    }
+
+    if ($messageType === 'lang_set_ack') {
+        return $mk('afya_nav_lang_set');
+    }
+
+    if ($messageType === 'opt_out_ack') {
+        return $mk('afya_nav_unsubscribe');
     }
 
     if ($messageType === 'staff_custom') {
@@ -200,6 +249,10 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
     }
 
     if ($messageType === 'education_menu' || ($messageType === 'system' && str_contains($bodyLower, 'afya rafiki —'))) {
+        if (str_contains($bodyLower, 'receiving a referral may cause concern')
+            || str_contains($bodyLower, 'kupokea rufaa kunaweza kukusababishia wasiwasi')) {
+            return $mk('afya_nav_referral_reassurance', $name !== '' ? [$name] : ['']);
+        }
         return $mk('afya_help_menu');
     }
 
@@ -281,6 +334,38 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
     }
 
     if ($messageType === 'system' || $messageType === 'ai_reply') {
+        if (str_contains($bodyLower, 'will send messages in english') || str_contains($bodyLower, 'itatumia kiswahili')) {
+            return $mk('afya_nav_lang_set');
+        }
+        if (str_contains($bodyLower, 'unsubscribed from afya rafiki') || str_contains($bodyLower, 'umejiondoa kupokea ujumbe')) {
+            return $mk('afya_nav_unsubscribe');
+        }
+        if (str_contains($bodyLower, 'thank you for attending your scheduled follow-up')
+            || str_contains($bodyLower, 'asante kwa kuhudhuria miadi yako ya ufuatiliaji')) {
+            return $mk('afya_nav_post_visit', $name !== '' ? [$name] : ['']);
+        }
+        if (str_contains($bodyLower, 'thermal ablation was successfully performed')
+            || str_contains($bodyLower, 'thermal ablation imefanyika')) {
+            $date = mteja_extract_appointment_datetime($body, $patientId);
+            return $mk('afya_nav_via_ablation', $name !== '' ? [$name, $date] : ['', $date]);
+        }
+        if (str_contains($bodyLower, 'treatment was postponed') || str_contains($bodyLower, 'matibabu yako yameahirishwa')) {
+            $date = 'TBD';
+            if (preg_match('/Date:\s*(.+?)(?:\n|$)/mi', $body, $m) || preg_match('/Tarehe:\s*(.+?)(?:\n|$)/mi', $body, $m)) {
+                $date = trim($m[1]);
+            }
+            return $mk('afya_nav_tx_postponed', $name !== '' ? [$name, $date] : ['', $date]);
+        }
+        if (str_contains($bodyLower, 'specialist review appointment') || str_contains($bodyLower, 'uchunguzi wa daktari bingwa')) {
+            $date = 'TBD';
+            if (preg_match('/Date:\s*(.+?)(?:\n|$)/mi', $body, $m) || preg_match('/Tarehe:\s*(.+?)(?:\n|$)/mi', $body, $m)) {
+                $date = trim($m[1]);
+            }
+            return $mk('afya_nav_referral_appt_reminder', [$date]);
+        }
+        if (str_contains($bodyLower, 'remain confidential') || str_contains($bodyLower, 'itahifadhiwa kwa siri')) {
+            return $mk('afya_nav_registration_welcome');
+        }
         if (str_contains($bodyLower, 'appreciate you agreeing') || str_contains($bodyLower, 'kukubali kupokea ujumbe')) {
             return $mk('afya_consent_thanks', $name !== '' ? [$name] : ['']);
         }

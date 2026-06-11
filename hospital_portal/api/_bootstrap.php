@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../messaging.php';
+require_once __DIR__ . '/../scheduled_messages.php';
 
 ensure_outbound_message_types();
+maybe_flush_due_scheduled_messages();
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');

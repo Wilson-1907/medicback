@@ -178,3 +178,9 @@ define('MTEJA_TEMPLATE_AFYA_WELCOME_SW', env_value('MTEJA_TEMPLATE_AFYA_WELCOME_
 define('GROQ_API_KEY', env_value('GROQ_API_KEY', ''));
 define('GROQ_MODEL', env_value('GROQ_MODEL', 'llama-3.3-70b-versatile'));
 define('GROQ_BASE_URL', env_value('GROQ_BASE_URL', 'https://api.groq.com/openai/v1/chat/completions'));
+
+/** Clinic local time for drip scheduling (align with MySQL session if possible). */
+define('APP_TIMEZONE', env_value('APP_TIMEZONE', 'Africa/Nairobi'));
+if (APP_TIMEZONE !== '') {
+    date_default_timezone_set(APP_TIMEZONE);
+}

@@ -480,12 +480,15 @@ function process_via_recorded_messages(
             build_referral_message($patientName, $lang, afya_format_appointment_date($refDate . ' 09:00:00'))
         );
         mark_nyeri_referral_recorded($patientId, $refDate);
+        schedule_referral_followup_messages($patientId, $patientName, $lang, $refDate);
     } else {
-        send_patient_message(
+        [$viaType, $viaBody] = resolve_via_positive_patient_message(
             $patientId,
-            'via_positive',
-            build_via_positive_result_notification($patientName, $lang)
+            $patientName,
+            $lang,
+            isset($screening['treatment_date']) ? (string) $screening['treatment_date'] : null
         );
+        send_patient_message($patientId, $viaType, $viaBody);
     }
 
     $followups = compute_screening_followups($screening);

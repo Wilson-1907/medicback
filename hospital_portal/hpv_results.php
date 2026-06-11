@@ -171,6 +171,11 @@ function set_patient_hpv_result(int $patientId, string $result, string $recorded
         error_log('cancel_queued_counseling_schedule: ' . $e->getMessage());
     }
 
+    if ($result === 'positive') {
+        require_once __DIR__ . '/encouragement_drip.php';
+        arm_hpv_positive_counseling_drip($patientId);
+    }
+
     try {
         ensure_hpv_workflow_schema();
         $dx = db()->prepare(
@@ -267,7 +272,7 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
             build_hpv_positive_result_notification($name, $apptDate, $lang)
         );
         require_once __DIR__ . '/encouragement_drip.php';
-        $scheduled = restart_encouragement_drip($patientId, '+3 hours');
+        $scheduled = start_hpv_positive_counseling_drip_on_confirm($patientId);
     }
 
     $dx = db()->prepare(
@@ -286,7 +291,8 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
         'ok' => true,
         'hpv_screening_result' => $result,
         'counseling_started' => $scheduled,
-        'first_followup_in' => '+3 hours',
+        'first_counseling' => 'immediate',
+        'next_counseling_in' => '+3 hours',
     ];
 }
 

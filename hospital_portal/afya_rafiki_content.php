@@ -607,9 +607,9 @@ function build_post_visit_via_negative(string $patientName, string $appointmentD
         : ($name !== '' ? "Hello {$name}," : 'Hello,');
     if ($lang === 'sw') {
         return "{$hello}\nMajibu yako ya HPV yalikuwa chanya (positive), lakini uchunguzi wa VIA haukuonyesha mabadiliko kwenye mlango wa kizazi yanayohitaji matibabu kwa sasa.\n"
-            . 'Haya ni matokeo mazuri. Ingawa virusi vya HPV vilipatikana, hakuna mabadiliko yaliyoonekana kwenye mlango wa kizazi kwa sasa. Maambukizi mengi ya HPV huisha yenyewe bila kusababisha matatizo ya kiafya. Hata hivyo, ufuatiliaji wa mara kwa mara ni muhimu kwa sababu baadhi ya maambukizi yanaweza kuendelea kwa muda mrefu na kusababisha mabadiliko kwenye mlango wa kizazi.'
-            . "\nHuhitaji matibabu kwa sasa.\nNi muhimu urudi kwa kipimo kingine cha HPV baada ya mwaka 1 ili kufuatilia afya ya mlango wa kizazi na kuhakikisha kuwa mabadiliko yoyote yatagunduliwa mapema ikiwa yatatokea."
-            . "\nTarehe ya miadi yako ya ufuatiliaji ni:\nTarehe: {$appointmentDate}"
+            . 'Haya ni matokeo mazuri. Ingawa HPV vilipatikana, hakuna mabadiliko yaliyoonekana kwenye mlango wa kizazi kwa sasa. Maambukizi mengi ya HPV huisha yenyewe bila kusababisha matatizo ya kiafya. Hata hivyo, ufuatiliaji wa mara kwa mara ni muhimu kwa sababu baadhi ya maambukizi yanaweza kuendelea kwa muda mrefu na kusababisha mabadiliko kwenye mlango wa kizazi.'
+            . "\nHuhitaji matibabu sasa.\nNi muhimu urudi kwa kipimo kingine cha HPV baada ya mwaka 1 ili kufuatilia afya ya mlango wa kizazi na kuhakikisha mabadiliko yoyote yatagunduliwa mapema ikiwa yatatokea."
+            . "\nMiadi yako ya ufuatiliaji ni:\nTarehe: {$appointmentDate}"
             . "\nIkiwa utapata dalili kama kutokwa na damu isiyo ya kawaida ukeni, majimaji yenye harufu mbaya kutoka ukeni, au maumivu ya muda mrefu chini ya tumbo, tafadhali tembelea kituo cha afya kwa uchunguzi zaidi."
             . "\nAsante kwa kutumia Afya Rafiki. Tuko hapa kukusaidia.";
     }
@@ -662,6 +662,53 @@ function build_post_visit_treatment_postponed(string $patientName, string $appoi
         . "Your treatment was postponed and has been rescheduled for:\nDate: {$appointmentDate}\n"
         . "It is important that you attend this appointment so that the recommended treatment can be completed. If you are unable to attend, please contact your healthcare provider or visit {$site} to arrange another appointment."
         . "\nIf you have any questions, Afya Rafiki is here to support you.\nThank you for choosing Afya Rafiki.";
+}
+
+function build_language_set_ack_message(string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    return $lang === 'sw'
+        ? 'Asante. Afya Rafiki itatumia Kiswahili. Jibu HELP wakati wowote.'
+        : 'Thank you. Afya Rafiki will send messages in English. Reply HELP anytime.';
+}
+
+function build_unsubscribe_ack_message(string $lang = 'en'): string
+{
+    $lang = afya_lang($lang);
+    return $lang === 'sw'
+        ? 'Umejiondoa kupokea ujumbe kutoka Afya Rafiki. Wasiliana na Nyeri Town Health Centre ikiwa unahitaji msaada.'
+        : 'You have been unsubscribed from Afya Rafiki messages. Contact Nyeri Town Health Centre if you need help.';
+}
+
+/**
+ * @return array{0: string, 1: string} message type, body
+ */
+function resolve_via_positive_patient_message(int $patientId, string $patientName, string $lang, ?string $treatmentDate): array
+{
+    $lang = afya_lang($lang);
+    if ($treatmentDate !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $treatmentDate)) {
+        $formattedTreatment = afya_format_appointment_date($treatmentDate . ' 09:00:00');
+        if ($treatmentDate > date('Y-m-d')) {
+            return [
+                'via_tx_postponed',
+                build_post_visit_treatment_postponed($patientName, $formattedTreatment, $lang),
+            ];
+        }
+        $followUp = afya_next_appointment_display($patientId);
+        if ($followUp === '__________') {
+            $followUp = afya_format_appointment_date(date('Y-m-d', strtotime($treatmentDate . ' +1 year')) . ' 09:00:00');
+        }
+
+        return [
+            'via_ablation',
+            build_post_visit_via_positive_ablation($patientName, $followUp, $lang),
+        ];
+    }
+
+    return [
+        'via_positive',
+        build_via_positive_result_notification($patientName, $lang),
+    ];
 }
 
 function build_post_visit_acknowledgement(string $patientName, string $lang = 'en'): string

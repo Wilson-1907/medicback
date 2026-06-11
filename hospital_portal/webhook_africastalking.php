@@ -9,6 +9,9 @@ require_once __DIR__ . '/openai_assistant.php';
 require_once __DIR__ . '/doctor_call_requests.php';
 require_once __DIR__ . '/whatsapp_inbound.php';
 require_once __DIR__ . '/delivery_report_utils.php';
+require_once __DIR__ . '/scheduled_messages.php';
+
+maybe_flush_due_scheduled_messages();
 
 /**
  * Africa's Talking inbound webhook handler.

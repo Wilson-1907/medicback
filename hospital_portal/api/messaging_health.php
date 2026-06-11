@@ -220,7 +220,11 @@ try {
 
             'reminders_endpoint' => '/cron_run_reminders.php',
 
-            'note' => 'Schedule every 30-60 min. Set CRON_SECRET on server and pass ?key=...',
+            'note' => 'Schedule every 5-15 min for HPV counseling drips. Set CRON_SECRET and pass ?key=...',
+
+            'scheduled_messages' => scheduled_messages_queue_stats(),
+
+            'app_timezone' => defined('APP_TIMEZONE') ? APP_TIMEZONE : null,
 
         ],
 

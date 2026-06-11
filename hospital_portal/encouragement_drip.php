@@ -62,6 +62,34 @@ function patient_hpv_positive_confirmed(int $patientId): bool
         && !empty($row['hpv_result_confirmed_at']);
 }
 
+function patient_hpv_positive_recorded(int $patientId): bool
+{
+    if (!db_table_has_column('patients', 'hpv_screening_result')) {
+        return false;
+    }
+    $st = db()->prepare(
+        'SELECT hpv_screening_result, hpv_result_recorded_at FROM patients WHERE id = ? LIMIT 1'
+    );
+    $st->execute([$patientId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return false;
+    }
+
+    return strtolower((string) ($row['hpv_screening_result'] ?? '')) === 'positive'
+        && !empty($row['hpv_result_recorded_at']);
+}
+
+/** HPV+ pathway active — recorded or confirmed, until VIA or HPV negative confirm. */
+function patient_hpv_positive_for_drip(int $patientId): bool
+{
+    if (patient_via_result_recorded($patientId) || patient_hpv_negative_confirmed($patientId)) {
+        return false;
+    }
+
+    return patient_hpv_positive_recorded($patientId);
+}
+
 function patient_hpv_negative_confirmed(int $patientId): bool
 {
     if (!db_table_has_column('patients', 'hpv_screening_result')) {
@@ -143,10 +171,13 @@ function reset_encouragement_drip_index(int $patientId): void
     db()->prepare('UPDATE patients SET hpv_counseling_index = 0 WHERE id = ?')->execute([$patientId]);
 }
 
-/** Schedule the next short tip at the patient's current hpv_counseling_index. */
+/** Schedule the next pre-VIA counseling tip (HPV+ confirmed only). */
 function schedule_encouragement_drip_step(int $patientId, ?string $delayExpression = null): bool
 {
     if (patient_via_result_recorded($patientId)) {
+        return false;
+    }
+    if (!patient_hpv_positive_for_drip($patientId)) {
         return false;
     }
     if (encouragement_drip_pathway_complete($patientId)) {
@@ -179,6 +210,9 @@ function schedule_encouragement_drip_step(int $patientId, ?string $delayExpressi
         $delay = encouragement_drip_delay_before_index($index);
     }
     schedule_patient_message($patientId, 'hpv_counseling', $msg, $delay, true);
+    if (function_exists('maybe_flush_due_scheduled_messages')) {
+        maybe_flush_due_scheduled_messages(30);
+    }
     return true;
 }
 
@@ -226,8 +260,58 @@ function encouragement_drip_step_sent(int $patientId): void
     }
 }
 
-/** Restart drip from tip 1 (e.g. after HPV confirm). */
-function restart_encouragement_drip(int $patientId, string $firstDelay = '+3 hours'): bool
+/** Arm drip pathway when HPV+ is recorded (no messages until confirm). */
+function arm_hpv_positive_counseling_drip(int $patientId): void
+{
+    cancel_queued_encouragement_drip($patientId);
+    reset_encouragement_drip_index($patientId);
+}
+
+/**
+ * After HPV+ confirm: send counseling msg 1 immediately, queue msg 2 (+3h) via cron.
+ */
+function start_hpv_positive_counseling_drip_on_confirm(int $patientId): bool
+{
+    if (!patient_hpv_positive_for_drip($patientId)) {
+        return false;
+    }
+
+    $optSt = db()->prepare(
+        'SELECT 1 FROM contact_channels WHERE patient_id = ? AND opted_in = 1 LIMIT 1'
+    );
+    $optSt->execute([$patientId]);
+    if (!$optSt->fetchColumn()) {
+        return false;
+    }
+
+    cancel_queued_encouragement_drip($patientId);
+    reset_encouragement_drip_index($patientId);
+
+    $lang = function_exists('get_patient_language') ? get_patient_language($patientId) : 'en';
+    $msg = get_encouragement_drip_message_at_index($patientId, 0, $lang);
+    if ($msg === null || trim($msg) === '') {
+        return false;
+    }
+
+    $sent = send_patient_message($patientId, 'hpv_counseling', $msg);
+    if (!$sent) {
+        return restart_encouragement_drip($patientId, '+2 minutes');
+    }
+
+    if (db_table_has_column('patients', 'hpv_counseling_index')) {
+        db()->prepare('UPDATE patients SET hpv_counseling_index = 1 WHERE id = ?')->execute([$patientId]);
+    }
+
+    $scheduled = schedule_encouragement_drip_step($patientId, encouragement_drip_delay_before_index(1));
+    if (function_exists('maybe_flush_due_scheduled_messages')) {
+        maybe_flush_due_scheduled_messages(30);
+    }
+
+    return true;
+}
+
+/** Restart drip from tip 1 (fallback / repair). */
+function restart_encouragement_drip(int $patientId, string $firstDelay = '+2 minutes'): bool
 {
     cancel_queued_encouragement_drip($patientId);
     reset_encouragement_drip_index($patientId);

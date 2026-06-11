@@ -4,6 +4,69 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/messaging.php';
 
+/** Compute send_at from MySQL clock so PHP/MySQL skew does not delay drips. */
+function schedule_compute_send_at(string $delayExpression): string
+{
+    $row = db()->query('SELECT NOW(3) AS db_now')->fetch();
+    $base = is_array($row) ? (string) ($row['db_now'] ?? '') : '';
+    if ($base === '') {
+        $base = date('Y-m-d H:i:s');
+    }
+    $ts = strtotime($delayExpression, strtotime($base));
+    if ($ts === false) {
+        $ts = time();
+    }
+
+    return date('Y-m-d H:i:s', $ts);
+}
+
+/**
+ * Run due queued messages (debounced). Drips only leave the queue when this or cron runs.
+ */
+function maybe_flush_due_scheduled_messages(int $minIntervalSeconds = 60): void
+{
+    static $ranThisRequest = false;
+    if ($ranThisRequest) {
+        return;
+    }
+    $ranThisRequest = true;
+
+    $lockFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'phv_scheduled_flush.lock';
+    $now = time();
+    $last = is_file($lockFile) ? (int) @file_get_contents($lockFile) : 0;
+    if ($now - $last < $minIntervalSeconds) {
+        return;
+    }
+    @file_put_contents($lockFile, (string) $now);
+    process_due_scheduled_messages();
+}
+
+/** @return array{queued: int, due_now: int, next_send_at: ?string, db_now: ?string} */
+function scheduled_messages_queue_stats(): array
+{
+    try {
+        $row = db()->query(
+            "SELECT
+                (SELECT COUNT(*) FROM scheduled_messages WHERE status = 'queued') AS queued,
+                (SELECT COUNT(*) FROM scheduled_messages WHERE status = 'queued' AND send_at <= NOW(3)) AS due_now,
+                (SELECT MIN(send_at) FROM scheduled_messages WHERE status = 'queued') AS next_send_at,
+                NOW(3) AS db_now"
+        )->fetch();
+        if (!$row) {
+            return ['queued' => 0, 'due_now' => 0, 'next_send_at' => null, 'db_now' => null];
+        }
+
+        return [
+            'queued' => (int) ($row['queued'] ?? 0),
+            'due_now' => (int) ($row['due_now'] ?? 0),
+            'next_send_at' => isset($row['next_send_at']) ? (string) $row['next_send_at'] : null,
+            'db_now' => isset($row['db_now']) ? (string) $row['db_now'] : null,
+        ];
+    } catch (Throwable $e) {
+        return ['queued' => 0, 'due_now' => 0, 'next_send_at' => null, 'db_now' => null];
+    }
+}
+
 function schedule_patient_message(
     int $patientId,
     string $messageType,
@@ -12,7 +75,7 @@ function schedule_patient_message(
     bool $triggersCounselingChain = false
 ): int
 {
-    $sendAt = date('Y-m-d H:i:s', strtotime($delayExpression));
+    $sendAt = schedule_compute_send_at($delayExpression);
     $hasChainCol = scheduled_messages_has_counseling_chain_column();
     if ($hasChainCol) {
         $st = db()->prepare(

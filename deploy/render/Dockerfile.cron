@@ -1,0 +1,8 @@
+# Lightweight cron runner: pings medicback reminder/drip endpoint.
+FROM curlimages/curl:8.11.1
+
+WORKDIR /app
+COPY deploy/render/cron_ping.sh /app/cron_ping.sh
+RUN chmod +x /app/cron_ping.sh
+
+CMD ["/bin/sh", "/app/cron_ping.sh"]

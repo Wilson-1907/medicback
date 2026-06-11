@@ -302,12 +302,23 @@ function start_hpv_positive_counseling_drip_on_confirm(int $patientId): bool
         db()->prepare('UPDATE patients SET hpv_counseling_index = 1 WHERE id = ?')->execute([$patientId]);
     }
 
-    $scheduled = schedule_encouragement_drip_step($patientId, encouragement_drip_delay_before_index(1));
+    $nextDelay = encouragement_drip_delay_before_index(1);
+    $scheduled = schedule_encouragement_drip_step($patientId, $nextDelay);
+    if (!$scheduled) {
+        $msg2 = get_encouragement_drip_message_at_index($patientId, 1, $lang);
+        if ($msg2 !== null && trim($msg2) !== '') {
+            schedule_patient_message($patientId, 'hpv_counseling', $msg2, $nextDelay, true);
+            $scheduled = true;
+            error_log('HPV_DRIP: forced queue of counseling msg 2 for patient ' . $patientId);
+        } else {
+            error_log('HPV_DRIP: counseling msg 2 not queued for patient ' . $patientId);
+        }
+    }
     if (function_exists('maybe_flush_due_scheduled_messages')) {
         maybe_flush_due_scheduled_messages(30);
     }
 
-    return true;
+    return $sent && $scheduled;
 }
 
 /** Restart drip from tip 1 (fallback / repair). */
@@ -348,11 +359,40 @@ function complete_encouragement_drip_after_hpv_negative(int $patientId): void
     db()->prepare('UPDATE patients SET hpv_counseling_index = ? WHERE id = ?')->execute([$done, $patientId]);
 }
 
-/** Re-queue drip for HPV+ patients who finished the FAQ sequence but have no VIA yet. */
+/** Re-queue drip for HPV+ patients with no queued counseling step (cron safety net). */
 function repair_stalled_hpv_positive_drips(): int
 {
     if (!db_table_has_column('patients', 'hpv_screening_result') || !db_table_has_column('patients', 'via_result')) {
         return 0;
+    }
+
+    $repaired = 0;
+
+    $mid = db()->query(
+        "SELECT id, hpv_counseling_index FROM patients
+         WHERE hpv_screening_result = 'positive'
+           AND hpv_result_confirmed_at IS NOT NULL
+           AND hpv_counseling_index BETWEEN 1 AND 9
+           AND (via_result IS NULL OR via_result = '' OR via_result NOT IN ('positive', 'negative'))"
+    )->fetchAll();
+
+    foreach ($mid as $row) {
+        $patientId = (int) ($row['id'] ?? 0);
+        $index = (int) ($row['hpv_counseling_index'] ?? 0);
+        if ($patientId < 1 || patient_has_queued_encouragement_drip($patientId)) {
+            continue;
+        }
+        $delay = encouragement_drip_delay_before_index($index);
+        if (schedule_encouragement_drip_step($patientId, $delay)) {
+            $repaired++;
+            continue;
+        }
+        $lang = get_patient_language($patientId);
+        $msg = get_encouragement_drip_message_at_index($patientId, $index, $lang);
+        if ($msg !== null && trim($msg) !== '') {
+            schedule_patient_message($patientId, 'hpv_counseling', $msg, $delay, true);
+            $repaired++;
+        }
     }
 
     $rows = db()->query(
@@ -362,7 +402,6 @@ function repair_stalled_hpv_positive_drips(): int
            AND via_result NOT IN ('positive', 'negative')"
     )->fetchAll();
 
-    $repaired = 0;
     foreach ($rows as $row) {
         $patientId = (int) ($row['id'] ?? 0);
         if ($patientId < 1 || patient_has_queued_encouragement_drip($patientId)) {

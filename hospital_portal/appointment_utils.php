@@ -36,6 +36,22 @@ function appointment_on_or_past_day(array $appointment): bool
     return date('Y-m-d', $start) <= date('Y-m-d');
 }
 
+/** True when the scheduled start time has passed (uses MySQL clock). */
+function appointment_start_time_passed(array $appointment): bool
+{
+    $startRaw = (string) ($appointment['scheduled_start'] ?? '');
+    if ($startRaw === '') {
+        return false;
+    }
+    $row = db()->query('SELECT NOW(3) AS db_now')->fetch();
+    $dbNow = is_array($row) ? (string) ($row['db_now'] ?? '') : '';
+    if ($dbNow === '') {
+        return strtotime($startRaw) <= time();
+    }
+
+    return strtotime($startRaw) <= strtotime($dbNow);
+}
+
 /** Chronologically first booked appointment for a patient (VIA is only done after this visit). */
 function patient_first_appointment_id(int $patientId): ?int
 {
@@ -154,7 +170,8 @@ function mark_appointment_attended(int $appointmentId, string $recordedBy = 'sta
     ensure_appointment_attendance_schema();
 
     $st = db()->prepare(
-        'SELECT a.id, a.patient_id, a.scheduled_start, a.status, p.full_name, p.preferred_language, p.via_result
+        'SELECT a.id, a.patient_id, a.scheduled_start, a.status, a.created_at,
+                p.full_name, p.preferred_language, p.via_result
          FROM appointments a
          INNER JOIN patients p ON p.id = a.patient_id
          WHERE a.id = ?
@@ -170,6 +187,12 @@ function mark_appointment_attended(int $appointmentId, string $recordedBy = 'sta
     }
     if (!appointment_on_or_past_day($row)) {
         return ['ok' => false, 'error' => 'Attendance can be recorded on or after the appointment day'];
+    }
+    if (!appointment_start_time_passed($row)) {
+        return [
+            'ok' => false,
+            'error' => 'Attendance can only be recorded after the appointment start time has passed',
+        ];
     }
 
     $up = db()->prepare(
@@ -188,7 +211,11 @@ function mark_appointment_attended(int $appointmentId, string $recordedBy = 'sta
         'SELECT 1 FROM contact_channels WHERE patient_id = ? AND opted_in = 1 LIMIT 1'
     );
     $optSt->execute([$patientId]);
-    if ($optSt->fetchColumn()) {
+    $createdAt = strtotime((string) ($row['created_at'] ?? ''));
+    $dbNowRow = db()->query('SELECT UNIX_TIMESTAMP(NOW(3)) AS ts')->fetch();
+    $dbNowTs = is_array($dbNowRow) ? (int) ($dbNowRow['ts'] ?? time()) : time();
+    $bookedSecondsAgo = $createdAt !== false ? max(0, $dbNowTs - $createdAt) : 99999;
+    if ($optSt->fetchColumn() && $bookedSecondsAgo >= 1800) {
         require_once __DIR__ . '/afya_rafiki_content.php';
         send_patient_message(
             $patientId,

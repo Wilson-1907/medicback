@@ -10,15 +10,64 @@ The backend sends **three automated SMS/WhatsApp reminders** per booked appointm
 
 Recipients must have **opted in** and replied **YES/NDIO** to the consent message.
 
-## Schedule on Render
+## CRON_SECRET (you create it — it does not exist yet)
 
-Create a **Cron Job** (or use [cron-job.org](https://cron-job.org)) that calls every **5–15 minutes** (HPV counseling drips use `scheduled_messages` and need frequent runs; **30–60 min is too slow** for +2 min / +1 h steps):
+1. Generate a random string (PowerShell example):
+   ```powershell
+   -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 40 | ForEach-Object { [char]$_ })
+   ```
+2. Save it — use the **same value** on the **web service** and the **cron job**.
+
+## Option A — Render Cron Job (recommended)
+
+Repo files: `deploy/render/Dockerfile.cron` + `deploy/render/cron_ping.sh`.
+
+### A1. Set secret on medicback web service
+
+[Render Dashboard](https://dashboard.render.com) → **medicback** web service → **Environment**:
+
+| Key | Value |
+|-----|--------|
+| `CRON_SECRET` | your random string |
+
+Save → wait for redeploy.
+
+### A2. Create the cron job
+
+**New +** → **Cron Job** → connect repo **`Wilson-1907/medicback`**:
+
+| Field | Value |
+|-------|--------|
+| **Name** | `medicback-cron-reminders` |
+| **Region** | Same as web service |
+| **Branch** | `main` |
+| **Runtime** | **Docker** |
+| **Dockerfile path** | `deploy/render/Dockerfile.cron` |
+| **Schedule** | `*/10 * * * *` (every 10 min) or `*/5 * * * *` (every 5) |
+| **Docker command** | *(leave empty — uses `CMD` in Dockerfile.cron)* |
+
+**Environment** on the cron job:
+
+| Key | Value |
+|-----|--------|
+| `CRON_SECRET` | **same** as web service |
+| `CRON_BASE_URL` | `https://medicback.onrender.com` |
+
+Create → **Logs** on first run → JSON with `"ok": true`.
+
+### A3. Test manually
 
 ```http
 GET https://medicback.onrender.com/cron_run_reminders.php?key=YOUR_CRON_SECRET
 ```
 
-Set `CRON_SECRET` in the Render web service environment (same value as `?key=`).
+## Option B — Blueprint in repo (`render.yaml`)
+
+`deploy/render/render.yaml` defines both the web service and cron job. `CRON_SECRET` uses `sync: false` (Render prompts once).
+
+After pushing, in Render: **Blueprints** → sync, or link the blueprint if not already linked.
+
+Shared secret via env group `medicback-shared` — one `CRON_SECRET` for web + cron.
 
 ## Manual test
 

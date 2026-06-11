@@ -1,3 +1,15 @@
+# Render Blueprint — web service + scheduled reminder/drip cron.
+# Dashboard: Blueprint → path deploy/render/render.yaml (or repo root if you copy/symlink).
+#
+# CRON_SECRET: you invent this once (random string). Render prompts on first sync (sync: false).
+# Set the same value on an existing web service manually if not using Blueprint sync.
+
+envVarGroups:
+  - name: medicback-shared
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+
 services:
   - type: web
     name: phv-render-backend
@@ -5,6 +17,7 @@ services:
     plan: free
     dockerfilePath: ./deploy/render/Dockerfile
     envVars:
+      - fromGroup: medicback-shared
       - key: APP_NAME
         value: HPV Hospital Console
       - key: HOSPITAL_NAME
@@ -13,3 +26,14 @@ services:
         value: Nyeri Town Health Center
       - key: WIPE_DATA_PASSWORD
         value: Adminpass
+
+  - type: cron
+    name: medicback-cron-reminders
+    runtime: docker
+    plan: free
+    schedule: "*/10 * * * *"
+    dockerfilePath: ./deploy/render/Dockerfile.cron
+    envVars:
+      - fromGroup: medicback-shared
+      - key: CRON_BASE_URL
+        value: https://medicback.onrender.com

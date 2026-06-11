@@ -104,7 +104,7 @@ function afya_test_results(): array
     // --- HPV confirm delays (study: 3h, 5h, then 1 day) ---
     require_once __DIR__ . '/../encouragement_drip.php';
     $pass('Encouragement drip delay index 0 = +2 minutes', encouragement_drip_delay_before_index(0) === '+2 minutes');
-    $pass('Encouragement drip delay index 1 = +3 hours', encouragement_drip_delay_before_index(1) === '+3 hours');
+    $pass('Encouragement drip delay index 1 = +2 minutes', encouragement_drip_delay_before_index(1) === '+2 minutes');
     $pass('Encouragement drip delay index 2 = +1 hour', encouragement_drip_delay_before_index(2) === '+1 hour');
     $pass('Encouragement drip delay index 3 = +21 hours', encouragement_drip_delay_before_index(3) === '+21 hours');
     $spanDays = round(afya_pre_via_counseling_total_span_minutes() / 60 / 24, 2);

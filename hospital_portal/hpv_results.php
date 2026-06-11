@@ -292,7 +292,7 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
         'hpv_screening_result' => $result,
         'counseling_started' => $scheduled,
         'first_counseling' => 'immediate',
-        'next_counseling_in' => '+3 hours',
+        'next_counseling_in' => '+2 minutes',
     ];
 }
 

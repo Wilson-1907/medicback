@@ -36,14 +36,14 @@ const AFYA_PRE_VIA_COUNSELING_MAX_SPAN_DAYS = 6.5;
 
 /**
  * Study schedule after HPV+ confirm:
- * msg1 +2min, msg2 +3h after msg1, msg3 +1h after msg2,
+ * msg1 immediate on confirm, msg2 +2min after msg1, msg3 +1h after msg2,
  * msgs 4–10 +21h each (7×21h ≈ 6.3 days total span).
  */
 function afya_pre_via_counseling_delay_before_index(int $index): string
 {
     return match ($index) {
         0 => '+2 minutes',
-        1 => '+3 hours',
+        1 => '+2 minutes',
         2 => '+1 hour',
         default => '+21 hours',
     };

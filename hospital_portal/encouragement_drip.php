@@ -268,7 +268,7 @@ function arm_hpv_positive_counseling_drip(int $patientId): void
 }
 
 /**
- * After HPV+ confirm: send counseling msg 1 immediately, queue msg 2 (+3h) via cron.
+ * After HPV+ confirm: send counseling msg 1 immediately, queue msg 2 (+2 min) via cron.
  */
 function start_hpv_positive_counseling_drip_on_confirm(int $patientId): bool
 {

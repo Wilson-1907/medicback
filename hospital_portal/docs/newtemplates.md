@@ -32,7 +32,7 @@ Missed **survey** (§13) still uses **`afya_missed_appt_en`** / **`afya_missed_a
 
 ## Pre-VIA counseling (study messages 1–10)
 
-**Schedule:** HPV+ **recorded** arms the pathway; on **confirm & notify** msg 1 sends **immediately** after the result SMS, then msg 2 **+3 h**, msg 3 **+1 h**, msgs 4–10 **+21 h** each (~**6.3 days**, within **6.5 day** limit). Stops when VIA is recorded. Cron: `process_due_scheduled_messages` every **5–15 min** for msgs 2–10.
+**Schedule:** HPV+ **recorded** arms the pathway; on **confirm & notify** msg 1 sends **immediately** after the result SMS, then msg 2 **+2 min**, msg 3 **+1 h**, msgs 4–10 **+21 h** each (~**6.3 days**, within **6.5 day** limit). Stops when VIA is recorded. Cron: `process_due_scheduled_messages` every **5–15 min** for msgs 2–10.
 
 ### `afya_nav_edu_01_en` — Understanding HPV
 

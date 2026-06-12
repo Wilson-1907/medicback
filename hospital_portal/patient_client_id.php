@@ -4,12 +4,35 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/hpv_results.php';
 
-/** Facility client ID prefix (nurse enters digits after this). */
+/** Facility prefix — full ID: NTHC/{file}/{patient} e.g. NTHC/01/05 */
 function client_id_prefix(): string
 {
-    return defined('CLIENT_ID_PREFIX') ? CLIENT_ID_PREFIX : 'NC/NTHC/001/';
+    return defined('CLIENT_ID_PREFIX') ? CLIENT_ID_PREFIX : 'NTHC/';
 }
 
+/** Normalize one 2-digit part (file or patient-in-file). */
+function normalize_client_id_part(string $part): string
+{
+    $digits = preg_replace('/\D+/', '', trim($part)) ?? '';
+    if ($digits === '' || strlen($digits) > 2) {
+        return '';
+    }
+
+    return str_pad($digits, 2, '0', STR_PAD_LEFT);
+}
+
+function build_client_id_from_parts(string $fileNo, string $patientNo): string
+{
+    $file = normalize_client_id_part($fileNo);
+    $patient = normalize_client_id_part($patientNo);
+    if ($file === '' || $patient === '') {
+        return '';
+    }
+
+    return client_id_prefix() . $file . '/' . $patient;
+}
+
+/** @deprecated Legacy single-suffix IDs (NC/NTHC/001/022) */
 function normalize_client_id_suffix(string $suffix): string
 {
     $suffix = trim($suffix);
@@ -20,6 +43,7 @@ function normalize_client_id_suffix(string $suffix): string
     if (!preg_match('/^\d{1,6}$/', $suffix)) {
         return '';
     }
+
     return $suffix;
 }
 
@@ -29,20 +53,29 @@ function build_client_id(string $suffix): string
     if ($suffix === '') {
         return '';
     }
+
     return client_id_prefix() . $suffix;
 }
 
 function parse_client_id_from_body(array $body): string
 {
+    $file = trim((string) ($body['client_file_no'] ?? ''));
+    $patient = trim((string) ($body['client_patient_no'] ?? ''));
+    if ($file !== '' || $patient !== '') {
+        return build_client_id_from_parts($file, $patient);
+    }
+
     $suffix = normalize_client_id_suffix((string) ($body['client_no_suffix'] ?? ''));
     if ($suffix !== '') {
         return build_client_id($suffix);
     }
+
     $full = trim((string) ($body['external_mrn'] ?? ''));
-    if ($full !== '' && str_starts_with($full, client_id_prefix())) {
-        return $full;
+    if ($full !== '') {
+        return normalize_client_id_full($full);
     }
-    return build_client_id($full);
+
+    return '';
 }
 
 function client_id_exists(string $clientId, ?int $excludePatientId = null): bool
@@ -60,6 +93,7 @@ function client_id_exists(string $clientId, ?int $excludePatientId = null): bool
     $sql .= ' LIMIT 1';
     $st = db()->prepare($sql);
     $st->execute($args);
+
     return (bool) $st->fetchColumn();
 }
 
@@ -69,13 +103,30 @@ function normalize_client_id_full(string $ref): string
     if ($ref === '') {
         return '';
     }
-    if (str_starts_with($ref, client_id_prefix())) {
+
+    $prefix = client_id_prefix();
+    if (str_starts_with($ref, $prefix)) {
+        $rest = substr($ref, strlen($prefix));
+        if (preg_match('/^(\d{1,2})\/(\d{1,2})$/', $rest, $m)) {
+            return build_client_id_from_parts($m[1], $m[2]);
+        }
+
         return $ref;
     }
+
+    if (preg_match('/^(\d{1,2})\/(\d{1,2})$/', $ref, $m)) {
+        return build_client_id_from_parts($m[1], $m[2]);
+    }
+
+    $digits = preg_replace('/\D+/', '', $ref) ?? '';
+    if (strlen($digits) === 4) {
+        return build_client_id_from_parts(substr($digits, 0, 2), substr($digits, 2, 2));
+    }
+
     return build_client_id($ref);
 }
 
-/** Resolve internal row id from client serial (full ID or suffix digits only). */
+/** Resolve internal row id from client serial (full ID, 01/05, or 0105). */
 function resolve_patient_id_by_client_id(string $ref): ?int
 {
     $clientId = normalize_client_id_full($ref);
@@ -85,6 +136,7 @@ function resolve_patient_id_by_client_id(string $ref): ?int
     $st = db()->prepare('SELECT id FROM patients WHERE external_mrn = ? LIMIT 1');
     $st->execute([$clientId]);
     $id = $st->fetchColumn();
+
     return $id !== false ? (int) $id : null;
 }
 
@@ -109,14 +161,19 @@ function ensure_client_id_unique_index(): void
 function validate_client_id_registration(string $clientId): ?string
 {
     if ($clientId === '') {
-        return 'Client number is required (enter the unique digits after ' . client_id_prefix() . ').';
+        return 'Client number is required (file number and patient number, e.g. ' . client_id_prefix() . '01/05).';
     }
     if (!str_starts_with($clientId, client_id_prefix())) {
         return 'Client ID must start with ' . client_id_prefix();
     }
+    $rest = substr($clientId, strlen(client_id_prefix()));
+    if (!preg_match('/^\d{2}\/\d{2}$/', $rest)) {
+        return 'Use two 2-digit numbers: ' . client_id_prefix() . 'file/patient (e.g. ' . client_id_prefix() . '01/05).';
+    }
     if (client_id_exists($clientId)) {
         return 'This client number is already registered: ' . $clientId;
     }
+
     return null;
 }
 
@@ -140,6 +197,7 @@ function find_registered_phone(string $phone, ?string $channel = null): ?array
     $st = db()->prepare($sql);
     $st->execute($args);
     $row = $st->fetch();
+
     return $row !== false ? $row : null;
 }
 
@@ -154,6 +212,7 @@ function validate_phone_registration(string $phone, string $channel): ?string
         return 'This phone number is already registered for client ' . $clientId
             . '. Use a different number or open that patient\'s record.';
     }
+
     return 'This phone number is already registered. Please use a different number or contact the patient if they already exist.';
 }
 
@@ -181,6 +240,7 @@ function map_registration_db_error(Throwable $e): ?array
             'status' => 422,
         ];
     }
+
     return [
         'error' => 'This phone number or client number is already registered.',
         'status' => 422,

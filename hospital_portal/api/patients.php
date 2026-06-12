@@ -116,12 +116,11 @@ try {
         if ($q !== '') {
             $sql .= ' WHERE p.full_name LIKE ? OR p.external_mrn LIKE ?';
             $like = '%' . $q . '%';
-            $suffix = normalize_client_id_suffix($q);
-            if ($suffix !== '') {
-                $sql .= ' OR p.external_mrn LIKE ?';
-                $args = [$like, $like, '%' . client_id_prefix() . $suffix . '%'];
-            } else {
-                $args = [$like, $like];
+            $args = [$like, $like];
+            $normalizedId = normalize_client_id_full($q);
+            if ($normalizedId !== '') {
+                $sql .= ' OR p.external_mrn = ?';
+                $args[] = $normalizedId;
             }
         }
         $sql .= ' ORDER BY p.external_mrn ASC, p.full_name ASC LIMIT 500';

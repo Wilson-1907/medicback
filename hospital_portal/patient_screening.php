@@ -149,9 +149,6 @@ function validate_screening_registration(array $screening): ?string
     if ($screening['hpv_done_before'] === 'unknown') {
         return 'Please indicate if HPV screening was ever done before.';
     }
-    if ($screening['hpv_done_before'] === 'yes' && $screening['hpv_prior_result'] === 'unknown') {
-        return 'Please record the prior HPV result (positive or negative).';
-    }
     if ($screening['place_of_residence'] === '') {
         return 'Place of residence is required.';
     }

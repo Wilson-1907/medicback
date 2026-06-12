@@ -28,14 +28,15 @@ $host = $_SERVER['HTTP_HOST'];
 $baseUrl = $protocol . $host;
 
 $response['webhook_urls'] = [
-    'sms_callback' => $baseUrl . '/api/webhook_africastalking.php',
-    'whatsapp_callback' => $baseUrl . '/api/webhook_africastalking.php',
-    'delivery_report' => $baseUrl . '/api/webhook_delivery_report.php',
-    'test_endpoint' => $baseUrl . '/api/test_webhook.php'
+    'sms_callback' => $baseUrl . '/webhook_africastalking.php',
+    'whatsapp_callback' => $baseUrl . '/webhook_whatsapp.php',
+    'delivery_report' => $baseUrl . '/webhook_delivery_report.php',
+    'keep_alive' => $baseUrl . '/ping.php',
+    'test_endpoint' => $baseUrl . '/api/messaging_health.php',
 ];
 
 // Check if webhook file exists
-$webhookFile = __DIR__ . '/webhook_africastalking.php';
+$webhookFile = __DIR__ . '/../webhook_africastalking.php';
 $response['configuration']['webhook_file_exists'] = file_exists($webhookFile);
 $response['configuration']['webhook_readable'] = is_readable($webhookFile);
 

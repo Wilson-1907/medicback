@@ -4,6 +4,26 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/messaging.php';
 
+/** Ensure scheduled_messages supports counseling chain callbacks (safe to call repeatedly). */
+function ensure_scheduled_messages_schema(): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    try {
+        if (function_exists('ensure_hpv_workflow_schema')) {
+            require_once __DIR__ . '/hpv_results.php';
+            ensure_hpv_workflow_schema();
+        }
+        $done = true;
+    } catch (Throwable $e) {
+        error_log('ensure_scheduled_messages_schema: ' . $e->getMessage());
+    }
+}
+
+ensure_scheduled_messages_schema();
+
 /** Compute send_at from MySQL clock so PHP/MySQL skew does not delay drips. */
 function schedule_compute_send_at(string $delayExpression): string
 {
@@ -163,7 +183,10 @@ function process_due_scheduled_messages(): array
         if ($ok) {
             $upd->execute(['sent', $id]);
             $sent++;
-            if ($chain && function_exists('encouragement_drip_step_sent')) {
+            if ($type === 'hpv_counseling' && function_exists('encouragement_drip_step_sent')) {
+                require_once __DIR__ . '/encouragement_drip.php';
+                encouragement_drip_step_sent($patientId);
+            } elseif ($chain && function_exists('encouragement_drip_step_sent')) {
                 require_once __DIR__ . '/encouragement_drip.php';
                 encouragement_drip_step_sent($patientId);
             }

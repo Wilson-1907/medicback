@@ -69,6 +69,55 @@ After pushing, in Render: **Blueprints** → sync, or link the blueprint if not 
 
 Shared secret via env group `medicback-shared` — one `CRON_SECRET` for web + cron.
 
+## Free tier: keep Render warm (production — use TWO cron-job.org jobs)
+
+Render **free** sleeps after ~15 min idle. Cold starts cause **503** and cron-job.org **disables** your job after many failures.
+
+### Job 1 — Keep-alive (create first, re-enable after auto-disable)
+
+| Field | Value |
+|-------|--------|
+| **Title** | `medicback keep-alive` |
+| **URL** | `https://medicback.onrender.com/ping.php` |
+| **Schedule** | Every **5 minutes** |
+| **Timeout** | **120 seconds** (max in advanced settings) |
+| **Save responses** | On |
+
+No secret needed. Wakes the server before the reminders job runs.
+
+### Job 2 — Reminders + drips
+
+| Field | Value |
+|-------|--------|
+| **Title** | `medicback reminders` |
+| **URL** | `https://medicback.onrender.com/cron_run_reminders.php?key=YOUR_CRON_SECRET` |
+| **Schedule** | Every **10 minutes** (offset e.g. :02, :12 if UI allows) |
+| **Timeout** | **120 seconds** |
+| **Notify on failure** | After **3** failures (not 1 — avoids email spam) |
+
+**Re-enable** the disabled job in cron-job.org → Edit → **Enable job** → Save.
+
+### Best for go-live (8 AM production)
+
+| Option | Cost | Reliability |
+|--------|------|-------------|
+| **Two cron-job.org jobs** (above) | Free | Good if timeout = 120s |
+| **Render Starter plan** | ~$7/mo | **Always on** — no cold starts (recommended for clinic day) |
+
+## SMS inbound (Africa's Talking)
+
+Outbound SMS works from medicback. **Patient replies** only appear if AT forwards to your webhook:
+
+| Setting | Value |
+|---------|--------|
+| **Callback URL** | `https://medicback.onrender.com/webhook_africastalking.php` |
+
+Configure in [Africa's Talking Dashboard](https://account.africastalking.com) → SMS → **Callback URL** (not `/api/webhook_...`).
+
+Check: `https://medicback.onrender.com/api/webhook_status.php` — should show recent inbound SMS.
+
+Patient phone must match a registered **opted-in** contact in the console.
+
 ## Manual test
 
 ```http

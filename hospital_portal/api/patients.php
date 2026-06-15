@@ -129,6 +129,32 @@ try {
         api_json(['ok' => true, 'items' => $st->fetchAll()]);
     }
 
+    if ($method === 'PATCH') {
+        $cronSecret = getenv('CRON_SECRET') ?: '';
+        $provided = (string) ($_GET['key'] ?? $_SERVER['HTTP_X_CRON_SECRET'] ?? '');
+        if ($cronSecret === '' || !hash_equals($cronSecret, $provided)) {
+            api_json(['ok' => false, 'error' => 'Unauthorized'], 401);
+        }
+        $body = api_body();
+        $patientId = (int) ($body['patient_id'] ?? 0);
+        if ($patientId < 1) {
+            $oldRef = trim((string) ($body['old_client_id'] ?? ''));
+            if ($oldRef !== '') {
+                $resolved = resolve_patient_id_by_client_id($oldRef);
+                if ($resolved === null) {
+                    api_json(['ok' => false, 'error' => 'Patient not found for client number: ' . normalize_client_id_full($oldRef)], 404);
+                }
+                $patientId = $resolved;
+            }
+        }
+        $newClientId = parse_client_id_from_body($body);
+        if ($newClientId === '') {
+            $newClientId = normalize_client_id_full((string) ($body['client_id'] ?? ''));
+        }
+        $out = update_patient_client_id($patientId, $newClientId);
+        api_json($out, !empty($out['ok']) ? 200 : 422);
+    }
+
     if ($method !== 'POST') {
         api_json(['ok' => false, 'error' => 'Method not allowed'], 405);
     }

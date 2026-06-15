@@ -246,3 +246,67 @@ function map_registration_db_error(Throwable $e): ?array
         'status' => 422,
     ];
 }
+
+/**
+ * Correct a patient's client number (staff correction). Does not change other data.
+ *
+ * @return array{ok: bool, error?: string, patient_id?: int, full_name?: string, old_client_id?: ?string, client_id?: string}
+ */
+function update_patient_client_id(int $patientId, string $newClientId): array
+{
+    if ($patientId < 1) {
+        return ['ok' => false, 'error' => 'patient_id is required'];
+    }
+
+    $newClientId = normalize_client_id_full($newClientId);
+    if ($newClientId === '') {
+        return ['ok' => false, 'error' => 'Invalid client number format'];
+    }
+    if (!str_starts_with($newClientId, client_id_prefix())) {
+        return ['ok' => false, 'error' => 'Client ID must start with ' . client_id_prefix()];
+    }
+    $rest = substr($newClientId, strlen(client_id_prefix()));
+    if (!preg_match('/^\d{2}\/\d{2}$/', $rest)) {
+        return ['ok' => false, 'error' => 'Use format ' . client_id_prefix() . 'file/patient (e.g. ' . client_id_prefix() . '10/10)'];
+    }
+    if (client_id_exists($newClientId, $patientId)) {
+        return ['ok' => false, 'error' => 'Client number already in use: ' . $newClientId];
+    }
+
+    $st = db()->prepare('SELECT id, full_name, external_mrn FROM patients WHERE id = ? LIMIT 1');
+    $st->execute([$patientId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return ['ok' => false, 'error' => 'Patient not found'];
+    }
+
+    $oldClientId = trim((string) ($row['external_mrn'] ?? ''));
+    if ($oldClientId === $newClientId) {
+        return [
+            'ok' => true,
+            'patient_id' => $patientId,
+            'full_name' => (string) $row['full_name'],
+            'old_client_id' => $oldClientId !== '' ? $oldClientId : null,
+            'client_id' => $newClientId,
+            'unchanged' => true,
+        ];
+    }
+
+    try {
+        db()->prepare('UPDATE patients SET external_mrn = ? WHERE id = ?')->execute([$newClientId, $patientId]);
+    } catch (Throwable $e) {
+        $mapped = map_registration_db_error($e);
+        if ($mapped !== null) {
+            return ['ok' => false, 'error' => $mapped['error']];
+        }
+        throw $e;
+    }
+
+    return [
+        'ok' => true,
+        'patient_id' => $patientId,
+        'full_name' => (string) $row['full_name'],
+        'old_client_id' => $oldClientId !== '' ? $oldClientId : null,
+        'client_id' => $newClientId,
+    ];
+}

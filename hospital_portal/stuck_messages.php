@@ -32,13 +32,23 @@ function flush_all_due_scheduled_messages(int $maxBatches = 20): array
  *
  * @return array<string, mixed>
  */
-function resend_stuck_messages(int $lookbackHours = 168, int $maxOutboundResends = 200): array
+function resend_stuck_messages(int $lookbackHours = 168, int $maxOutboundResends = 200, bool $forceQueuedNow = true): array
 {
     $pdo = db();
     $lookbackHours = max(1, min(720, $lookbackHours));
     $maxOutboundResends = max(1, min(500, $maxOutboundResends));
 
     $before = scheduled_messages_queue_stats();
+
+    $scheduledQueuedForced = 0;
+    if ($forceQueuedNow) {
+        $force = $pdo->exec(
+            "UPDATE scheduled_messages
+             SET send_at = NOW(3)
+             WHERE status = 'queued' AND send_at > NOW(3)"
+        );
+        $scheduledQueuedForced = $force === false ? 0 : (int) $force;
+    }
 
     $requeue = $pdo->prepare(
         "UPDATE scheduled_messages
@@ -119,6 +129,7 @@ function resend_stuck_messages(int $lookbackHours = 168, int $maxOutboundResends
         'lookback_hours' => $lookbackHours,
         'queue_before' => $before,
         'queue_after' => $after,
+        'scheduled_queued_forced_now' => $scheduledQueuedForced,
         'scheduled_failed_requeued' => $scheduledFailedRequeued,
         'scheduled_processed' => $scheduledProcessed,
         'outbound_failed_candidates' => count($failedRows),

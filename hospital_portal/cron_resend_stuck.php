@@ -19,7 +19,7 @@ $lookbackHours = (int) ($_GET['hours'] ?? 168);
 $maxResends = (int) ($_GET['limit'] ?? 200);
 
 try {
-    $result = resend_stuck_messages($lookbackHours, $maxResends);
+    $result = resend_stuck_messages($lookbackHours, $maxResends, !isset($_GET['force_queued']) || (string) $_GET['force_queued'] !== '0');
     echo json_encode([
         'ok' => true,
         'timestamp' => date('Y-m-d H:i:s'),

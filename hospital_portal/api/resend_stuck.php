@@ -12,11 +12,14 @@ $cronSecret = getenv('CRON_SECRET') ?: '';
 $providedCron = (string) ($_GET['key'] ?? $_SERVER['HTTP_X_CRON_SECRET'] ?? '');
 $cronOk = $cronSecret !== '' && hash_equals($cronSecret, $providedCron);
 
+$body = $method === 'POST' ? api_body() : [];
+
 if ($method === 'GET' && $cronOk) {
     $lookbackHours = (int) ($_GET['hours'] ?? 168);
     $maxResends = (int) ($_GET['limit'] ?? 200);
+    $forceQueued = !isset($_GET['force_queued']) || (string) $_GET['force_queued'] !== '0';
     try {
-        $result = resend_stuck_messages($lookbackHours, $maxResends);
+        $result = resend_stuck_messages($lookbackHours, $maxResends, $forceQueued);
         api_json(['ok' => true, 'timestamp' => date('c'), 'resend' => $result]);
     } catch (Throwable $e) {
         api_json(['ok' => false, 'error' => $e->getMessage()], 500);
@@ -27,7 +30,6 @@ if ($method !== 'POST') {
     api_json(['ok' => false, 'error' => 'POST required (or GET with valid CRON_SECRET)'], 405);
 }
 
-$body = api_body();
 $password = trim((string) ($body['password'] ?? ''));
 if (!$cronOk) {
     if (!wipe_data_password_configured()) {
@@ -44,9 +46,10 @@ if (!$cronOk) {
 
 $lookbackHours = (int) ($body['hours'] ?? 168);
 $maxResends = (int) ($body['limit'] ?? 200);
+$forceQueued = !isset($body['force_queued']) || !empty($body['force_queued']);
 
 try {
-    $result = resend_stuck_messages($lookbackHours, $maxResends);
+    $result = resend_stuck_messages($lookbackHours, $maxResends, $forceQueued);
     api_json(['ok' => true, 'timestamp' => date('c'), 'resend' => $result]);
 } catch (Throwable $e) {
     error_log('resend_stuck API error: ' . $e->getMessage());

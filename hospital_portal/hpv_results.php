@@ -182,7 +182,68 @@ function handle_consent_accepted(int $patientId, string $patientFullName, string
     schedule_patient_message($patientId, 'engagement_boost', $tip, '+3 minutes');
 }
 
-function set_patient_hpv_result(int $patientId, string $result, string $recordedBy = 'staff'): array
+/**
+ * @param array<string, mixed> $intake
+ */
+function validate_hpv_positive_intake(array $intake): ?string
+{
+    $lang = trim((string) ($intake['preferred_language'] ?? ''));
+    if (!in_array($lang, ['en', 'sw'], true)) {
+        return 'Select preferred language: English or Kiswahili.';
+    }
+
+    $channel = strtolower(trim((string) ($intake['contact_channel'] ?? '')));
+    if (!in_array($channel, ['sms', 'whatsapp'], true)) {
+        return 'Select contact channel: SMS or WhatsApp.';
+    }
+
+    $hpvDone = strtolower(trim((string) ($intake['hpv_done_before'] ?? '')));
+    if (!in_array($hpvDone, ['yes', 'no'], true)) {
+        return 'Indicate whether the patient was ever tested for HPV before.';
+    }
+
+    if ($hpvDone === 'yes') {
+        $hpvPrior = strtolower(trim((string) ($intake['hpv_prior_result'] ?? 'unknown')));
+        if (!in_array($hpvPrior, ['positive', 'negative'], true)) {
+            return 'Prior HPV result is required when the patient was tested before.';
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Update channel, language, and HPV history when recording HPV positive.
+ *
+ * @param array<string, mixed> $intake
+ */
+function apply_hpv_positive_intake(int $patientId, array $intake): ?string
+{
+    $err = validate_hpv_positive_intake($intake);
+    if ($err !== null) {
+        return $err;
+    }
+
+    require_once __DIR__ . '/patient_screening.php';
+    ensure_patient_screening_schema();
+
+    $lang = (string) $intake['preferred_language'];
+    $hpvDone = strtolower(trim((string) $intake['hpv_done_before']));
+    $hpvPrior = $hpvDone === 'yes'
+        ? strtolower(trim((string) ($intake['hpv_prior_result'] ?? 'unknown')))
+        : 'unknown';
+
+    db()->prepare(
+        'UPDATE patients SET preferred_language = ?, hpv_done_before = ?, hpv_prior_result = ? WHERE id = ?'
+    )->execute([$lang, $hpvDone, $hpvPrior, $patientId]);
+
+    $channel = strtolower(trim((string) $intake['contact_channel'])) === 'whatsapp' ? 'whatsapp' : 'sms';
+    update_patient_primary_channel($patientId, $channel);
+
+    return null;
+}
+
+function set_patient_hpv_result(int $patientId, string $result, string $recordedBy = 'staff', ?array $intake = null): array
 {
     if (!hpv_workflow_ready()) {
         return ['ok' => false, 'error' => hpv_workflow_unavailable_message()];
@@ -190,6 +251,13 @@ function set_patient_hpv_result(int $patientId, string $result, string $recorded
     $result = strtolower(trim($result));
     if (!in_array($result, ['positive', 'negative', 'failed'], true)) {
         return ['ok' => false, 'error' => 'Result must be positive, negative, or failed'];
+    }
+
+    if ($result === 'positive' && is_array($intake) && $intake !== []) {
+        $intakeErr = apply_hpv_positive_intake($patientId, $intake);
+        if ($intakeErr !== null) {
+            return ['ok' => false, 'error' => $intakeErr];
+        }
     }
 
     $st = db()->prepare(
@@ -241,6 +309,11 @@ function set_patient_hpv_result(int $patientId, string $result, string $recorded
         error_log('diagnosis_results insert: ' . $e->getMessage());
     }
 
+    $recordedAt = null;
+    $recSt = db()->prepare('SELECT hpv_result_recorded_at FROM patients WHERE id = ? LIMIT 1');
+    $recSt->execute([$patientId]);
+    $recordedAt = $recSt->fetchColumn() ?: null;
+
     $message = match ($result) {
         'positive' => 'Recorded HPV positive. Book a follow-up appointment, then confirm to notify the patient.',
         'failed' => 'Recorded HPV failed (insufficient sample). Book VIA screening appointment, then confirm to notify the patient.',
@@ -252,6 +325,7 @@ function set_patient_hpv_result(int $patientId, string $result, string $recorded
         'ok' => true,
         'message' => $message,
         'hpv_screening_result' => $result,
+        'hpv_result_recorded_at' => $recordedAt ? (string) $recordedAt : null,
         'book_appointment' => in_array($result, ['positive', 'failed'], true),
     ];
 }

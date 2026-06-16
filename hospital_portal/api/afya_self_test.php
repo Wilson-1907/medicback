@@ -55,6 +55,19 @@ function afya_test_results(): array
     $negSw = build_hpv_negative_result_notification('Mary', 'negative', 'sw');
     $pass('HPV negative SW — 5 years', $contains($negSw, 'miaka 5'));
 
+    // --- HPV positive intake (channel, language, prior test) ---
+    $pass('HPV positive intake — valid', validate_hpv_positive_intake([
+        'preferred_language' => 'en',
+        'contact_channel' => 'whatsapp',
+        'hpv_done_before' => 'no',
+    ]) === null);
+    $pass('HPV positive intake — prior required', validate_hpv_positive_intake([
+        'preferred_language' => 'sw',
+        'contact_channel' => 'sms',
+        'hpv_done_before' => 'yes',
+        'hpv_prior_result' => 'unknown',
+    ]) !== null);
+
     // --- Section 4: HPV positive ---
     $posEn = build_hpv_positive_result_notification('Jane', 'Saturday, 14 June 2026, 10:30 AM', 'en');
     $pass('§4 HPV positive EN — not cancer', $contains($posEn, 'does not mean that you have cervical cancer'));

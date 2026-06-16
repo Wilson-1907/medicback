@@ -326,6 +326,21 @@ function get_patient_language(int $patientId): string
     return in_array($lang, ['en', 'sw']) ? $lang : 'en';
 }
 
+/** Update primary contact channel (SMS or WhatsApp) for outbound messaging. */
+function update_patient_primary_channel(int $patientId, string $channel): void
+{
+    $channel = $channel === 'whatsapp' ? 'whatsapp' : 'sms';
+    $st = db()->prepare(
+        'SELECT id FROM contact_channels WHERE patient_id = ? ORDER BY is_primary DESC, id ASC LIMIT 1'
+    );
+    $st->execute([$patientId]);
+    $contactId = $st->fetchColumn();
+    if (!$contactId) {
+        return;
+    }
+    db()->prepare('UPDATE contact_channels SET channel = ? WHERE id = ?')->execute([$channel, $contactId]);
+}
+
 /** Sent after registration when patient opted in — thank-you then registration welcome. */
 function send_afya_enrollment_messages(int $patientId, string $patientName, string $lang = 'en'): void
 {

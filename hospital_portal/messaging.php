@@ -138,14 +138,48 @@ function log_outbound_message(int $patientId, string $channel, string $type, str
     return (int) db()->lastInsertId();
 }
 
-function update_outbound_status(int $outboundId, string $status, ?string $atId, ?string $error): void
+function update_outbound_status(int $outboundId, string $status, ?string $atId, ?string $error, ?string $channel = null): void
 {
+    if ($channel !== null) {
+        $st = db()->prepare(
+            'UPDATE outbound_messages
+             SET status = ?, at_message_id = ?, error_detail = ?, channel = ?
+             WHERE id = ?'
+        );
+        $st->execute([$status, $atId, $error, $channel, $outboundId]);
+        return;
+    }
     $st = db()->prepare(
         'UPDATE outbound_messages
          SET status = ?, at_message_id = ?, error_detail = ?
          WHERE id = ?'
     );
     $st->execute([$status, $atId, $error, $outboundId]);
+}
+
+/** Clinical / time-sensitive messages: if WhatsApp fails, try SMS on the same number. */
+function message_type_allows_sms_fallback(string $messageType): bool
+{
+    static $types = [
+        'welcome' => true,
+        'hpv_negative' => true,
+        'hpv_positive' => true,
+        'hpv_failed' => true,
+        'appointment_booked' => true,
+        'appointment_rescheduled' => true,
+        'appointment_reminder' => true,
+        'referral' => true,
+        'referral_reassurance' => true,
+        'referral_appt_reminder' => true,
+        'via_negative' => true,
+        'via_positive' => true,
+        'checkup_reminder' => true,
+        'missed_reschedule_offer' => true,
+        'missed_reschedule_confirm' => true,
+        'staff_custom' => true,
+    ];
+
+    return isset($types[$messageType]);
 }
 
 /**
@@ -356,7 +390,25 @@ function send_patient_message(int $patientId, string $messageType, string $body)
         update_outbound_status($outboundId, 'sent', $result['message_id'], null);
         return true;
     }
-    update_outbound_status($outboundId, 'failed', $result['message_id'], $result['error']);
+
+    $waError = (string) ($result['error'] ?? 'Send failed');
+    if ($channel === 'whatsapp' && africastalking_sms_ready() && message_type_allows_sms_fallback($messageType)) {
+        error_log("SEND_PATIENT_MESSAGE SMS FALLBACK: Patient=$patientId Type=$messageType");
+        $smsResult = africastalking_send('sms', $address, $body);
+        if ($smsResult['ok']) {
+            update_outbound_status(
+                $outboundId,
+                'sent',
+                $smsResult['message_id'],
+                'WhatsApp failed; delivered via SMS: ' . mb_substr($waError, 0, 400),
+                'sms'
+            );
+            return true;
+        }
+        $waError .= ' | SMS fallback: ' . (string) ($smsResult['error'] ?? 'failed');
+    }
+
+    update_outbound_status($outboundId, 'failed', $result['message_id'], $waError);
     return false;
 }
 

@@ -3,13 +3,30 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../doctor_call_requests.php';
+require_once __DIR__ . '/../stuck_messages.php';
 
 try {
     $pdo = db();
 
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $body = api_body();
-        if ((string) ($body['action'] ?? '') !== 'send_custom') {
+        $action = (string) ($body['action'] ?? 'send_custom');
+
+        if ($action === 'resend_failed') {
+            @set_time_limit(300);
+            $outboundIds = null;
+            if (isset($body['outbound_ids']) && is_array($body['outbound_ids'])) {
+                $outboundIds = $body['outbound_ids'];
+            } elseif (isset($body['outbound_id'])) {
+                $outboundIds = [(int) $body['outbound_id']];
+            }
+            $hours = (int) ($body['hours'] ?? 168);
+            $limit = (int) ($body['limit'] ?? 200);
+            $result = resend_undelivered_outbound($outboundIds, $hours, $limit);
+            api_json(['ok' => true, 'resend' => $result]);
+        }
+
+        if ($action !== 'send_custom') {
             api_json(['ok' => false, 'error' => 'Unknown action'], 422);
         }
         $messageText = trim((string) ($body['message_text'] ?? ''));
@@ -51,13 +68,31 @@ try {
         api_json(['ok' => true, 'sent' => 1]);
     }
 
+    $undeliveredSql = "FROM outbound_messages o
+         INNER JOIN patients p ON p.id = o.patient_id
+         WHERE o.created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+           AND (
+               o.status = 'failed'
+               OR (
+                   o.status = 'sent'
+                   AND o.channel = 'sms'
+                   AND o.created_at <= DATE_SUB(NOW(), INTERVAL 2 HOUR)
+               )
+           )
+           AND NOT EXISTS (
+               SELECT 1 FROM outbound_messages o2
+               WHERE o2.patient_id = o.patient_id
+                 AND o2.message_type = o.message_type
+                 AND o2.status IN ('sent', 'delivered')
+                 AND o2.id > o.id
+                 AND (o2.body = o.body OR o2.status = 'delivered')
+           )";
+
     $stats = [
         'outbound_24h' => (int) $pdo->query(
             "SELECT COUNT(*) c FROM outbound_messages WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)"
         )->fetch()['c'],
-        'failed_24h' => (int) $pdo->query(
-            "SELECT COUNT(*) c FROM outbound_messages WHERE status IN ('failed') AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)"
-        )->fetch()['c'],
+        'failed_24h' => (int) $pdo->query("SELECT COUNT(*) c {$undeliveredSql}")->fetch()['c'],
         'inbound_24h' => (int) $pdo->query(
             "SELECT COUNT(*) c FROM inbound_messages WHERE received_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)"
         )->fetch()['c'],
@@ -78,9 +113,7 @@ try {
     $failedOutbound24h = $pdo->query(
         "SELECT o.id, o.created_at, o.channel, o.message_type, o.status, o.body, o.error_detail,
                 p.full_name, p.external_mrn AS client_id
-         FROM outbound_messages o
-         INNER JOIN patients p ON p.id = o.patient_id
-         WHERE o.status = 'failed' AND o.created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+         {$undeliveredSql}
          ORDER BY o.created_at DESC, o.id DESC
          LIMIT 50"
     )->fetchAll();

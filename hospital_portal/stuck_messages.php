@@ -28,6 +28,111 @@ function flush_all_due_scheduled_messages(int $maxBatches = 20): array
 }
 
 /**
+ * Outbound rows that never reached the patient (failed, or SMS still "sent" with no delivery report).
+ *
+ * @param list<int>|null $outboundIds Resend specific rows only when set.
+ * @return array<string, mixed>
+ */
+function resend_undelivered_outbound(?array $outboundIds = null, int $lookbackHours = 168, int $maxResends = 200): array
+{
+    $pdo = db();
+    $lookbackHours = max(1, min(720, $lookbackHours));
+    $maxResends = max(1, min(500, $maxResends));
+
+    $idFilter = '';
+    $args = [$lookbackHours, $lookbackHours, $lookbackHours];
+    if (is_array($outboundIds) && $outboundIds !== []) {
+        $cleanIds = array_values(array_filter(array_map('intval', $outboundIds), static fn (int $id): bool => $id > 0));
+        if ($cleanIds === []) {
+            return [
+                'candidates' => 0,
+                'resent' => 0,
+                'resend_failed' => 0,
+                'skipped' => 0,
+                'details' => [],
+            ];
+        }
+        $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
+        $idFilter = " AND o.id IN ({$placeholders})";
+        $args = array_merge($args, $cleanIds);
+    }
+
+    $sql = "SELECT o.id, o.patient_id, o.message_type, o.body, o.channel, o.status, o.error_detail, o.created_at,
+                   p.full_name, p.external_mrn AS client_id
+            FROM outbound_messages o
+            INNER JOIN patients p ON p.id = o.patient_id
+            WHERE o.created_at >= DATE_SUB(NOW(3), INTERVAL ? HOUR)
+              AND (
+                  o.status = 'failed'
+                  OR (
+                      o.status = 'sent'
+                      AND o.channel = 'sms'
+                      AND o.created_at <= DATE_SUB(NOW(3), INTERVAL 2 HOUR)
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM outbound_messages o2
+                  WHERE o2.patient_id = o.patient_id
+                    AND o2.message_type = o.message_type
+                    AND o2.status IN ('sent', 'delivered')
+                    AND o2.id > o.id
+                    AND (
+                        o2.body = o.body
+                        OR o2.status = 'delivered'
+                    )
+              )
+              {$idFilter}
+            ORDER BY o.created_at ASC
+            LIMIT {$maxResends}";
+
+    $st = $pdo->prepare($sql);
+    $st->execute($args);
+    $rows = $st->fetchAll();
+
+    $resent = 0;
+    $resendFailed = 0;
+    $skipped = 0;
+    $details = [];
+
+    foreach ($rows as $row) {
+        $outboundId = (int) ($row['id'] ?? 0);
+        $patientId = (int) ($row['patient_id'] ?? 0);
+        $type = (string) ($row['message_type'] ?? 'system');
+        $body = (string) ($row['body'] ?? '');
+        if ($patientId < 1 || $body === '') {
+            $skipped++;
+            continue;
+        }
+
+        $ok = send_patient_message($patientId, $type, $body);
+        $detail = [
+            'outbound_id' => $outboundId,
+            'patient_id' => $patientId,
+            'patient' => (string) ($row['full_name'] ?? ''),
+            'message_type' => $type,
+            'channel' => (string) ($row['channel'] ?? ''),
+            'previous_status' => (string) ($row['status'] ?? ''),
+            'result' => $ok ? 'resent' : 'still_failed',
+        ];
+        if ($ok) {
+            $resent++;
+        } else {
+            $resendFailed++;
+        }
+        $details[] = $detail;
+    }
+
+    return [
+        'lookback_hours' => $lookbackHours,
+        'candidates' => count($rows),
+        'resent' => $resent,
+        'resend_failed' => $resendFailed,
+        'skipped' => $skipped,
+        'details' => $details,
+    ];
+}
+
+/**
  * Re-queue failed scheduled messages and resend failed outbound SMS/WhatsApp.
  *
  * @return array<string, mixed>
@@ -61,61 +166,7 @@ function resend_stuck_messages(int $lookbackHours = 168, int $maxOutboundResends
 
     $scheduledProcessed = flush_all_due_scheduled_messages();
 
-    $st = $pdo->prepare(
-        "SELECT o.id, o.patient_id, o.message_type, o.body, o.channel, o.created_at, p.full_name
-         FROM outbound_messages o
-         INNER JOIN patients p ON p.id = o.patient_id
-         WHERE o.status = 'failed'
-           AND o.created_at >= DATE_SUB(NOW(3), INTERVAL ? HOUR)
-           AND NOT EXISTS (
-               SELECT 1 FROM outbound_messages o2
-               WHERE o2.patient_id = o.patient_id
-                 AND o2.message_type = o.message_type
-                 AND o2.body = o.body
-                 AND o2.status IN ('sent', 'delivered')
-                 AND o2.id > o.id
-           )
-         ORDER BY o.created_at ASC
-         LIMIT {$maxOutboundResends}"
-    );
-    $st->execute([$lookbackHours]);
-    $failedRows = $st->fetchAll();
-
-    $outboundResent = 0;
-    $outboundResendFailed = 0;
-    $outboundSkipped = 0;
-    $outboundDetails = [];
-
-    foreach ($failedRows as $row) {
-        $patientId = (int) ($row['patient_id'] ?? 0);
-        $type = (string) ($row['message_type'] ?? 'system');
-        $body = (string) ($row['body'] ?? '');
-        if ($patientId < 1 || $body === '') {
-            $outboundSkipped++;
-            continue;
-        }
-
-        $ok = send_patient_message($patientId, $type, $body);
-        if ($ok) {
-            $outboundResent++;
-            $outboundDetails[] = [
-                'patient_id' => $patientId,
-                'patient' => (string) ($row['full_name'] ?? ''),
-                'message_type' => $type,
-                'channel' => (string) ($row['channel'] ?? ''),
-                'result' => 'resent',
-            ];
-        } else {
-            $outboundResendFailed++;
-            $outboundDetails[] = [
-                'patient_id' => $patientId,
-                'patient' => (string) ($row['full_name'] ?? ''),
-                'message_type' => $type,
-                'channel' => (string) ($row['channel'] ?? ''),
-                'result' => 'still_failed',
-            ];
-        }
-    }
+    $outboundResend = resend_undelivered_outbound(null, $lookbackHours, $maxOutboundResends);
 
     $dripRepaired = 0;
     if (function_exists('repair_stalled_hpv_positive_drips')) {
@@ -132,11 +183,11 @@ function resend_stuck_messages(int $lookbackHours = 168, int $maxOutboundResends
         'scheduled_queued_forced_now' => $scheduledQueuedForced,
         'scheduled_failed_requeued' => $scheduledFailedRequeued,
         'scheduled_processed' => $scheduledProcessed,
-        'outbound_failed_candidates' => count($failedRows),
-        'outbound_resent' => $outboundResent,
-        'outbound_resend_failed' => $outboundResendFailed,
-        'outbound_skipped' => $outboundSkipped,
+        'outbound_failed_candidates' => (int) ($outboundResend['candidates'] ?? 0),
+        'outbound_resent' => (int) ($outboundResend['resent'] ?? 0),
+        'outbound_resend_failed' => (int) ($outboundResend['resend_failed'] ?? 0),
+        'outbound_skipped' => (int) ($outboundResend['skipped'] ?? 0),
         'hpv_drip_repaired' => $dripRepaired,
-        'outbound_details' => $outboundDetails,
+        'outbound_details' => $outboundResend['details'] ?? [],
     ];
 }

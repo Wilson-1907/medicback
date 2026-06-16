@@ -309,7 +309,7 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
     if ($messageType === 'hpv_negative') {
         $hiv = function_exists('afya_patient_hiv_status') ? afya_patient_hiv_status($patientId) : 'negative';
         $base = $hiv === 'positive' ? 'afya_hpv_neg_hivpos' : 'afya_hpv_neg_hivneg';
-        return $mk($base, $name !== '' ? [$name] : ['']);
+        return $mk($base, [mteja_template_param($name)]);
     }
 
     if ($messageType === 'hpv_failed') {
@@ -396,7 +396,7 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
             }
             $hiv = function_exists('afya_patient_hiv_status') ? afya_patient_hiv_status($patientId) : 'negative';
             $base = $hiv === 'positive' ? 'afya_hpv_neg_hivpos' : 'afya_hpv_neg_hivneg';
-            return $mk($base, $name !== '' ? [$name] : ['']);
+            return $mk($base, [mteja_template_param($name)]);
         }
         if (str_contains($bodyLower, 'sample collected was not sufficient')
             || str_contains($bodyLower, 'sampuli iliyokusanywa haikutosha')) {

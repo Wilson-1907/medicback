@@ -68,17 +68,11 @@ try {
         api_json(['ok' => true, 'sent' => 1]);
     }
 
+    $undeliveredCond = undelivered_outbound_sql_condition();
     $undeliveredSql = "FROM outbound_messages o
          INNER JOIN patients p ON p.id = o.patient_id
          WHERE o.created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)
-           AND (
-               o.status = 'failed'
-               OR (
-                   o.status = 'sent'
-                   AND o.channel = 'sms'
-                   AND o.created_at <= DATE_SUB(NOW(), INTERVAL 2 HOUR)
-               )
-           )
+           AND {$undeliveredCond}
            AND NOT EXISTS (
                SELECT 1 FROM outbound_messages o2
                WHERE o2.patient_id = o.patient_id

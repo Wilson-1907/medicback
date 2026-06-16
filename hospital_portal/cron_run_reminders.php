@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/reminders.php';
 require_once __DIR__ . '/scheduled_messages.php';
 require_once __DIR__ . '/encouragement_drip.php';
+require_once __DIR__ . '/stuck_messages.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -22,6 +23,7 @@ try {
     $scheduled = process_due_scheduled_messages();
     $engagementMessages = process_random_engagement_messages();
     $dripRepaired = repair_stalled_hpv_positive_drips();
+    $undeliveredRetry = resend_undelivered_outbound(null, 168, 50);
 
     echo json_encode([
         'ok' => true,
@@ -30,6 +32,7 @@ try {
         'scheduled_messages' => $scheduled,
         'engagement_boost' => $engagementMessages,
         'hpv_drip_repaired' => $dripRepaired,
+        'undelivered_retry' => $undeliveredRetry,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (Throwable $e) {
     error_log('Cron job error: ' . $e->getMessage());

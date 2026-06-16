@@ -28,6 +28,27 @@ function flush_all_due_scheduled_messages(int $maxBatches = 20): array
 }
 
 /**
+ * Retry one undelivered outbound row — SMS first when WhatsApp previously failed.
+ */
+function resend_single_outbound_row(array $row): bool
+{
+    $patientId = (int) ($row['patient_id'] ?? 0);
+    $type = (string) ($row['message_type'] ?? 'system');
+    $body = (string) ($row['body'] ?? '');
+    if ($patientId < 1 || $body === '') {
+        return false;
+    }
+
+    $wasWhatsapp = strtolower((string) ($row['channel'] ?? '')) === 'whatsapp';
+    $wasFailed = strtolower((string) ($row['status'] ?? '')) === 'failed';
+    if ($wasWhatsapp && ($wasFailed || message_type_allows_sms_fallback($type)) && africastalking_sms_ready()) {
+        return send_patient_message_sms($patientId, $type, $body);
+    }
+
+    return send_patient_message($patientId, $type, $body);
+}
+
+/**
  * Outbound rows that never reached the patient (failed, or SMS still "sent" with no delivery report).
  *
  * @param list<int>|null $outboundIds Resend specific rows only when set.
@@ -62,14 +83,7 @@ function resend_undelivered_outbound(?array $outboundIds = null, int $lookbackHo
             FROM outbound_messages o
             INNER JOIN patients p ON p.id = o.patient_id
             WHERE o.created_at >= DATE_SUB(NOW(3), INTERVAL ? HOUR)
-              AND (
-                  o.status = 'failed'
-                  OR (
-                      o.status = 'sent'
-                      AND o.channel = 'sms'
-                      AND o.created_at <= DATE_SUB(NOW(3), INTERVAL 2 HOUR)
-                  )
-              )
+              AND " . undelivered_outbound_sql_condition() . "
               AND NOT EXISTS (
                   SELECT 1 FROM outbound_messages o2
                   WHERE o2.patient_id = o.patient_id
@@ -104,7 +118,7 @@ function resend_undelivered_outbound(?array $outboundIds = null, int $lookbackHo
             continue;
         }
 
-        $ok = send_patient_message($patientId, $type, $body);
+        $ok = resend_single_outbound_row($row);
         $detail = [
             'outbound_id' => $outboundId,
             'patient_id' => $patientId,

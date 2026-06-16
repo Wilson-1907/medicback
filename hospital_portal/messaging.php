@@ -183,6 +183,58 @@ function message_type_allows_sms_fallback(string $messageType): bool
 }
 
 /**
+ * Send via SMS only (used when retrying failed WhatsApp).
+ */
+function send_patient_message_sms(int $patientId, string $messageType, string $body): bool
+{
+    if (!africastalking_sms_ready()) {
+        error_log("SEND_PATIENT_MESSAGE_SMS FAILED: SMS not configured for patient $patientId");
+        return false;
+    }
+
+    $contact = patient_primary_contact($patientId);
+    if (!$contact) {
+        error_log("SEND_PATIENT_MESSAGE_SMS FAILED: No contact for patient $patientId");
+        return false;
+    }
+
+    $address = normalize_outbound_address((string) $contact['address']);
+    if ($address === '') {
+        return false;
+    }
+
+    error_log("SEND_PATIENT_MESSAGE_SMS: Patient=$patientId Type=$messageType Address=$address");
+
+    $outboundId = log_outbound_message($patientId, 'sms', $messageType, $body);
+    $result = africastalking_send('sms', $address, $body);
+    if ($result['ok']) {
+        update_outbound_status($outboundId, 'sent', $result['message_id'], null);
+        return true;
+    }
+
+    update_outbound_status($outboundId, 'failed', $result['message_id'], $result['error']);
+    return false;
+}
+
+/** SQL fragment: outbound rows that never confirmed delivery to the patient. */
+function undelivered_outbound_sql_condition(): string
+{
+    return "(
+        o.status = 'failed'
+        OR (
+            o.status = 'sent'
+            AND o.created_at <= DATE_SUB(NOW(3), INTERVAL 2 HOUR)
+            AND NOT EXISTS (
+                SELECT 1 FROM outbound_messages o3
+                WHERE o3.at_message_id = o.at_message_id
+                  AND o3.id <> o.id
+                  AND o3.status = 'delivered'
+            )
+        )
+    )";
+}
+
+/**
  * Sends either SMS or WhatsApp via Africa's Talking.
  * Returns ['ok' => bool, 'message_id' => ?string, 'error' => ?string]
  */

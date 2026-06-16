@@ -312,7 +312,8 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
 
     if ($messageType === 'hpv_failed') {
         $date = function_exists('afya_next_appointment_display') ? afya_next_appointment_display($patientId) : '';
-        if (preg_match('/Date:\s*(.+?)(?:\n|$)/mi', $body, $m) || preg_match('/Tarehe:\s*(.+?)(?:\n|$)/mi', $body, $m)) {
+        if (preg_match('/Appointment Date:\s*(.+?)(?:\n|$)/mi', $body, $m)
+            || preg_match('/Tarehe ya miadi \(Clinic\):\s*(.+?)(?:\n|$)/mi', $body, $m)) {
             $parsed = trim($m[1]);
             if ($parsed !== '' && !str_contains($parsed, '__________')) {
                 $date = $parsed;
@@ -321,7 +322,7 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
         if ($date === '' || str_contains($date, '__________')) {
             $date = 'TBD';
         }
-        return $mk('afya_hpv_failed', $name !== '' ? [$name, $date] : ['', $date]);
+        return $mk('afya_hpv_sample_failed', $name !== '' ? [$name, $date] : ['', $date]);
     }
 
     if ($messageType === 'referral') {
@@ -395,9 +396,11 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
             $base = $hiv === 'positive' ? 'afya_hpv_neg_hivpos' : 'afya_hpv_neg_hivneg';
             return $mk($base, $name !== '' ? [$name] : ['']);
         }
-        if (str_contains($bodyLower, 'did not give a clear result') || str_contains($bodyLower, 'hakikutoa matokeo wazi')) {
+        if (str_contains($bodyLower, 'sample collected was not sufficient')
+            || str_contains($bodyLower, 'sampuli iliyokusanywa haikutosha')) {
             $date = function_exists('afya_next_appointment_display') ? afya_next_appointment_display($patientId) : '';
-            if (preg_match('/Date:\s*(.+?)(?:\n|$)/mi', $body, $m) || preg_match('/Tarehe:\s*(.+?)(?:\n|$)/mi', $body, $m)) {
+            if (preg_match('/Appointment Date:\s*(.+?)(?:\n|$)/mi', $body, $m)
+                || preg_match('/Tarehe ya miadi \(Clinic\):\s*(.+?)(?:\n|$)/mi', $body, $m)) {
                 $parsed = trim($m[1]);
                 if ($parsed !== '' && !str_contains($parsed, '__________')) {
                     $date = $parsed;
@@ -406,6 +409,10 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
             if ($date === '' || str_contains($date, '__________')) {
                 $date = 'TBD';
             }
+            return $mk('afya_hpv_sample_failed', $name !== '' ? [$name, $date] : ['', $date]);
+        }
+        if (str_contains($bodyLower, 'did not give a clear result') || str_contains($bodyLower, 'hakikutoa matokeo wazi')) {
+            $date = function_exists('afya_next_appointment_display') ? afya_next_appointment_display($patientId) : 'TBD';
             return $mk('afya_hpv_failed', $name !== '' ? [$name, $date] : ['', $date]);
         }
         if (str_contains($bodyLower, 'hpv test result is positive') || str_contains($bodyLower, 'majibu yako ya kipimo cha hpv ni chanya')) {

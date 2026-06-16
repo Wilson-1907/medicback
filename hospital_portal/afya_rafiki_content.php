@@ -139,29 +139,28 @@ function build_hpv_negative_result_notification(string $patientName, string $lan
         . "\nThank you for choosing Afya Rafiki.";
 }
 
-/** Official HPV failed / inconclusive result — book retest appointment. */
+/** Official HPV failed sample — insufficient sample; book VIA screening appointment. */
 function build_hpv_failed_result_notification(string $patientName, string $appointmentDate, string $lang = 'en'): string
 {
     $lang = afya_lang($lang);
     $name = afya_first_name($patientName);
-    $site = afya_clinic_site();
     $hello = $lang === 'sw'
         ? ($name !== '' ? "Habari {$name}," : 'Habari,')
         : ($name !== '' ? "Hello {$name}," : 'Hello,');
 
     if ($lang === 'sw') {
-        return "{$hello}\nKaribu kwenye Afya Rafiki. Kipimo chako cha HPV hakikutoa matokeo wazi (failed / inconclusive). "
-            . 'Hii inaweza kutokea wakati mwingine na haimaanishi kuwa una saratani. Unahitaji kufanya kipimo tena.'
-            . "\nUmepangiwa miadi ya kufanya kipimo tena katika {$site} tarehe:\nTarehe: {$appointmentDate}"
-            . "\nTafadhali hudhuria miadi yako kama ulivyopangiwa. Ikiwa una maswali, Afya Rafiki iko hapa kukusaidia."
-            . "\nAsante kwa kutumia Afya Rafiki.";
+        return "{$hello}\nMajibu yako ya kipimo cha HPV hayakuweza kupatikana kwa sababu sampuli iliyokusanywa haikutosha kufanyiwa uchunguzi. "
+            . "Hii haimaanishi kuwa una tatizo la kiafya.\n"
+            . "Tafadhali rudi katika kituo cha afya kwa uchunguzi wa VIA ili kukamilisha uchunguzi wako wa kuona kama kuna mabadiliko yeyote ya mlango wa kizazi.\n"
+            . "Tarehe ya miadi (Clinic): {$appointmentDate}\n"
+            . 'Asante kwa kutumia Afya Rafiki.';
     }
 
-    return "{$hello}\nWelcome to Afya Rafiki. Your HPV test did not give a clear result (failed / inconclusive). "
-        . 'This sometimes happens and does not mean you have cancer. You need to repeat the HPV test.'
-        . "\nYou have been scheduled for a retest at {$site} on:\nDate: {$appointmentDate}"
-        . "\nPlease attend your appointment as scheduled. If you have any questions, Afya Rafiki is here to support you."
-        . "\nThank you for choosing Afya Rafiki.";
+    return "{$hello}\nYour HPV test result could not be completed because the sample collected was not sufficient for testing. "
+        . "This does not mean that there is a problem with your health.\n"
+        . "We kindly request that you return to the health facility for VIA screening to complete your cervical screening.\n"
+        . "Appointment Date: {$appointmentDate}\n"
+        . 'Thank you for choosing Afya Rafiki.';
 }
 
 /** Official HPV positive result SMS with follow-up appointment date. */

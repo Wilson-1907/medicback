@@ -140,12 +140,12 @@ function patient_hpv_result_is_recorded(array $row): bool
         && !empty($row['hpv_result_recorded_at']);
 }
 
-/** Valid confirmed HPV for VIA pathway (not failed/inconclusive). */
+/** HPV failed (insufficient sample) confirmed — proceed to VIA at clinic visit. */
 function patient_hpv_pathway_complete(array $row): bool
 {
     $result = strtolower((string) ($row['hpv_screening_result'] ?? ''));
     return !empty($row['hpv_result_confirmed_at'])
-        && in_array($result, ['positive', 'negative'], true);
+        && in_array($result, ['positive', 'failed'], true);
 }
 
 function get_patient_hpv_row(int $patientId): ?array
@@ -225,7 +225,7 @@ function set_patient_hpv_result(int $patientId, string $result, string $recorded
         $label = match ($result) {
             'positive' => 'HPV positive',
             'negative' => 'HPV negative',
-            default => 'HPV failed (inconclusive)',
+            default => 'HPV failed (insufficient sample)',
         };
         $dx->execute([
             $patientId,
@@ -240,7 +240,7 @@ function set_patient_hpv_result(int $patientId, string $result, string $recorded
 
     $message = match ($result) {
         'positive' => 'Recorded HPV positive. Book a follow-up appointment, then confirm to notify the patient.',
-        'failed' => 'Recorded HPV failed (inconclusive). Book a retest appointment, then confirm to notify the patient.',
+        'failed' => 'Recorded HPV failed (insufficient sample). Book VIA screening appointment, then confirm to notify the patient.',
         'negative' => 'Recorded HPV negative. Confirm to notify — 5-year return message only, no appointment.',
         default => 'Recorded HPV ' . $result . '. You can now confirm to notify the patient.',
     };
@@ -282,7 +282,7 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
             return [
                 'ok' => false,
                 'error' => $result === 'failed'
-                    ? 'Book a retest appointment first — the HPV failed message needs the appointment date.'
+                    ? 'Book a VIA screening appointment first — the insufficient-sample message needs the appointment date.'
                     : 'Book a follow-up appointment first — the HPV positive message needs the appointment date.',
             ];
         }
@@ -338,7 +338,7 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
         $patientId,
         match ($result) {
             'positive' => 'HPV positive (confirmed)',
-            'failed' => 'HPV failed (confirmed, retest booked)',
+            'failed' => 'HPV failed (confirmed, VIA appointment sent)',
             default => 'HPV negative (confirmed)',
         },
         'unknown',

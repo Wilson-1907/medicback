@@ -436,35 +436,20 @@ layout_header($patient['full_name']);
     $hpvHasResult = in_array($hpvResult, ['positive', 'negative', 'failed'], true);
     $hpvNeedsAppt = in_array($hpvResult, ['positive', 'failed'], true) && !patient_has_upcoming_appointment($id, $appointments);
     $hpvNeedsApptLabel = $hpvResult === 'failed'
-        ? 'Book a retest appointment first — the HPV failed message needs the date.'
+        ? 'Book a VIA screening appointment first — the insufficient-sample message needs the date.'
         : 'Book a follow-up appointment first — the HPV positive message needs the date.';
   ?>
   <div class="card" style="border-left:4px solid var(--accent);">
     <h2>HPV screening result (Afya Rafiki)</h2>
     <?php if ($hpvConfirmed && $hpvHasResult): ?>
-      <p><strong>Status:</strong> <?= h(strtoupper($hpvResult === 'failed' ? 'FAILED (inconclusive)' : $hpvResult)) ?>
+      <p><strong>Status:</strong> <?= h(strtoupper($hpvResult === 'failed' ? 'FAILED (insufficient sample)' : $hpvResult)) ?>
         — <span style="color:var(--success)">Sent to patient <?= h((string) $patient['hpv_result_confirmed_at']) ?></span>
       </p>
       <?php if ($hpvResult === 'failed'): ?>
-        <p class="field-hint">After the retest, record a new positive, negative, or failed result below.</p>
-        <form method="post" style="display:inline" action="patient_view.php?id=<?= $id ?>">
-          <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
-          <input type="hidden" name="action" value="hpv_set_positive">
-          <button class="btn" type="submit">Record POSITIVE</button>
-        </form>
-        <form method="post" style="display:inline;margin-left:8px" action="patient_view.php?id=<?= $id ?>">
-          <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
-          <input type="hidden" name="action" value="hpv_set_negative">
-          <button class="btn btn-secondary" type="submit">Record NEGATIVE</button>
-        </form>
-        <form method="post" style="display:inline;margin-left:8px" action="patient_view.php?id=<?= $id ?>">
-          <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
-          <input type="hidden" name="action" value="hpv_set_failed">
-          <button class="btn btn-secondary" type="submit" style="border-color:#fca5a5;color:#b91c1c">Record FAILED</button>
-        </form>
+        <p class="field-hint">Patient notified to return for VIA screening. Confirm attendance and record VIA when they attend.</p>
       <?php endif; ?>
     <?php elseif ($hpvRecorded && $hpvHasResult): ?>
-      <p><strong><?= h(strtoupper($hpvResult === 'failed' ? 'FAILED (inconclusive)' : $hpvResult)) ?></strong> recorded on <?= h((string) $patient['hpv_result_recorded_at']) ?>.</p>
+      <p><strong><?= h(strtoupper($hpvResult === 'failed' ? 'FAILED (insufficient sample)' : $hpvResult)) ?></strong> recorded on <?= h((string) $patient['hpv_result_recorded_at']) ?>.</p>
       <p class="field-hint">Awaiting confirm — notify the patient when ready.</p>
       <?php if ($hpvNeedsAppt): ?>
         <p class="field-hint" style="color:var(--warning)"><?= h($hpvNeedsApptLabel) ?></p>
@@ -476,7 +461,7 @@ layout_header($patient['full_name']);
         </form>
       <?php endif; ?>
     <?php else: ?>
-      <p class="field-hint">Record positive, negative, or failed (inconclusive). Confirm to notify the patient when ready.</p>
+      <p class="field-hint">Record positive, negative, or failed (insufficient sample). Failed → book VIA screening appointment.</p>
       <form method="post" style="display:inline" action="patient_view.php?id=<?= $id ?>">
         <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
         <input type="hidden" name="action" value="hpv_set_positive">

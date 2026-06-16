@@ -28,15 +28,7 @@ try {
 
     if ($action === 'set_result') {
         $result = (string) ($body['result'] ?? '');
-        $intake = null;
-        if (strtolower(trim($result)) === 'positive') {
-            $intake = [
-                'preferred_language' => (string) ($body['preferred_language'] ?? ''),
-                'contact_channel' => (string) ($body['contact_channel'] ?? ''),
-                'hpv_done_before' => (string) ($body['hpv_done_before'] ?? ''),
-                'hpv_prior_result' => (string) ($body['hpv_prior_result'] ?? 'unknown'),
-            ];
-        }
+        $intake = parse_optional_hpv_positive_intake($body);
         $out = set_patient_hpv_result($patientId, $result, 'hospital_console', $intake);
         api_json($out, !empty($out['ok']) ? 200 : 422);
     }

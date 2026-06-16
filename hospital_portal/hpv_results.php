@@ -213,6 +213,31 @@ function validate_hpv_positive_intake(array $intake): ?string
 }
 
 /**
+ * Optional intake from API/POST — null when caller did not send registration fields
+ * (e.g. Record POSITIVE only records lab result; use Edit registration for channel/language).
+ *
+ * @param array<string, mixed> $body
+ * @return array<string, string>|null
+ */
+function parse_optional_hpv_positive_intake(array $body): ?array
+{
+    $lang = trim((string) ($body['preferred_language'] ?? ''));
+    $channel = trim((string) ($body['contact_channel'] ?? ''));
+    $hpvDone = trim((string) ($body['hpv_done_before'] ?? ''));
+
+    if ($lang === '' && $channel === '' && $hpvDone === '') {
+        return null;
+    }
+
+    return [
+        'preferred_language' => $lang,
+        'contact_channel' => $channel,
+        'hpv_done_before' => $hpvDone,
+        'hpv_prior_result' => (string) ($body['hpv_prior_result'] ?? 'unknown'),
+    ];
+}
+
+/**
  * Update channel, language, and HPV history when recording HPV positive.
  *
  * @param array<string, mixed> $intake
@@ -253,7 +278,7 @@ function set_patient_hpv_result(int $patientId, string $result, string $recorded
         return ['ok' => false, 'error' => 'Result must be positive, negative, or failed'];
     }
 
-    if ($result === 'positive' && is_array($intake) && $intake !== []) {
+    if ($result === 'positive' && $intake !== null && $intake !== []) {
         $intakeErr = apply_hpv_positive_intake($patientId, $intake);
         if ($intakeErr !== null) {
             return ['ok' => false, 'error' => $intakeErr];

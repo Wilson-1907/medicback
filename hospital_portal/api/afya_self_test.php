@@ -67,6 +67,10 @@ function afya_test_results(): array
         'hpv_done_before' => 'yes',
         'hpv_prior_result' => 'unknown',
     ]) !== null);
+    $pass('HPV positive record without intake fields', parse_optional_hpv_positive_intake([
+        'action' => 'set_result',
+        'result' => 'positive',
+    ]) === null);
 
     // --- Section 4: HPV positive ---
     $posEn = build_hpv_positive_result_notification('Jane', 'Saturday, 14 June 2026, 10:30 AM', 'en');

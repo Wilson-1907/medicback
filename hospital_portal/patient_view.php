@@ -241,12 +241,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $flash = 'Diagnosis result recorded.';
                 }
             } elseif ($action === 'hpv_set_positive') {
-                $intake = [
-                    'preferred_language' => (string) ($_POST['preferred_language'] ?? ''),
-                    'contact_channel' => (string) ($_POST['contact_channel'] ?? ''),
-                    'hpv_done_before' => (string) ($_POST['hpv_done_before'] ?? ''),
-                    'hpv_prior_result' => (string) ($_POST['hpv_prior_result'] ?? 'unknown'),
-                ];
+                $intake = parse_optional_hpv_positive_intake($_POST);
                 $out = set_patient_hpv_result($id, 'positive', (string) ($_SESSION['staff_username'] ?? 'staff'), $intake);
                 if (!empty($out['ok'])) {
                     header('Location: patient_view.php?id=' . $id . '&book_appt=1#add-appointment');

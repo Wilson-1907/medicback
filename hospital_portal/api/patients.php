@@ -108,10 +108,14 @@ try {
         }
 
         $q = trim((string) ($_GET['q'] ?? ''));
-        $sql = 'SELECT p.id, p.full_name, p.status, p.registration_at, p.preferred_language, p.external_mrn AS client_id,
+        $hpvListCols = hpv_workflow_ready()
+            ? 'p.hpv_screening_result, p.hpv_result_recorded_at, p.hpv_result_confirmed_at'
+            : 'NULL AS hpv_screening_result, NULL AS hpv_result_recorded_at, NULL AS hpv_result_confirmed_at';
+        $sql = "SELECT p.id, p.full_name, p.status, p.registration_at, p.preferred_language, p.external_mrn AS client_id,
+                {$hpvListCols},
                 (SELECT cc.address FROM contact_channels cc WHERE cc.patient_id = p.id AND cc.is_primary = 1 LIMIT 1) AS phone,
                 (SELECT cc.channel FROM contact_channels cc WHERE cc.patient_id = p.id AND cc.is_primary = 1 LIMIT 1) AS primary_channel
-                FROM patients p';
+                FROM patients p";
         $args = [];
         if ($q !== '') {
             $sql .= ' WHERE p.full_name LIKE ? OR p.external_mrn LIKE ?';

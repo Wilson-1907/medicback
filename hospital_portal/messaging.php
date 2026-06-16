@@ -239,7 +239,53 @@ function africastalking_send(string $channel, string $to, string $message): arra
     }
 
     $json = json_decode($raw, true);
+    return parse_africastalking_send_response($json, $code, $raw);
+}
+
+/**
+ * Interpret AT SMS/WhatsApp API JSON — HTTP 200 can still mean the recipient failed.
+ */
+function parse_africastalking_send_response(?array $json, int $httpCode, string $raw): array
+{
     $messageId = null;
+
+    if (is_array($json) && isset($json['SMSMessageData']['Recipients']) && is_array($json['SMSMessageData']['Recipients'])) {
+        $recipients = $json['SMSMessageData']['Recipients'];
+        $first = $recipients[0] ?? [];
+        if (isset($first['messageId'])) {
+            $messageId = (string) $first['messageId'];
+        }
+
+        $failed = [];
+        $success = false;
+        foreach ($recipients as $recipient) {
+            if (!is_array($recipient)) {
+                continue;
+            }
+            $recipientStatus = strtoupper(trim((string) ($recipient['status'] ?? '')));
+            $statusCode = (int) ($recipient['statusCode'] ?? 0);
+            $statusMessage = trim((string) ($recipient['statusMessage'] ?? $recipient['message'] ?? ''));
+            if ($recipientStatus === 'FAILED' || $recipientStatus === 'REJECTED' || $recipientStatus === 'INVALID'
+                || $recipientStatus === 'UNDELIVERABLE' || ($statusCode >= 400 && $statusCode !== 0)) {
+                $failed[] = $statusMessage !== '' ? $statusMessage : ('SMS ' . strtolower($recipientStatus ?: 'rejected'));
+                continue;
+            }
+            if (in_array($recipientStatus, ['SUCCESS', 'SENT', 'DELIVERED', 'SUBMITTED'], true)
+                || ($statusCode > 0 && $statusCode < 400)) {
+                $success = true;
+            }
+        }
+
+        if (!$success && $failed !== []) {
+            return ['ok' => false, 'message_id' => $messageId, 'error' => $failed[0]];
+        }
+        if ($httpCode >= 200 && $httpCode < 300) {
+            return ['ok' => true, 'message_id' => $messageId, 'error' => null];
+        }
+        $error = is_array($json) ? json_encode($json) : $raw;
+        return ['ok' => false, 'message_id' => $messageId, 'error' => 'HTTP ' . $httpCode . ': ' . $error];
+    }
+
     if (is_array($json)) {
         if (isset($json['SMSMessageData']['Recipients'][0]['messageId'])) {
             $messageId = (string) $json['SMSMessageData']['Recipients'][0]['messageId'];
@@ -248,11 +294,11 @@ function africastalking_send(string $channel, string $to, string $message): arra
         }
     }
 
-    if ($code >= 200 && $code < 300) {
+    if ($httpCode >= 200 && $httpCode < 300) {
         return ['ok' => true, 'message_id' => $messageId, 'error' => null];
     }
     $error = is_array($json) ? json_encode($json) : (string) $raw;
-    return ['ok' => false, 'message_id' => $messageId, 'error' => 'HTTP ' . $code . ': ' . $error];
+    return ['ok' => false, 'message_id' => $messageId, 'error' => 'HTTP ' . $httpCode . ': ' . $error];
 }
 
 function send_patient_message(int $patientId, string $messageType, string $body): bool

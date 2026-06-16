@@ -64,6 +64,12 @@ function apply_africastalking_delivery_report(array $payload): bool
          WHERE at_message_id = ?'
     );
     $st->execute([$status, $error, $error, $messageId]);
+    $updated = $st->rowCount();
+    if ($updated < 1) {
+        error_log("DELIVERY_REPORT: No outbound row matched at_message_id={$messageId} status={$statusRaw}");
+    } else {
+        error_log("DELIVERY_REPORT: Updated {$updated} row(s) at_message_id={$messageId} -> {$status}" . ($error !== '' ? " reason={$error}" : ''));
+    }
 
     return true;
 }

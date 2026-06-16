@@ -56,7 +56,7 @@ try {
             "SELECT COUNT(*) c FROM outbound_messages WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)"
         )->fetch()['c'],
         'failed_24h' => (int) $pdo->query(
-            "SELECT COUNT(*) c FROM outbound_messages WHERE status='failed' AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)"
+            "SELECT COUNT(*) c FROM outbound_messages WHERE status IN ('failed') AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)"
         )->fetch()['c'],
         'inbound_24h' => (int) $pdo->query(
             "SELECT COUNT(*) c FROM inbound_messages WHERE received_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)"
@@ -74,6 +74,15 @@ try {
          INNER JOIN patients p ON p.id = o.patient_id
          ORDER BY o.created_at DESC, o.id DESC
          LIMIT 80"
+    )->fetchAll();
+    $failedOutbound24h = $pdo->query(
+        "SELECT o.id, o.created_at, o.channel, o.message_type, o.status, o.body, o.error_detail,
+                p.full_name, p.external_mrn AS client_id
+         FROM outbound_messages o
+         INNER JOIN patients p ON p.id = o.patient_id
+         WHERE o.status = 'failed' AND o.created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+         ORDER BY o.created_at DESC, o.id DESC
+         LIMIT 50"
     )->fetchAll();
     $inbound = $pdo->query(
         "SELECT i.id, i.received_at, i.channel, i.from_address, i.body, p.full_name
@@ -117,6 +126,7 @@ try {
         'ok' => true,
         'stats' => $stats,
         'outbound' => $outbound,
+        'failed_outbound_24h' => $failedOutbound24h,
         'inbound' => $inbound,
         'escalations' => $escalations,
     ]);

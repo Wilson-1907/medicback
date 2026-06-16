@@ -40,7 +40,7 @@ function resend_undelivered_outbound(?array $outboundIds = null, int $lookbackHo
     $maxResends = max(1, min(500, $maxResends));
 
     $idFilter = '';
-    $args = [$lookbackHours, $lookbackHours, $lookbackHours];
+    $args = [$lookbackHours];
     if (is_array($outboundIds) && $outboundIds !== []) {
         $cleanIds = array_values(array_filter(array_map('intval', $outboundIds), static fn (int $id): bool => $id > 0));
         if ($cleanIds === []) {

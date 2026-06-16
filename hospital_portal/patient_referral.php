@@ -34,8 +34,12 @@ function ensure_nyeri_referral_schema(): bool
 /** HPV pathway complete — lab result confirmed and patient notified. */
 function patient_hpv_test_complete(array $patient): bool
 {
+    $result = strtolower((string) ($patient['hpv_screening_result'] ?? ''));
+    if ($result === 'failed') {
+        return false;
+    }
     if (!empty($patient['hpv_result_confirmed_at'])) {
-        return true;
+        return in_array($result, ['positive', 'negative'], true);
     }
     if (!hpv_workflow_ready()) {
         $prior = strtolower((string) ($patient['hpv_prior_result'] ?? ''));

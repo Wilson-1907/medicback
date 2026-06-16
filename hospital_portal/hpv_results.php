@@ -17,8 +17,10 @@ function ensure_hpv_workflow_schema(): bool
         if (!db_table_has_column('patients', 'hpv_screening_result')) {
             $pdo->exec(
                 "ALTER TABLE patients
-                 ADD COLUMN hpv_screening_result ENUM('unknown','pending','positive','negative') NOT NULL DEFAULT 'pending'"
+                 ADD COLUMN hpv_screening_result ENUM('unknown','pending','positive','negative','failed') NOT NULL DEFAULT 'pending'"
             );
+        } else {
+            ensure_hpv_failed_result_enum($pdo);
         }
         if (!db_table_has_column('patients', 'hpv_result_recorded_at')) {
             $pdo->exec('ALTER TABLE patients ADD COLUMN hpv_result_recorded_at DATETIME(3) NULL');
@@ -108,6 +110,44 @@ function hpv_workflow_unavailable_message(): string
     return 'HPV result recording is not available right now. Please contact your system administrator.';
 }
 
+/** Add `failed` to hpv_screening_result enum on existing databases (safe to call repeatedly). */
+function ensure_hpv_failed_result_enum(?PDO $pdo = null): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    try {
+        $pdo = $pdo ?? db();
+        $row = $pdo->query("SHOW COLUMNS FROM patients LIKE 'hpv_screening_result'")->fetch(PDO::FETCH_ASSOC);
+        $type = (string) ($row['Type'] ?? '');
+        if ($type !== '' && !str_contains($type, 'failed')) {
+            $pdo->exec(
+                "ALTER TABLE patients
+                 MODIFY hpv_screening_result ENUM('unknown','pending','positive','negative','failed') NOT NULL DEFAULT 'pending'"
+            );
+        }
+        $done = true;
+    } catch (Throwable $e) {
+        error_log('ensure_hpv_failed_result_enum: ' . $e->getMessage());
+    }
+}
+
+function patient_hpv_result_is_recorded(array $row): bool
+{
+    $result = strtolower((string) ($row['hpv_screening_result'] ?? ''));
+    return in_array($result, ['positive', 'negative', 'failed'], true)
+        && !empty($row['hpv_result_recorded_at']);
+}
+
+/** Valid confirmed HPV for VIA pathway (not failed/inconclusive). */
+function patient_hpv_pathway_complete(array $row): bool
+{
+    $result = strtolower((string) ($row['hpv_screening_result'] ?? ''));
+    return !empty($row['hpv_result_confirmed_at'])
+        && in_array($result, ['positive', 'negative'], true);
+}
+
 function get_patient_hpv_row(int $patientId): ?array
 {
     if (!hpv_workflow_ready()) {
@@ -148,8 +188,8 @@ function set_patient_hpv_result(int $patientId, string $result, string $recorded
         return ['ok' => false, 'error' => hpv_workflow_unavailable_message()];
     }
     $result = strtolower(trim($result));
-    if (!in_array($result, ['positive', 'negative'], true)) {
-        return ['ok' => false, 'error' => 'Result must be positive or negative'];
+    if (!in_array($result, ['positive', 'negative', 'failed'], true)) {
+        return ['ok' => false, 'error' => 'Result must be positive, negative, or failed'];
     }
 
     $st = db()->prepare(
@@ -182,7 +222,11 @@ function set_patient_hpv_result(int $patientId, string $result, string $recorded
             'INSERT INTO diagnosis_results (patient_id, diagnosis_label, severity, result_summary, recorded_by)
              VALUES (?,?,?,?,?)'
         );
-        $label = $result === 'positive' ? 'HPV positive' : 'HPV negative';
+        $label = match ($result) {
+            'positive' => 'HPV positive',
+            'negative' => 'HPV negative',
+            default => 'HPV failed (inconclusive)',
+        };
         $dx->execute([
             $patientId,
             $label,
@@ -194,15 +238,17 @@ function set_patient_hpv_result(int $patientId, string $result, string $recorded
         error_log('diagnosis_results insert: ' . $e->getMessage());
     }
 
-    $message = $result === 'positive'
-        ? 'Recorded HPV positive. Book a follow-up appointment, then confirm to notify the patient.'
-        : 'Recorded HPV ' . $result . '. You can now confirm to notify the patient.';
+    $message = match ($result) {
+        'positive' => 'Recorded HPV positive. Book a follow-up appointment, then confirm to notify the patient.',
+        'failed' => 'Recorded HPV failed (inconclusive). Book a retest appointment, then confirm to notify the patient.',
+        default => 'Recorded HPV ' . $result . '. You can now confirm to notify the patient.',
+    };
 
     return [
         'ok' => true,
         'message' => $message,
         'hpv_screening_result' => $result,
-        'book_appointment' => $result === 'positive',
+        'book_appointment' => in_array($result, ['positive', 'failed'], true),
     ];
 }
 
@@ -218,8 +264,8 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
     }
 
     $result = (string) ($row['hpv_screening_result'] ?? 'pending');
-    if (!in_array($result, ['positive', 'negative'], true)) {
-        return ['ok' => false, 'error' => 'Set HPV result to positive or negative before confirming'];
+    if (!in_array($result, ['positive', 'negative', 'failed'], true)) {
+        return ['ok' => false, 'error' => 'Set HPV result to positive, negative, or failed before confirming'];
     }
 
     if (!empty($row['hpv_result_confirmed_at'])) {
@@ -229,12 +275,14 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
     $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
     $name = (string) $row['full_name'];
 
-    if ($result === 'positive') {
+    if ($result === 'positive' || $result === 'failed') {
         $apptDate = afya_next_appointment_display($patientId);
         if ($apptDate === '__________') {
             return [
                 'ok' => false,
-                'error' => 'Book a follow-up appointment first — the HPV positive message needs the appointment date.',
+                'error' => $result === 'failed'
+                    ? 'Book a retest appointment first — the HPV failed message needs the appointment date.'
+                    : 'Book a follow-up appointment first — the HPV positive message needs the appointment date.',
             ];
         }
     }
@@ -257,6 +305,13 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
         );
         require_once __DIR__ . '/encouragement_drip.php';
         complete_encouragement_drip_after_hpv_negative($patientId);
+    } elseif ($result === 'failed') {
+        $apptDate = afya_next_appointment_display($patientId);
+        send_patient_message(
+            $patientId,
+            'hpv_failed',
+            build_hpv_failed_result_notification($name, $apptDate, $lang)
+        );
     } else {
         $apptDate = afya_next_appointment_display($patientId);
         if (!patient_has_confirmed_consent($patientId)) {
@@ -281,7 +336,11 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
     );
     $dx->execute([
         $patientId,
-        $result === 'positive' ? 'HPV positive (confirmed)' : 'HPV negative (confirmed)',
+        match ($result) {
+            'positive' => 'HPV positive (confirmed)',
+            'failed' => 'HPV failed (confirmed, retest booked)',
+            default => 'HPV negative (confirmed)',
+        },
         'unknown',
         'Result confirmed and patient notified via Afya Rafiki.',
         $confirmedBy,

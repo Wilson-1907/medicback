@@ -59,6 +59,12 @@ function afya_test_results(): array
     $pass('§4 HPV positive EN — not cancer', $contains($posEn, 'does not mean that you have cervical cancer'));
     $pass('§4 HPV positive EN — appointment date', $contains($posEn, 'Saturday, 14 June 2026, 10:30 AM'));
 
+    $failedEn = build_hpv_failed_result_notification('Jane', 'Saturday, 14 June 2026, 10:30 AM', 'en');
+    $pass('HPV failed EN — inconclusive', $contains($failedEn, 'did not give a clear result'));
+    $pass('HPV failed EN — repeat test', $contains($failedEn, 'repeat the HPV test'));
+    $failedSw = build_hpv_failed_result_notification('Jane', 'Jumamosi, 14 Juni 2026, 10:30 AM', 'sw');
+    $pass('HPV failed SW — inconclusive', $contains($failedSw, 'hakikutoa matokeo wazi'));
+
     // --- Section 25: Consent thank-you (registration, message 1) ---
     $consentEn = build_consent_thank_you_message('Jane', 'en');
     $pass('§25 consent thanks EN', $contains($consentEn, 'appreciate you agreeing to receive messages from Afya Rafiki'));
@@ -134,6 +140,9 @@ function afya_test_results(): array
 
     $tplPos = mteja_resolve_template($fakePatientId, 'system', $posEn);
     $pass('Mteja template hpv_positive', ($tplPos['templateName'] ?? '') === 'afya_hpv_positive_en');
+
+    $tplFailed = mteja_resolve_template($fakePatientId, 'hpv_failed', $failedEn);
+    $pass('Mteja template hpv_failed', ($tplFailed['templateName'] ?? '') === 'afya_hpv_failed_en');
 
     $rem7 = build_reminder_7d_message('Jane', $appt, 'en');
     $tpl7 = mteja_resolve_template($fakePatientId, 'appointment_reminder', $rem7);
@@ -214,6 +223,8 @@ function afya_test_results(): array
             && mteja_nav_template_id('afya_nav_edu_01', 'sw') === 'afya_nav_edu_01_sw'
     );
     $pass('HPV positive confirm gates on appointment', str_contains($hpvSrc, 'Book a follow-up appointment first'));
+    $pass('HPV failed confirm gates on retest appointment', str_contains($hpvSrc, 'Book a retest appointment first'));
+    $pass('HPV failed enum migration', str_contains($hpvSrc, 'ensure_hpv_failed_result_enum'));
     $confirmBlock = preg_match(
         '/if \(\$result === \'positive\'\).*?Book a follow-up appointment first.*?hpv_result_confirmed_at = NOW/s',
         $hpvSrc
@@ -226,7 +237,7 @@ function afya_test_results(): array
 
     // --- Doc template index: templates we must map for go-live ---
     $requiredBases = [
-        'afya_welcome', 'afya_hpv_neg_hivpos', 'afya_hpv_neg_hivneg', 'afya_hpv_positive',
+        'afya_welcome', 'afya_hpv_neg_hivpos', 'afya_hpv_neg_hivneg', 'afya_hpv_positive', 'afya_hpv_failed',
         'afya_appt_reminder_7d', 'afya_appt_reminder_3d', 'afya_appt_reminder_1d',
         'afya_via_referral', 'afya_appt_booked', 'afya_help_menu', 'afya_consent_thanks',
         'afya_staff_message', 'afya_ai_reply', 'afya_fallback',

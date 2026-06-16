@@ -404,4 +404,26 @@ Umejiondoa kupokea ujumbe kutoka Afya Rafiki. Wasiliana na Nyeri Town Health Cen
 
 ---
 
+## Batch 3 — HPV failed / inconclusive (retest)
+
+| # | English | Kiswahili | When sent |
+|---|---------|-----------|-----------|
+| 24 | `afya_hpv_failed_en` | `afya_hpv_failed_sw` | Staff confirms **HPV failed** after retest appointment is booked |
+
+### `afya_hpv_failed_en`
+
+Variables: `{{1}}` name, `{{2}}` retest appointment date
+
+```
+Hello {{1}}, Welcome to Afya Rafiki. Your HPV test did not give a clear result (failed / inconclusive). This sometimes happens and does not mean you have cancer. You need to repeat the HPV test. You have been scheduled for a retest at Nyeri Town Health Center on: Date: {{2}} Please attend your appointment as scheduled. If you have any questions, Afya Rafiki is here to support you. Thank you for choosing Afya Rafiki.
+```
+
+### `afya_hpv_failed_sw`
+
+```
+Habari {{1}}, Karibu kwenye Afya Rafiki. Kipimo chako cha HPV hakikutoa matokeo wazi (failed / inconclusive). Hii inaweza kutokea wakati mwingine na haimaanishi kuwa una saratani. Unahitaji kufanya kipimo tena. Umepangiwa miadi ya kufanya kipimo tena katika Nyeri Town Health Center tarehe: Tarehe: {{2}} Tafadhali hudhuria miadi yako kama ulivyopangiwa. Ikiwa una maswali, Afya Rafiki iko hapa kukusaidia. Asante kwa kutumia Afya Rafiki.
+```
+
+---
+
 *June 2026 — Afya Rafiki pilot · Nyeri Town Health Center*

@@ -118,8 +118,8 @@ function afya_next_appointment_display(int $patientId): string
     return '__________';
 }
 
-/** Official HPV negative result SMS (HIV status sets 3-year vs 5-year return). */
-function build_hpv_negative_result_notification(string $patientName, string $hivStatus, string $lang = 'en'): string
+/** Official HPV negative result — one short SMS; return in 5 years, no clinic appointment. */
+function build_hpv_negative_result_notification(string $patientName, string $lang = 'en'): string
 {
     $lang = afya_lang($lang);
     $name = afya_first_name($patientName);
@@ -127,31 +127,15 @@ function build_hpv_negative_result_notification(string $patientName, string $hiv
     $hello = $lang === 'sw'
         ? ($name !== '' ? "Habari {$name}," : 'Habari,')
         : ($name !== '' ? "Hello {$name}," : 'Hello,');
-    $hivPositive = $hivStatus === 'positive';
 
     if ($lang === 'sw') {
-        if ($hivPositive) {
-            return "{$hello}\nKaribu kwenye Afya Rafiki. Majibu yako ya HPV ni hasi (negative). Hii inamaanisha kuwa hakuna maambukizi ya HPV yaliyopatikana kwa sasa. "
-                . "Ili kuendelea kulinda afya yako, tafadhali rudi {$site} kwa uchunguzi mwingine wa virusi vya HPV baada ya miaka 3 "
-                . 'au mapema zaidi ikiwa utaelekezwa na mhudumu wa afya.'
-                . "\nAsante kwa kutumia Afya Rafiki.";
-        }
-        return "{$hello}\nKaribu kwenye Afya Rafiki. Majibu yako ya kipimo cha HPV ni hasi (negative). Hii inamaanisha kuwa hakuna maambukizi ya HPV yaliyopatikana kwa sasa.\n"
-            . "Ili kuendelea kudumisha afya ya mlango wa kizazi na kuzuia saratani ya mlango wa kizazi, tafadhali rudi {$site} kwa uchunguzi mwingine wa virusi vya HPV baada ya miaka 5, "
-            . 'au mapema zaidi ikiwa utaelekezwa na mhudumu wako wa afya.'
+        return "{$hello}\nKaribu kwenye Afya Rafiki. Majibu yako ya HPV ni hasi (negative). "
+            . "Tafadhali rudi {$site} baada ya miaka 5 kwa kipimo chako kingine cha HPV."
             . "\nAsante kwa kutumia Afya Rafiki.";
     }
 
-    if ($hivPositive) {
-        return "{$hello}\nWelcome to Afya Rafiki. Your HPV test result is negative. This means no HPV infection was detected at this time. "
-            . "To continue protecting your health, please return to {$site} for repeat HPV self-sampling test after 3 years, "
-            . 'or earlier if advised by your healthcare provider.'
-            . "\nThank you for choosing Afya Rafiki.";
-    }
-
-    return "{$hello}\nWelcome to Afya Rafiki. Your HPV test result is negative. This means no HPV infection was detected at this time. "
-        . "To maintain good cervical health, please return to {$site} for repeat HPV self-sampling test after 5 years, "
-        . 'or earlier if advised by your healthcare provider.'
+    return "{$hello}\nWelcome to Afya Rafiki. Your HPV test result is negative. "
+        . "Please return to {$site} in 5 years for your next HPV test."
         . "\nThank you for choosing Afya Rafiki.";
 }
 
@@ -294,7 +278,7 @@ function build_hpv_result_notification(string $patientName, string $result, stri
     if ($result === 'positive') {
         return build_hpv_positive_result_notification($patientName, '__________', $lang);
     }
-    return build_hpv_negative_result_notification($patientName, 'negative', $lang);
+    return build_hpv_negative_result_notification($patientName, $lang);
 }
 
 function build_consent_message(string $lang = 'en'): string

@@ -426,4 +426,28 @@ Habari {{1}}, Karibu kwenye Afya Rafiki. Kipimo chako cha HPV hakikutoa matokeo 
 
 ---
 
+## Batch 4 — HPV negative (5-year return, no appointment)
+
+| # | English | Kiswahili | When sent |
+|---|---------|-----------|-----------|
+| 25 | `afya_hpv_negative_en` | `afya_hpv_negative_sw` | Staff confirms **HPV negative** — one message only; no clinic visit booked |
+
+Replaces the longer `afya_hpv_neg_hivpos` / `afya_hpv_neg_hivneg` pair for new go-live (all patients: return in **5 years**).
+
+### `afya_hpv_negative_en`
+
+Variables: `{{1}}` name
+
+```
+Hello {{1}}, Welcome to Afya Rafiki. Your HPV test result is negative. Please return to Nyeri Town Health Center in 5 years for your next HPV test. Thank you for choosing Afya Rafiki.
+```
+
+### `afya_hpv_negative_sw`
+
+```
+Habari {{1}}, Karibu kwenye Afya Rafiki. Majibu yako ya HPV ni hasi (negative). Tafadhali rudi Nyeri Town Health Center baada ya miaka 5 kwa kipimo chako kingine cha HPV. Asante kwa kutumia Afya Rafiki.
+```
+
+---
+
 *June 2026 — Afya Rafiki pilot · Nyeri Town Health Center*

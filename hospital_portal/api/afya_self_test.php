@@ -45,14 +45,12 @@ function afya_test_results(): array
     $pass('§1 welcome SW — opening', $contains($welcomeSw, 'Karibu kwenye Afya Rafiki'));
     $pass('§1 welcome SW — stop option', $contains($welcomeSw, 'bonyeza 3'));
 
-    // --- Section 2–3: HPV negative ---
-    $negHivPos = build_hpv_negative_result_notification('Jane Doe', 'positive', 'en');
-    $pass('§2 HPV neg HIV+ EN — negative result', $contains($negHivPos, 'HPV test result is negative'));
-    $pass('§2 HPV neg HIV+ EN — 3 years', $contains($negHivPos, 'after 3 years'));
-
-    $negHivNeg = build_hpv_negative_result_notification('Mary', 'negative', 'en');
-    $pass('§3 HPV neg HIV− EN — 5 years', $contains($negHivNeg, 'after 5 years'));
-    $pass('§3 HPV neg HIV− EN — cervical health', $contains($negHivNeg, 'maintain good cervical health'));
+    // --- Section 2–3: HPV negative (5-year return, no appointment) ---
+    $negEn = build_hpv_negative_result_notification('Jane Doe', 'en');
+    $pass('HPV negative EN — 5 years', $contains($negEn, 'in 5 years'));
+    $pass('HPV negative EN — no appointment', !$contains($negEn, 'Date:'));
+    $negSw = build_hpv_negative_result_notification('Mary', 'sw');
+    $pass('HPV negative SW — 5 years', $contains($negSw, 'miaka 5'));
 
     // --- Section 4: HPV positive ---
     $posEn = build_hpv_positive_result_notification('Jane', 'Saturday, 14 June 2026, 10:30 AM', 'en');
@@ -135,8 +133,8 @@ function afya_test_results(): array
     $pass('Mteja template consent_thanks', ($tplConsent['templateName'] ?? '') === 'afya_consent_thanks_en');
     $pass('Mteja consent lang code', ($tplConsent['languageCode'] ?? '') === 'en');
 
-    $tplNeg = mteja_resolve_template($fakePatientId, 'system', $negHivNeg);
-    $pass('Mteja template hpv_neg_hivneg', ($tplNeg['templateName'] ?? '') === 'afya_hpv_neg_hivneg_en');
+    $tplNeg = mteja_resolve_template($fakePatientId, 'hpv_negative', $negEn);
+    $pass('Mteja template hpv_negative', ($tplNeg['templateName'] ?? '') === 'afya_hpv_negative_en');
 
     $tplPos = mteja_resolve_template($fakePatientId, 'system', $posEn);
     $pass('Mteja template hpv_positive', ($tplPos['templateName'] ?? '') === 'afya_hpv_positive_en');
@@ -237,7 +235,7 @@ function afya_test_results(): array
 
     // --- Doc template index: templates we must map for go-live ---
     $requiredBases = [
-        'afya_welcome', 'afya_hpv_neg_hivpos', 'afya_hpv_neg_hivneg', 'afya_hpv_positive', 'afya_hpv_failed',
+        'afya_welcome', 'afya_hpv_negative', 'afya_hpv_positive', 'afya_hpv_failed',
         'afya_appt_reminder_7d', 'afya_appt_reminder_3d', 'afya_appt_reminder_1d',
         'afya_via_referral', 'afya_appt_booked', 'afya_help_menu', 'afya_consent_thanks',
         'afya_staff_message', 'afya_ai_reply', 'afya_fallback',

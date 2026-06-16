@@ -306,6 +306,10 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
         return $mk('afya_engagement_tip');
     }
 
+    if ($messageType === 'hpv_negative') {
+        return $mk('afya_hpv_negative', $name !== '' ? [$name] : ['']);
+    }
+
     if ($messageType === 'hpv_failed') {
         $date = function_exists('afya_next_appointment_display') ? afya_next_appointment_display($patientId) : '';
         if (preg_match('/Date:\s*(.+?)(?:\n|$)/mi', $body, $m) || preg_match('/Tarehe:\s*(.+?)(?:\n|$)/mi', $body, $m)) {
@@ -384,6 +388,9 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
             return $mk('afya_consent_thanks', $name !== '' ? [$name] : ['']);
         }
         if (str_contains($bodyLower, 'hpv test result is negative') || str_contains($bodyLower, 'majibu yako ya hpv ni hasi')) {
+            if (str_contains($bodyLower, 'in 5 years') || str_contains($bodyLower, 'baada ya miaka 5')) {
+                return $mk('afya_hpv_negative', $name !== '' ? [$name] : ['']);
+            }
             $hiv = function_exists('afya_patient_hiv_status') ? afya_patient_hiv_status($patientId) : 'negative';
             $base = $hiv === 'positive' ? 'afya_hpv_neg_hivpos' : 'afya_hpv_neg_hivneg';
             return $mk($base, $name !== '' ? [$name] : ['']);

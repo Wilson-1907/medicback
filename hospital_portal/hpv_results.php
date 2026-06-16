@@ -241,6 +241,7 @@ function set_patient_hpv_result(int $patientId, string $result, string $recorded
     $message = match ($result) {
         'positive' => 'Recorded HPV positive. Book a follow-up appointment, then confirm to notify the patient.',
         'failed' => 'Recorded HPV failed (inconclusive). Book a retest appointment, then confirm to notify the patient.',
+        'negative' => 'Recorded HPV negative. Confirm to notify — 5-year return message only, no appointment.',
         default => 'Recorded HPV ' . $result . '. You can now confirm to notify the patient.',
     };
 
@@ -297,11 +298,10 @@ function confirm_patient_hpv_result(int $patientId, string $confirmedBy = 'staff
 
     $scheduled = false;
     if ($result === 'negative') {
-        $hivStatus = afya_patient_hiv_status($patientId);
         send_patient_message(
             $patientId,
-            'system',
-            build_hpv_negative_result_notification($name, $hivStatus, $lang)
+            'hpv_negative',
+            build_hpv_negative_result_notification($name, $lang)
         );
         require_once __DIR__ . '/encouragement_drip.php';
         complete_encouragement_drip_after_hpv_negative($patientId);

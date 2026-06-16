@@ -214,6 +214,9 @@ function set_patient_hpv_result(int $patientId, string $result, string $recorded
     if ($result === 'positive') {
         require_once __DIR__ . '/encouragement_drip.php';
         arm_hpv_positive_counseling_drip($patientId);
+    } elseif ($result === 'negative') {
+        require_once __DIR__ . '/encouragement_drip.php';
+        cancel_queued_health_tips_for_patient($patientId);
     }
 
     try {

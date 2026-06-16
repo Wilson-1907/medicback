@@ -202,7 +202,7 @@ function afya_test_results(): array
     $msgSrc = (string) file_get_contents(__DIR__ . '/../messaging.php');
     $pass(
         'HPV negative patients excluded from health tips',
-        str_contains($msgSrc, 'patient_hpv_negative_confirmed')
+        str_contains($msgSrc, 'patient_hpv_negative_recorded')
     );
     $missedSrc = (string) file_get_contents(__DIR__ . '/../missed_appointment_flow.php');
     $pass(

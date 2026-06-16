@@ -88,10 +88,7 @@ function process_random_engagement_messages(): array
             INNER JOIN contact_channels cc ON cc.patient_id = p.id
             WHERE p.status = 'active'
               AND cc.opted_in = 1
-              AND NOT (
-                    p.hpv_screening_result = 'negative'
-                AND p.hpv_result_confirmed_at IS NOT NULL
-              )
+              AND COALESCE(p.hpv_screening_result, '') <> 'negative'
             ORDER BY p.id ASC
             LIMIT 500";
     

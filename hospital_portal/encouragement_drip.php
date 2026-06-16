@@ -83,28 +83,49 @@ function patient_hpv_positive_recorded(int $patientId): bool
 /** HPV+ pathway active — recorded or confirmed, until VIA or HPV negative confirm. */
 function patient_hpv_positive_for_drip(int $patientId): bool
 {
-    if (patient_via_result_recorded($patientId) || patient_hpv_negative_confirmed($patientId)) {
+    if (patient_via_result_recorded($patientId) || patient_hpv_negative_recorded($patientId)) {
         return false;
     }
 
     return patient_hpv_positive_recorded($patientId);
 }
 
-function patient_hpv_negative_confirmed(int $patientId): bool
+function patient_hpv_negative_recorded(int $patientId): bool
 {
     if (!db_table_has_column('patients', 'hpv_screening_result')) {
         return false;
     }
-    $st = db()->prepare(
-        'SELECT hpv_screening_result, hpv_result_confirmed_at FROM patients WHERE id = ? LIMIT 1'
-    );
+    $st = db()->prepare('SELECT hpv_screening_result FROM patients WHERE id = ? LIMIT 1');
     $st->execute([$patientId]);
-    $row = $st->fetch();
-    if (!$row) {
+    return strtolower((string) ($st->fetchColumn() ?: '')) === 'negative';
+}
+
+function patient_hpv_negative_confirmed(int $patientId): bool
+{
+    if (!patient_hpv_negative_recorded($patientId)) {
         return false;
     }
-    return strtolower((string) ($row['hpv_screening_result'] ?? '')) === 'negative'
-        && !empty($row['hpv_result_confirmed_at']);
+    if (!db_table_has_column('patients', 'hpv_result_confirmed_at')) {
+        return false;
+    }
+    $st = db()->prepare('SELECT hpv_result_confirmed_at FROM patients WHERE id = ? LIMIT 1');
+    $st->execute([$patientId]);
+    return !empty($st->fetchColumn());
+}
+
+/** Cancel queued health tips / counseling drips (not appointment reminders). */
+function cancel_queued_health_tips_for_patient(int $patientId): void
+{
+    cancel_queued_encouragement_drip($patientId);
+    try {
+        db()->prepare(
+            "UPDATE scheduled_messages SET status = 'cancelled'
+             WHERE patient_id = ? AND status = 'queued'
+               AND message_type IN ('engagement_boost', 'hpv_counseling')"
+        )->execute([$patientId]);
+    } catch (Throwable $e) {
+        error_log('cancel_queued_health_tips_for_patient: ' . $e->getMessage());
+    }
 }
 
 /** Drip stops when VIA is recorded, HPV negative is confirmed, or the FAQ sequence ended (non HPV+). */
@@ -113,7 +134,7 @@ function encouragement_drip_pathway_complete(int $patientId): bool
     if (patient_via_result_recorded($patientId)) {
         return true;
     }
-    if (patient_hpv_negative_confirmed($patientId)) {
+    if (patient_hpv_negative_recorded($patientId)) {
         return true;
     }
 
@@ -236,7 +257,7 @@ function encouragement_drip_step_sent(int $patientId): void
     if (!db_table_has_column('patients', 'hpv_counseling_index')) {
         return;
     }
-    if (patient_via_result_recorded($patientId) || patient_hpv_negative_confirmed($patientId)) {
+    if (patient_via_result_recorded($patientId) || patient_hpv_negative_recorded($patientId)) {
         return;
     }
 
@@ -351,7 +372,7 @@ function complete_encouragement_drip_after_via(int $patientId): void
 /** Stop all automated messaging once HPV negative is confirmed (one SMS only; no VIA path). */
 function complete_encouragement_drip_after_hpv_negative(int $patientId): void
 {
-    cancel_queued_encouragement_drip($patientId);
+    cancel_queued_health_tips_for_patient($patientId);
     try {
         db()->prepare(
             "UPDATE scheduled_messages SET status = 'cancelled' WHERE patient_id = ? AND status = 'queued'"

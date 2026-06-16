@@ -348,10 +348,17 @@ function complete_encouragement_drip_after_via(int $patientId): void
     db()->prepare('UPDATE patients SET hpv_counseling_index = ? WHERE id = ?')->execute([$done, $patientId]);
 }
 
-/** Stop registration drip once HPV negative is confirmed (one result SMS only; no VIA path). */
+/** Stop all automated messaging once HPV negative is confirmed (one SMS only; no VIA path). */
 function complete_encouragement_drip_after_hpv_negative(int $patientId): void
 {
     cancel_queued_encouragement_drip($patientId);
+    try {
+        db()->prepare(
+            "UPDATE scheduled_messages SET status = 'cancelled' WHERE patient_id = ? AND status = 'queued'"
+        )->execute([$patientId]);
+    } catch (Throwable $e) {
+        error_log('complete_encouragement_drip_after_hpv_negative cancel queued: ' . $e->getMessage());
+    }
     if (!db_table_has_column('patients', 'hpv_counseling_index')) {
         return;
     }

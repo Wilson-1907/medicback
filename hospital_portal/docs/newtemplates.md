@@ -428,26 +428,41 @@ Habari {{1}}, Majibu yako ya kipimo cha HPV hayakuweza kupatikana kwa sababu sam
 
 ---
 
-## Batch 4 — HPV negative (5-year return, no appointment)
+## Batch 4 — HPV negative (HIV-stratified return, no appointment)
 
 | # | English | Kiswahili | When sent |
 |---|---------|-----------|-----------|
-| 25 | `afya_hpv_negative_en` | `afya_hpv_negative_sw` | Staff confirms **HPV negative** — one message only; no clinic visit booked |
+| 25 | `afya_hpv_neg_hivpos_en` | `afya_hpv_neg_hivpos_sw` | Staff confirms **HPV negative** — patient **HIV+** → return in **3 years** |
+| 26 | `afya_hpv_neg_hivneg_en` | `afya_hpv_neg_hivneg_sw` | Staff confirms **HPV negative** — patient **HIV−/unknown** → return in **5 years** |
 
-Replaces the longer `afya_hpv_neg_hivpos` / `afya_hpv_neg_hivneg` pair for new go-live (all patients: return in **5 years**).
+One result message only; no clinic visit, no health-tip drip.
 
-### `afya_hpv_negative_en`
+**Deprecated (do not submit):** `afya_hpv_negative_en` / `afya_hpv_negative_sw` — short 5-year-only variant.
+
+### `afya_hpv_neg_hivpos_en`
 
 Variables: `{{1}}` name
 
 ```
-Hello {{1}}, Welcome to Afya Rafiki. Your HPV test result is negative. Please return to Nyeri Town Health Center in 5 years for your next HPV test. Thank you for choosing Afya Rafiki.
+Hello {{1}}, Welcome to Afya Rafiki. Your HPV test result is negative. This means no HPV infection was detected at this time. To continue protecting your health, please return to Nyeri Town Health Centre for repeat HPV self-sampling test after 3 years, or earlier if advised by your healthcare provider. Thank you for choosing Afya Rafiki.
 ```
 
-### `afya_hpv_negative_sw`
+### `afya_hpv_neg_hivpos_sw`
 
 ```
-Habari {{1}}, Karibu kwenye Afya Rafiki. Majibu yako ya HPV ni hasi (negative). Tafadhali rudi Nyeri Town Health Center baada ya miaka 5 kwa kipimo chako kingine cha HPV. Asante kwa kutumia Afya Rafiki.
+Habari {{1}}, Karibu kwenye Afya Rafiki. Majibu yako ya HPV ni hasi (negative). Hii inamaanisha kuwa hakuna maambukizi ya HPV yaliyopatikana kwa sasa. Ili kuendelea kulinda afya yako, tafadhali rudi Nyeri Town Health Centre kwa uchunguzi mwingine wa virusi vya HPV baada ya miaka 3 au mapema zaidi ikiwa utaelekezwa na mhudumu wa afya. Asante kwa kutumia Afya Rafiki.
+```
+
+### `afya_hpv_neg_hivneg_en`
+
+```
+Hello {{1}}, Welcome to Afya Rafiki. Your HPV test result is negative. This means no HPV infection was detected at this time. To maintain good cervical health, please return to Nyeri Town Health Centre for repeat HPV self-sampling test after 5 years, or earlier if advised by your healthcare provider. Thank you for choosing Afya Rafiki.
+```
+
+### `afya_hpv_neg_hivneg_sw`
+
+```
+Habari {{1}}, Karibu kwenye Afya Rafiki. Majibu yako ya kipimo cha HPV ni hasi (negative). Hii inamaanisha kuwa hakuna maambukizi ya HPV yaliyopatikana kwa sasa. Ili kuendelea kudumisha afya ya mlango wa kizazi na kuzuia saratani ya mlango wa kizazi, tafadhali rudi Nyeri Town Health Centre kwa uchunguzi mwingine wa virusi vya HPV baada ya miaka 5, au mapema zaidi ikiwa utaelekezwa na mhudumu wako wa afya. Asante kwa kutumia Afya Rafiki.
 ```
 
 ---

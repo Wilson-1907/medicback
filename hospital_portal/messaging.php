@@ -553,6 +553,10 @@ function should_send_engagement_message(int $patientId): bool
 function send_random_engagement_message(int $patientId): bool
 {
     require_once __DIR__ . '/hpv_results.php';
+    require_once __DIR__ . '/encouragement_drip.php';
+    if (patient_hpv_negative_confirmed($patientId)) {
+        return false;
+    }
     if (!hpv_counseling_pathway_complete($patientId)) {
         return false;
     }

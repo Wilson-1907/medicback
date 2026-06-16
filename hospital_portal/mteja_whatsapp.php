@@ -307,7 +307,9 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
     }
 
     if ($messageType === 'hpv_negative') {
-        return $mk('afya_hpv_negative', $name !== '' ? [$name] : ['']);
+        $hiv = function_exists('afya_patient_hiv_status') ? afya_patient_hiv_status($patientId) : 'negative';
+        $base = $hiv === 'positive' ? 'afya_hpv_neg_hivpos' : 'afya_hpv_neg_hivneg';
+        return $mk($base, $name !== '' ? [$name] : ['']);
     }
 
     if ($messageType === 'hpv_failed') {

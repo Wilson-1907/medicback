@@ -51,7 +51,7 @@ try {
                 }
             }
             if ($count === 0 && $failed > 0) {
-                api_json(['ok' => false, 'error' => 'WhatsApp send failed for all patients — submit afya_staff_message template in Mteja'], 502);
+                api_json(['ok' => false, 'error' => 'All sends failed — check each patient\'s channel (SMS balance or WhatsApp template).'], 502);
             }
             api_json(['ok' => true, 'sent' => $count, 'failed' => $failed]);
         }
@@ -62,17 +62,19 @@ try {
         if (!send_patient_message($patientId, 'staff_custom', $messageText)) {
             api_json([
                 'ok' => false,
-                'error' => 'WhatsApp send failed — create template afya_staff_message_en (lang en) in Mteja with body variable {{1}}',
+                'error' => send_failure_hint_for_patient($patientId),
             ], 502);
         }
         api_json(['ok' => true, 'sent' => 1]);
     }
 
     $undeliveredCond = undelivered_outbound_sql_condition();
+    $dedupeCond = undelivered_outbound_dedupe_sql();
     $undeliveredSql = "FROM outbound_messages o
          INNER JOIN patients p ON p.id = o.patient_id
          WHERE o.created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)
            AND {$undeliveredCond}
+           AND {$dedupeCond}
            AND NOT EXISTS (
                SELECT 1 FROM outbound_messages o2
                WHERE o2.patient_id = o.patient_id
@@ -87,6 +89,7 @@ try {
             "SELECT COUNT(*) c FROM outbound_messages WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)"
         )->fetch()['c'],
         'failed_24h' => (int) $pdo->query("SELECT COUNT(*) c {$undeliveredSql}")->fetch()['c'],
+        'sms_balance_low' => sms_insufficient_balance_recently(),
         'inbound_24h' => (int) $pdo->query(
             "SELECT COUNT(*) c FROM inbound_messages WHERE received_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)"
         )->fetch()['c'],

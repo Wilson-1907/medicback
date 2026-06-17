@@ -39,9 +39,21 @@ function resend_single_outbound_row(array $row): bool
         return false;
     }
 
+    if (!is_send_error_retryable((string) ($row['error_detail'] ?? ''))) {
+        return false;
+    }
+
+    if (sms_insufficient_balance_recently() && strtolower((string) ($row['channel'] ?? '')) === 'sms') {
+        return false;
+    }
+
     $wasWhatsapp = strtolower((string) ($row['channel'] ?? '')) === 'whatsapp';
     $wasFailed = strtolower((string) ($row['status'] ?? '')) === 'failed';
-    if ($wasWhatsapp && ($wasFailed || message_type_allows_sms_fallback($type)) && africastalking_sms_ready()) {
+    if ($wasWhatsapp && $wasFailed && message_type_allows_sms_fallback($type) && africastalking_sms_ready()) {
+        if (sms_insufficient_balance_recently()) {
+            return false;
+        }
+
         return send_patient_message_sms($patientId, $type, $body);
     }
 
@@ -59,6 +71,20 @@ function resend_undelivered_outbound(?array $outboundIds = null, int $lookbackHo
     $pdo = db();
     $lookbackHours = max(1, min(720, $lookbackHours));
     $maxResends = max(1, min(500, $maxResends));
+
+    if ($outboundIds === null && sms_insufficient_balance_recently()) {
+        return [
+            'lookback_hours' => $lookbackHours,
+            'candidates' => 0,
+            'resent' => 0,
+            'resend_failed' => 0,
+            'skipped' => 0,
+            'has_more' => false,
+            'blocked' => true,
+            'block_reason' => 'SMS account has insufficient balance. Top up Africa\'s Talking credits before resending.',
+            'details' => [],
+        ];
+    }
 
     $idFilter = '';
     $args = [$lookbackHours];
@@ -84,6 +110,7 @@ function resend_undelivered_outbound(?array $outboundIds = null, int $lookbackHo
             INNER JOIN patients p ON p.id = o.patient_id
             WHERE o.created_at >= DATE_SUB(NOW(3), INTERVAL ? HOUR)
               AND " . undelivered_outbound_sql_condition() . "
+              AND " . undelivered_outbound_dedupe_sql() . "
               AND NOT EXISTS (
                   SELECT 1 FROM outbound_messages o2
                   WHERE o2.patient_id = o.patient_id
@@ -181,8 +208,6 @@ function resend_stuck_messages(int $lookbackHours = 168, int $maxOutboundResends
 
     $scheduledProcessed = flush_all_due_scheduled_messages();
 
-    $outboundResend = resend_undelivered_outbound(null, $lookbackHours, $maxOutboundResends);
-
     $dripRepaired = 0;
     if (function_exists('repair_stalled_hpv_positive_drips')) {
         require_once __DIR__ . '/encouragement_drip.php';
@@ -198,11 +223,6 @@ function resend_stuck_messages(int $lookbackHours = 168, int $maxOutboundResends
         'scheduled_queued_forced_now' => $scheduledQueuedForced,
         'scheduled_failed_requeued' => $scheduledFailedRequeued,
         'scheduled_processed' => $scheduledProcessed,
-        'outbound_failed_candidates' => (int) ($outboundResend['candidates'] ?? 0),
-        'outbound_resent' => (int) ($outboundResend['resent'] ?? 0),
-        'outbound_resend_failed' => (int) ($outboundResend['resend_failed'] ?? 0),
-        'outbound_skipped' => (int) ($outboundResend['skipped'] ?? 0),
         'hpv_drip_repaired' => $dripRepaired,
-        'outbound_details' => $outboundResend['details'] ?? [],
     ];
 }

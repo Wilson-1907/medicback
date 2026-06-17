@@ -221,21 +221,81 @@ function send_patient_message_sms(int $patientId, string $messageType, string $b
 }
 
 /** SQL fragment: outbound rows that never confirmed delivery to the patient. */
+function outbound_failure_retryable_sql(string $alias = 'o'): string
+{
+    return "({$alias}.error_detail IS NULL OR (
+        LOWER({$alias}.error_detail) NOT LIKE '%insufficientbalance%'
+        AND LOWER({$alias}.error_detail) NOT LIKE '%insufficient balance%'
+    ))";
+}
+
+function is_send_error_retryable(?string $errorDetail): bool
+{
+    if ($errorDetail === null || trim($errorDetail) === '') {
+        return true;
+    }
+    $e = strtolower($errorDetail);
+    if (str_contains($e, 'insufficientbalance') || str_contains($e, 'insufficient balance')) {
+        return false;
+    }
+    if (str_contains($e, 'not configured')) {
+        return false;
+    }
+
+    return true;
+}
+
+/** Only explicit failures — not WhatsApp/SMS accepted by provider (status sent). */
 function undelivered_outbound_sql_condition(): string
 {
-    return "(
-        o.status = 'failed'
-        OR (
-            o.status = 'sent'
-            AND o.created_at <= DATE_SUB(NOW(3), INTERVAL 2 HOUR)
-            AND NOT EXISTS (
-                SELECT 1 FROM outbound_messages o3
-                WHERE o3.at_message_id = o.at_message_id
-                  AND o3.id <> o.id
-                  AND o3.status = 'delivered'
-            )
-        )
-    )";
+    return "o.status = 'failed' AND " . outbound_failure_retryable_sql('o');
+}
+
+/** Latest failed row per patient + message type + body (avoids duplicate resend targets). */
+function undelivered_outbound_dedupe_sql(): string
+{
+    return 'o.id = (
+        SELECT MAX(o2.id) FROM outbound_messages o2
+        WHERE o2.patient_id = o.patient_id
+          AND o2.message_type = o.message_type
+          AND o2.body = o.body
+          AND o2.status = \'failed\'
+    )';
+}
+
+function sms_insufficient_balance_recently(): bool
+{
+    try {
+        $st = db()->query(
+            "SELECT 1 FROM outbound_messages
+             WHERE channel = 'sms' AND status = 'failed'
+               AND created_at >= DATE_SUB(NOW(3), INTERVAL 6 HOUR)
+               AND (
+                   LOWER(COALESCE(error_detail, '')) LIKE '%insufficientbalance%'
+                   OR LOWER(COALESCE(error_detail, '')) LIKE '%insufficient balance%'
+               )
+             LIMIT 1"
+        );
+
+        return (bool) $st->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function send_failure_hint_for_patient(int $patientId): string
+{
+    $contact = patient_primary_contact($patientId);
+    $channel = strtolower((string) ($contact['channel'] ?? 'sms'));
+    if ($channel === 'sms') {
+        if (sms_insufficient_balance_recently()) {
+            return 'SMS send failed — Africa\'s Talking account has insufficient SMS balance. Top up at africastalking.com before resending.';
+        }
+
+        return 'SMS send failed — check Africa\'s Talking SMS balance, sender ID, and patient phone number.';
+    }
+
+    return 'WhatsApp send failed — ensure afya_staff_message template is approved in Mteja for the patient\'s language.';
 }
 
 /**

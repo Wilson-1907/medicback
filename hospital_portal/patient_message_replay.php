@@ -10,35 +10,37 @@ require_once __DIR__ . '/encouragement_drip.php';
 require_once __DIR__ . '/patient_client_id.php';
 
 /**
- * True when an outbound row reached the patient (delivered, or sent without a hard failure).
+ * True when the latest outbound of this type reached the provider (sent/delivered).
  */
-function patient_message_type_succeeded(int $patientId, string $messageType): bool
+function patient_message_type_delivered(int $patientId, string $messageType): bool
 {
     $st = db()->prepare(
-        "SELECT status, error_detail FROM outbound_messages
+        "SELECT status FROM outbound_messages
          WHERE patient_id = ? AND message_type = ?
          ORDER BY id DESC
-         LIMIT 20"
+         LIMIT 1"
     );
     $st->execute([$patientId, $messageType]);
-    while ($row = $st->fetch()) {
-        $status = strtolower((string) ($row['status'] ?? ''));
-        $error = strtolower((string) ($row['error_detail'] ?? ''));
-        if ($status === 'delivered') {
-            return true;
-        }
-        if ($status === 'sent') {
-            return true;
-        }
-        if ($status === 'failed' && is_send_error_retryable((string) ($row['error_detail'] ?? ''))) {
-            continue;
-        }
-        if ($status === 'failed' && (str_contains($error, 'insufficientbalance') || str_contains($error, 'insufficient balance'))) {
-            continue;
-        }
-    }
+    $status = strtolower((string) ($st->fetchColumn() ?: ''));
 
-    return false;
+    return in_array($status, ['sent', 'delivered'], true);
+}
+
+/**
+ * True when a specific system message body was already accepted by the provider.
+ */
+function patient_system_body_delivered(int $patientId, string $bodyNeedle): bool
+{
+    $st = db()->prepare(
+        "SELECT status FROM outbound_messages
+         WHERE patient_id = ? AND message_type = 'system' AND body LIKE ?
+         ORDER BY id DESC
+         LIMIT 1"
+    );
+    $st->execute([$patientId, '%' . $bodyNeedle . '%']);
+    $status = strtolower((string) ($st->fetchColumn() ?: ''));
+
+    return in_array($status, ['sent', 'delivered'], true);
 }
 
 /**
@@ -94,13 +96,13 @@ function replay_patient_messages(int $patientId): array
         }
     };
 
-    if (!patient_message_type_succeeded($patientId, 'system')) {
+    if (!patient_system_body_delivered($patientId, 'agreeing to receive messages from Afya Rafiki')) {
         $trySend('consent_thank_you', 'system', build_consent_thank_you_message($name, $lang));
     } else {
         $skipped[] = 'consent_thank_you';
     }
 
-    if (!patient_message_type_succeeded($patientId, 'registration_welcome')) {
+    if (!patient_message_type_delivered($patientId, 'registration_welcome')) {
         $trySend('registration_welcome', 'registration_welcome', build_registration_welcome_message($lang));
     } else {
         $skipped[] = 'registration_welcome';
@@ -126,7 +128,7 @@ function replay_patient_messages(int $patientId): array
         $reasonSt->execute([(int) $appt['id']]);
         $reason = (string) ($reasonSt->fetchColumn() ?: 'Appointment');
 
-        if (!patient_message_type_succeeded($patientId, 'appointment_booked')) {
+        if (!patient_message_type_delivered($patientId, 'appointment_booked')) {
             $trySend(
                 'appointment_booked_' . $appt['id'],
                 'appointment_booked',
@@ -156,17 +158,17 @@ function replay_patient_messages(int $patientId): array
             ];
         }
     } elseif (!empty($patient['hpv_result_confirmed_at'])) {
-        if ($hpvResult === 'failed' && !patient_message_type_succeeded($patientId, 'hpv_failed')) {
+        if ($hpvResult === 'failed' && !patient_message_type_delivered($patientId, 'hpv_failed')) {
             $apptDate = afya_next_appointment_display($patientId);
             $trySend('hpv_failed', 'hpv_failed', build_hpv_failed_result_notification($name, $apptDate, $lang));
-        } elseif ($hpvResult === 'negative' && !patient_message_type_succeeded($patientId, 'hpv_negative')) {
+        } elseif ($hpvResult === 'negative' && !patient_message_type_delivered($patientId, 'hpv_negative')) {
             $trySend(
                 'hpv_negative',
                 'hpv_negative',
                 build_hpv_negative_result_notification($name, afya_patient_hiv_status($patientId), $lang)
             );
         } elseif ($hpvResult === 'positive') {
-            if (!patient_message_type_succeeded($patientId, 'system') || !patient_has_queued_encouragement_drip($patientId)) {
+            if (!patient_message_type_delivered($patientId, 'system') || !patient_has_queued_encouragement_drip($patientId)) {
                 $dripStarted = start_hpv_positive_counseling_drip_on_confirm($patientId);
                 if ($dripStarted) {
                     $sent[] = ['label' => 'hpv_counseling_drip_started', 'message_type' => 'hpv_counseling'];

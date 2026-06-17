@@ -249,14 +249,47 @@ function record_patient_via_result(
     require_once __DIR__ . '/encouragement_drip.php';
     complete_encouragement_drip_after_via($patientId);
 
+    $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
+    $screeningForNotify = [
+        'hiv_status' => (string) ($row['hiv_status'] ?? 'not_known'),
+        'hpv_done_before' => (string) ($row['hpv_done_before'] ?? 'unknown'),
+        'hpv_prior_result' => (string) ($row['hpv_prior_result'] ?? 'unknown'),
+        'hpv_screening_result' => (string) ($row['hpv_screening_result'] ?? 'unknown'),
+        'place_of_residence' => (string) ($row['place_of_residence'] ?? ''),
+        'via_result' => $viaResult,
+        'via_date' => $viaDate,
+        'has_cancer' => $hasCancerVal,
+        'treatment_date' => $treatmentVal,
+    ];
+
+    $viaMessageSent = false;
+    $referralSent = false;
+    $optSt = db()->prepare(
+        'SELECT 1 FROM contact_channels WHERE patient_id = ? AND opted_in = 1 LIMIT 1'
+    );
+    $optSt->execute([$patientId]);
+    if ($optSt->fetchColumn()) {
+        $viaMessageSent = process_via_recorded_messages(
+            $patientId,
+            (string) $row['full_name'],
+            $lang,
+            $screeningForNotify,
+            true
+        );
+        if ($viaMessageSent) {
+            db()->prepare('UPDATE patients SET via_result_notified_at = NOW(3) WHERE id = ?')->execute([$patientId]);
+            $referralSent = $viaResult === 'positive' && $hasCancerVal === 1;
+        }
+    }
+
     return [
         'ok' => true,
         'via_result' => $viaResult,
         'via_date' => $viaDate,
         'next_checkup_at' => $followups['next_checkup_at'],
-        'referral_sent' => false,
-        'via_message_sent' => false,
-        'book_followup_next' => true,
+        'referral_sent' => $referralSent,
+        'via_message_sent' => $viaMessageSent,
+        'book_followup_next' => !$viaMessageSent,
         'recorded_by' => $recordedBy,
     ];
 }
@@ -342,18 +375,20 @@ function notify_patient_via_result(int $patientId, string $notifiedBy = 'staff')
     $messageSent = false;
     $referralSent = false;
     if ($optSt->fetchColumn()) {
-        process_via_recorded_messages($patientId, $name, $lang, $screening, true);
-        $messageSent = true;
-        $referralSent = $via === 'positive' && (int) ($row['has_cancer'] ?? 0) === 1;
+        $messageSent = process_via_recorded_messages($patientId, $name, $lang, $screening, true);
+        $referralSent = $messageSent && $via === 'positive' && (int) ($row['has_cancer'] ?? 0) === 1;
     }
 
-    db()->prepare('UPDATE patients SET via_result_notified_at = NOW(3) WHERE id = ?')->execute([$patientId]);
+    if ($messageSent) {
+        db()->prepare('UPDATE patients SET via_result_notified_at = NOW(3) WHERE id = ?')->execute([$patientId]);
+    }
 
     return [
-        'notified' => true,
+        'notified' => $messageSent,
         'via_message_sent' => $messageSent,
         'referral_sent' => $referralSent,
         'notified_by' => $notifiedBy,
+        'error' => $messageSent ? null : 'Message could not be sent — check SMS balance or patient contact.',
     ];
 }
 
@@ -448,30 +483,31 @@ function process_via_recorded_messages(
     string $lang,
     array $screening,
     bool $optedIn
-): void {
+): bool {
     if (!$optedIn || !patient_screening_ready()) {
-        return;
+        return false;
     }
 
     ensure_patient_screening_schema();
 
     if (!in_array($screening['via_result'], ['negative', 'positive'], true)) {
-        return;
+        return false;
     }
 
+    $sent = false;
     if ($screening['via_result'] === 'negative') {
         $apptDate = afya_next_appointment_display($patientId);
         if ($apptDate === '__________') {
             $apptDate = afya_format_appointment_date((string) ($screening['via_date'] ?? date('Y-m-d')) . ' 09:00:00');
         }
-        send_patient_message(
+        $sent = send_patient_message(
             $patientId,
             'via_negative',
             build_post_visit_via_negative($patientName, $apptDate, $lang)
         );
     } elseif (!empty($screening['has_cancer'])) {
         $refDate = (string) ($screening['via_date'] ?? date('Y-m-d'));
-        send_patient_message(
+        $sent = send_patient_message(
             $patientId,
             'referral',
             build_referral_message($patientName, $lang, afya_format_appointment_date($refDate . ' 09:00:00'))
@@ -485,7 +521,7 @@ function process_via_recorded_messages(
             $lang,
             isset($screening['treatment_date']) ? (string) $screening['treatment_date'] : null
         );
-        send_patient_message($patientId, $viaType, $viaBody);
+        $sent = send_patient_message($patientId, $viaType, $viaBody);
     }
 
     $followups = compute_screening_followups($screening);
@@ -504,6 +540,8 @@ function process_via_recorded_messages(
             (string) $item['send_at']
         );
     }
+
+    return $sent;
 }
 
 /** @deprecated VIA is no longer recorded at registration; use process_via_recorded_messages(). */

@@ -177,9 +177,9 @@ function replay_patient_messages(int $patientId): array
     }
 
     $forceSt = $pdo->prepare(
-        'UPDATE scheduled_messages
+        "UPDATE scheduled_messages
          SET send_at = NOW(3)
-         WHERE patient_id = ? AND status = "queued" AND send_at > NOW(3)'
+         WHERE patient_id = ? AND status = 'queued' AND send_at > NOW(3)"
     );
     $forceSt->execute([$patientId]);
     $scheduledForced = $forceSt->rowCount();

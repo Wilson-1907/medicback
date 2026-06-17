@@ -177,6 +177,10 @@ function message_type_allows_sms_fallback(string $messageType): bool
         'missed_reschedule_offer' => true,
         'missed_reschedule_confirm' => true,
         'staff_custom' => true,
+        'hpv_counseling' => true,
+        'engagement_boost' => true,
+        'system' => true,
+        'escalation_notice' => true,
     ];
 
     return isset($types[$messageType]);

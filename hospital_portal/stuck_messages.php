@@ -142,6 +142,7 @@ function resend_undelivered_outbound(?array $outboundIds = null, int $lookbackHo
         'resent' => $resent,
         'resend_failed' => $resendFailed,
         'skipped' => $skipped,
+        'has_more' => count($rows) >= $maxResends && $outboundIds === null,
         'details' => $details,
     ];
 }

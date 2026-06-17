@@ -21,7 +21,7 @@ try {
                 $outboundIds = [(int) $body['outbound_id']];
             }
             $hours = (int) ($body['hours'] ?? 168);
-            $limit = (int) ($body['limit'] ?? 200);
+            $limit = (int) ($body['limit'] ?? 15);
             $result = resend_undelivered_outbound($outboundIds, $hours, $limit);
             api_json(['ok' => true, 'resend' => $result]);
         }

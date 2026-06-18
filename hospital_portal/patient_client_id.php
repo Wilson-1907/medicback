@@ -216,6 +216,96 @@ function validate_phone_registration(string $phone, string $channel): ?string
     return 'This phone number is already registered. Please use a different number or contact the patient if they already exist.';
 }
 
+/** Client ID if another patient already uses this phone (E.164), or null. */
+function phone_registered_by_other_patient(string $phone, int $excludePatientId): ?string
+{
+    $phone = trim($phone);
+    if ($phone === '' || $excludePatientId < 1) {
+        return null;
+    }
+    $st = db()->prepare(
+        'SELECT p.external_mrn FROM contact_channels cc
+         INNER JOIN patients p ON p.id = cc.patient_id
+         WHERE cc.address = ? AND cc.patient_id <> ?
+         LIMIT 1'
+    );
+    $st->execute([$phone, $excludePatientId]);
+    $mrn = $st->fetchColumn();
+
+    return $mrn !== false && trim((string) $mrn) !== '' ? (string) $mrn : null;
+}
+
+/**
+ * Update primary contact phone (and optionally channel) for an existing patient.
+ *
+ * @return array{ok: bool, error?: string, phone?: string, channel?: string}
+ */
+function update_patient_primary_contact(int $patientId, string $phone, ?string $channel = null): array
+{
+    if ($patientId < 1) {
+        return ['ok' => false, 'error' => 'patient_id is required'];
+    }
+
+    require_once __DIR__ . '/messaging.php';
+    $phone = normalize_outbound_address($phone);
+    if ($phone === '') {
+        return ['ok' => false, 'error' => 'Enter a valid Kenya mobile number (9 digits after +254).'];
+    }
+
+    $st = db()->prepare('SELECT 1 FROM patients WHERE id = ? LIMIT 1');
+    $st->execute([$patientId]);
+    if (!$st->fetchColumn()) {
+        return ['ok' => false, 'error' => 'Patient not found'];
+    }
+
+    $otherClient = phone_registered_by_other_patient($phone, $patientId);
+    if ($otherClient !== null) {
+        return [
+            'ok' => false,
+            'error' => 'This phone number is already registered for client ' . $otherClient . '.',
+        ];
+    }
+
+    $channelNorm = null;
+    if ($channel !== null && trim($channel) !== '') {
+        $channelNorm = strtolower(trim($channel)) === 'whatsapp' ? 'whatsapp' : 'sms';
+    }
+
+    $contactSt = db()->prepare(
+        'SELECT id, channel FROM contact_channels
+         WHERE patient_id = ?
+         ORDER BY is_primary DESC, id ASC
+         LIMIT 1'
+    );
+    $contactSt->execute([$patientId]);
+    $contact = $contactSt->fetch();
+
+    try {
+        if ($contact) {
+            $contactId = (int) $contact['id'];
+            $newChannel = $channelNorm ?? (string) ($contact['channel'] ?? 'sms');
+            db()->prepare(
+                'UPDATE contact_channels SET address = ?, channel = ?, updated_at = NOW(3) WHERE id = ?'
+            )->execute([$phone, $newChannel, $contactId]);
+            $channelNorm = $newChannel;
+        } else {
+            $channelNorm = $channelNorm ?? 'sms';
+            db()->prepare(
+                'INSERT INTO contact_channels (patient_id, channel, address, is_primary, opted_in, opted_in_at)
+                 VALUES (?,?,?,?,?,?)'
+            )->execute([$patientId, $channelNorm, $phone, 1, 1, date('Y-m-d H:i:s')]);
+        }
+    } catch (Throwable $e) {
+        $mapped = map_registration_db_error($e);
+        if ($mapped !== null) {
+            return ['ok' => false, 'error' => $mapped['error']];
+        }
+        throw $e;
+    }
+
+    return ['ok' => true, 'phone' => $phone, 'channel' => $channelNorm ?? 'sms'];
+}
+
 /** @return array{error: string, status: int}|null */
 function map_registration_db_error(Throwable $e): ?array
 {

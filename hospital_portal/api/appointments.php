@@ -124,6 +124,7 @@ try {
         api_json([
             'ok' => true,
             'appointment_id' => $appointmentId,
+            'patient_notified' => true,
             'hpv_result_sent' => !empty($hpvAuto['confirmed']),
             'counseling_started' => !empty($hpvAuto['counseling_started']),
             'via_result_sent' => !empty($viaAuto['notified']),
@@ -206,7 +207,7 @@ try {
                 'location' => $row['location'],
             ], $reason, true, $lang)
         );
-        api_json(['ok' => true, 'appointment_id' => $appointmentId]);
+        api_json(['ok' => true, 'appointment_id' => $appointmentId, 'patient_notified' => true]);
     }
 
     if ($action === 'mark_attended') {

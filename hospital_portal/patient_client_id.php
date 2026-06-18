@@ -238,7 +238,7 @@ function phone_registered_by_other_patient(string $phone, int $excludePatientId)
 /**
  * Update primary contact phone (and optionally channel) for an existing patient.
  *
- * @return array{ok: bool, error?: string, phone?: string, channel?: string}
+ * @return array{ok: bool, error?: string, phone?: string, channel?: string, phone_changed?: bool, old_phone?: ?string, messages_replayed?: ?array}
  */
 function update_patient_primary_contact(int $patientId, string $phone, ?string $channel = null): array
 {
@@ -272,13 +272,15 @@ function update_patient_primary_contact(int $patientId, string $phone, ?string $
     }
 
     $contactSt = db()->prepare(
-        'SELECT id, channel FROM contact_channels
+        'SELECT id, channel, address FROM contact_channels
          WHERE patient_id = ?
          ORDER BY is_primary DESC, id ASC
          LIMIT 1'
     );
     $contactSt->execute([$patientId]);
     $contact = $contactSt->fetch();
+    $oldPhone = $contact ? normalize_outbound_address((string) ($contact['address'] ?? '')) : '';
+    $oldChannel = $contact ? (string) ($contact['channel'] ?? 'sms') : 'sms';
 
     try {
         if ($contact) {
@@ -303,7 +305,21 @@ function update_patient_primary_contact(int $patientId, string $phone, ?string $
         throw $e;
     }
 
-    return ['ok' => true, 'phone' => $phone, 'channel' => $channelNorm ?? 'sms'];
+    $phoneChanged = $oldPhone !== '' && $oldPhone !== $phone;
+    $messagesReplayed = null;
+    if ($phoneChanged) {
+        require_once __DIR__ . '/patient_message_replay.php';
+        $messagesReplayed = replay_patient_messages_after_phone_change($patientId);
+    }
+
+    return [
+        'ok' => true,
+        'phone' => $phone,
+        'channel' => $channelNorm ?? 'sms',
+        'phone_changed' => $phoneChanged,
+        'old_phone' => $oldPhone !== '' ? $oldPhone : null,
+        'messages_replayed' => $messagesReplayed,
+    ];
 }
 
 /** @return array{error: string, status: int}|null */

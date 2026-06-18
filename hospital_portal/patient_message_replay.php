@@ -43,12 +43,39 @@ function patient_system_body_delivered(int $patientId, string $bodyNeedle): bool
     return in_array($status, ['sent', 'delivered'], true);
 }
 
+/** Resend HPV counseling rows previously accepted by the provider (wrong-number recovery). */
+function replay_sent_hpv_counseling_outbound(int $patientId): int
+{
+    $st = db()->prepare(
+        "SELECT body FROM outbound_messages
+         WHERE patient_id = ? AND message_type = 'hpv_counseling'
+           AND status IN ('sent', 'delivered')
+         ORDER BY id ASC"
+    );
+    $st->execute([$patientId]);
+    $seen = [];
+    $count = 0;
+    while ($row = $st->fetch()) {
+        $body = trim((string) ($row['body'] ?? ''));
+        if ($body === '' || isset($seen[$body])) {
+            continue;
+        }
+        $seen[$body] = true;
+        if (send_patient_message($patientId, 'hpv_counseling', $body)) {
+            $count++;
+        }
+    }
+
+    return $count;
+}
+
 /**
  * Send all applicable Afya Rafiki messages for one patient only.
  *
+ * @param bool $forceResend When true (e.g. phone corrected), resend even if prior rows show sent/delivered.
  * @return array<string, mixed>
  */
-function replay_patient_messages(int $patientId): array
+function replay_patient_messages(int $patientId, bool $forceResend = false): array
 {
     $pdo = db();
     $st = $pdo->prepare(
@@ -96,13 +123,13 @@ function replay_patient_messages(int $patientId): array
         }
     };
 
-    if (!patient_system_body_delivered($patientId, 'agreeing to receive messages from Afya Rafiki')) {
+    if ($forceResend || !patient_system_body_delivered($patientId, 'agreeing to receive messages from Afya Rafiki')) {
         $trySend('consent_thank_you', 'system', build_consent_thank_you_message($name, $lang));
     } else {
         $skipped[] = 'consent_thank_you';
     }
 
-    if (!patient_message_type_delivered($patientId, 'registration_welcome')) {
+    if ($forceResend || !patient_message_type_delivered($patientId, 'registration_welcome')) {
         $trySend('registration_welcome', 'registration_welcome', build_registration_welcome_message($lang));
     } else {
         $skipped[] = 'registration_welcome';
@@ -128,7 +155,7 @@ function replay_patient_messages(int $patientId): array
         $reasonSt->execute([(int) $appt['id']]);
         $reason = (string) ($reasonSt->fetchColumn() ?: 'Appointment');
 
-        if (!patient_message_type_delivered($patientId, 'appointment_booked')) {
+        if ($forceResend || !patient_message_type_delivered($patientId, 'appointment_booked')) {
             $trySend(
                 'appointment_booked_' . $appt['id'],
                 'appointment_booked',
@@ -146,7 +173,7 @@ function replay_patient_messages(int $patientId): array
     }
 
     $hpvResult = strtolower((string) ($patient['hpv_screening_result'] ?? ''));
-    if (in_array($hpvResult, ['positive', 'negative', 'failed'], true) && empty($patient['hpv_result_confirmed_at'])) {
+    if (!$forceResend && in_array($hpvResult, ['positive', 'negative', 'failed'], true) && empty($patient['hpv_result_confirmed_at'])) {
         $confirm = confirm_patient_hpv_result($patientId, 'replay_patient_messages');
         if (!empty($confirm['ok'])) {
             $sent[] = ['label' => 'hpv_confirm_' . $hpvResult, 'message_type' => 'confirm_result'];
@@ -158,24 +185,74 @@ function replay_patient_messages(int $patientId): array
             ];
         }
     } elseif (!empty($patient['hpv_result_confirmed_at'])) {
-        if ($hpvResult === 'failed' && !patient_message_type_delivered($patientId, 'hpv_failed')) {
+        if ($hpvResult === 'failed' && ($forceResend || !patient_message_type_delivered($patientId, 'hpv_failed'))) {
             $apptDate = afya_next_appointment_display($patientId);
             $trySend('hpv_failed', 'hpv_failed', build_hpv_failed_result_notification($name, $apptDate, $lang));
-        } elseif ($hpvResult === 'negative' && !patient_message_type_delivered($patientId, 'hpv_negative')) {
+        } elseif ($hpvResult === 'negative' && ($forceResend || !patient_message_type_delivered($patientId, 'hpv_negative'))) {
             $trySend(
                 'hpv_negative',
                 'hpv_negative',
                 build_hpv_negative_result_notification($name, afya_patient_hiv_status($patientId), $lang)
             );
         } elseif ($hpvResult === 'positive') {
-            if (!patient_message_type_delivered($patientId, 'system') || !patient_has_queued_encouragement_drip($patientId)) {
+            if ($forceResend) {
+                $apptDate = afya_next_appointment_display($patientId);
+                $trySend(
+                    'hpv_positive',
+                    'system',
+                    build_hpv_positive_result_notification($name, $apptDate, $lang)
+                );
+                $counselingResent = replay_sent_hpv_counseling_outbound($patientId);
+                if ($counselingResent > 0) {
+                    $sent[] = [
+                        'label' => 'hpv_counseling_resent',
+                        'message_type' => 'hpv_counseling',
+                        'count' => $counselingResent,
+                    ];
+                }
+            } elseif (!patient_message_type_delivered($patientId, 'system') || !patient_has_queued_encouragement_drip($patientId)) {
                 $dripStarted = start_hpv_positive_counseling_drip_on_confirm($patientId);
                 if ($dripStarted) {
                     $sent[] = ['label' => 'hpv_counseling_drip_started', 'message_type' => 'hpv_counseling'];
                 }
             }
         }
-        $skipped[] = 'hpv_already_confirmed';
+        if (!$forceResend) {
+            $skipped[] = 'hpv_already_confirmed';
+        }
+    }
+
+    if ($forceResend) {
+        require_once __DIR__ . '/patient_screening.php';
+        $viaSt = $pdo->prepare(
+            'SELECT via_result, via_date, has_cancer, treatment_date, hiv_status, hpv_done_before,
+                    hpv_prior_result, place_of_residence, via_result_notified_at
+             FROM patients WHERE id = ? LIMIT 1'
+        );
+        $viaSt->execute([$patientId]);
+        $viaRow = $viaSt->fetch();
+        $via = strtolower((string) ($viaRow['via_result'] ?? ''));
+        if (in_array($via, ['positive', 'negative'], true) && patient_screening_ready()) {
+            $screening = [
+                'hiv_status' => (string) ($viaRow['hiv_status'] ?? 'not_known'),
+                'hpv_done_before' => (string) ($viaRow['hpv_done_before'] ?? 'unknown'),
+                'hpv_prior_result' => (string) ($viaRow['hpv_prior_result'] ?? 'unknown'),
+                'place_of_residence' => (string) ($viaRow['place_of_residence'] ?? ''),
+                'via_result' => $via,
+                'via_date' => (string) ($viaRow['via_date'] ?? ''),
+                'has_cancer' => (int) ($viaRow['has_cancer'] ?? 0),
+                'treatment_date' => $viaRow['treatment_date'] ?? null,
+            ];
+            if (process_via_recorded_messages($patientId, $name, $lang, $screening, true)) {
+                $sent[] = ['label' => 'via_result', 'message_type' => 'via_' . $via];
+            } else {
+                $failed[] = [
+                    'label' => 'via_result',
+                    'message_type' => 'via_' . $via,
+                    'error' => 'VIA resend failed',
+                ];
+            }
+        }
     }
 
     $forceSt = $pdo->prepare(
@@ -201,13 +278,21 @@ function replay_patient_messages(int $patientId): array
         'ok' => count($failed) === 0,
         'patient_id' => $patientId,
         'full_name' => $name,
+        'force_resend' => $forceResend,
         'sms_balance_low' => $smsBalanceLow,
         'sent' => $sent,
         'failed' => $failed,
         'skipped' => $skipped,
+        'resent_count' => count($sent),
         'scheduled_queued_forced_now' => $scheduledForced === false ? 0 : (int) $scheduledForced,
         'scheduled_processed' => $scheduledProcessed,
     ];
+}
+
+/** After staff corrects a wrong phone number, resend all clinical messages to the new number. */
+function replay_patient_messages_after_phone_change(int $patientId): array
+{
+    return replay_patient_messages($patientId, true);
 }
 
 /** @return array{processed: int, sent: int, failed: int} */

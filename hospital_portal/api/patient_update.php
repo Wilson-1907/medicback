@@ -28,6 +28,7 @@ try {
     $updated = false;
     $phoneOut = null;
     $channelOut = null;
+    $phoneResult = null;
 
     $phoneRaw = trim((string) ($body['phone'] ?? ''));
     if ($phoneRaw === '' && isset($body['phone_local'])) {
@@ -74,10 +75,17 @@ try {
         api_json(['ok' => false, 'error' => 'Nothing to update'], 422);
     }
 
+    $replaySummary = null;
+    if (is_array($phoneResult ?? null) && !empty($phoneResult['messages_replayed'])) {
+        $replaySummary = $phoneResult['messages_replayed'];
+    }
+
     api_json([
         'ok' => true,
         'phone' => $phoneOut,
         'channel' => $channelOut,
+        'phone_changed' => !empty($phoneResult['phone_changed']),
+        'messages_replayed' => $replaySummary,
     ]);
 } catch (Throwable $e) {
     error_log('patient_update API: ' . $e->getMessage());

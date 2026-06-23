@@ -45,7 +45,12 @@ try {
         api_json($out, !empty($out['ok']) ? 200 : 422);
     }
 
-    api_json(['ok' => false, 'error' => 'Unknown action. Use set_result, confirm_result, or clear_result'], 422);
+    if ($action === 'restore_result') {
+        $out = restore_patient_hpv_result($patientId, $body);
+        api_json($out, !empty($out['ok']) ? 200 : 422);
+    }
+
+    api_json(['ok' => false, 'error' => 'Unknown action. Use set_result, confirm_result, clear_result, or restore_result'], 422);
 } catch (Throwable $e) {
     error_log('hpv_result API: ' . $e->getMessage());
     api_json(['ok' => false, 'error' => $e->getMessage()], 500);

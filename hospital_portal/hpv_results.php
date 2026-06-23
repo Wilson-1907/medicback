@@ -686,3 +686,100 @@ function clear_patient_hpv_result(int $patientId, bool $cancelUpcomingAppointmen
         'message' => 'HPV result cleared. Record the correct result, book an appointment, then confirm to notify the patient.',
     ];
 }
+
+/**
+ * Restore a prior HPV workflow snapshot (e.g. after mistaken clear).
+ *
+ * @param array<string, mixed> $snapshot
+ * @return array<string, mixed>
+ */
+function restore_patient_hpv_result(int $patientId, array $snapshot): array
+{
+    if (!hpv_workflow_ready()) {
+        return ['ok' => false, 'error' => hpv_workflow_unavailable_message()];
+    }
+
+    $result = strtolower(trim((string) ($snapshot['result'] ?? '')));
+    if (!in_array($result, ['positive', 'negative', 'failed'], true)) {
+        return ['ok' => false, 'error' => 'result must be positive, negative, or failed'];
+    }
+
+    $st = db()->prepare('SELECT id, full_name FROM patients WHERE id = ? LIMIT 1');
+    $st->execute([$patientId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return ['ok' => false, 'error' => 'Patient not found'];
+    }
+
+    $recordedAt = trim((string) ($snapshot['hpv_result_recorded_at'] ?? ''));
+    $confirmedAt = trim((string) ($snapshot['hpv_result_confirmed_at'] ?? ''));
+    $counselingIndex = max(0, (int) ($snapshot['hpv_counseling_index'] ?? 0));
+
+    db()->prepare(
+        'UPDATE patients
+         SET hpv_screening_result = ?,
+             hpv_result_recorded_at = ?,
+             hpv_result_confirmed_at = ?,
+             hpv_counseling_index = ?
+         WHERE id = ?'
+    )->execute([
+        $result,
+        $recordedAt !== '' ? $recordedAt : null,
+        $confirmedAt !== '' ? $confirmedAt : null,
+        $counselingIndex,
+        $patientId,
+    ]);
+
+    $restoredAppointments = 0;
+    $appointmentIds = $snapshot['restore_appointment_ids'] ?? [];
+    if (!is_array($appointmentIds)) {
+        $appointmentIds = [];
+    }
+    if (isset($snapshot['restore_appointment_id']) && (int) $snapshot['restore_appointment_id'] > 0) {
+        $appointmentIds[] = (int) $snapshot['restore_appointment_id'];
+    }
+    $appointmentIds = array_values(array_unique(array_filter(array_map('intval', $appointmentIds))));
+
+    foreach ($appointmentIds as $apptId) {
+        $apptSt = db()->prepare(
+            "UPDATE appointments SET status = 'confirmed'
+             WHERE id = ? AND patient_id = ? AND status = 'cancelled'"
+        );
+        $apptSt->execute([$apptId, $patientId]);
+        $restoredAppointments += $apptSt->rowCount();
+    }
+
+    try {
+        $label = match ($result) {
+            'positive' => 'HPV positive',
+            'negative' => 'HPV negative',
+            default => 'HPV failed (insufficient sample)',
+        };
+        $chk = db()->prepare(
+            'SELECT 1 FROM diagnosis_results WHERE patient_id = ? AND diagnosis_label = ? LIMIT 1'
+        );
+        $chk->execute([$patientId, $label]);
+        if (!$chk->fetchColumn()) {
+            $summary = $confirmedAt !== ''
+                ? 'HPV screening result recorded (' . $result . '). Confirmed and patient notified.'
+                : 'HPV screening result recorded (' . $result . '). Awaiting staff confirmation to notify patient.';
+            db()->prepare(
+                'INSERT INTO diagnosis_results (patient_id, diagnosis_label, severity, result_summary, recorded_by)
+                 VALUES (?,?,?,?,?)'
+            )->execute([$patientId, $label, 'unknown', $summary, 'restore_patient_hpv_result']);
+        }
+    } catch (Throwable $e) {
+        error_log('restore diagnosis_results: ' . $e->getMessage());
+    }
+
+    return [
+        'ok' => true,
+        'patient_id' => $patientId,
+        'full_name' => (string) $row['full_name'],
+        'hpv_screening_result' => $result,
+        'hpv_result_recorded_at' => $recordedAt !== '' ? $recordedAt : null,
+        'hpv_result_confirmed_at' => $confirmedAt !== '' ? $confirmedAt : null,
+        'restored_appointments' => $restoredAppointments,
+        'message' => 'HPV workflow restored.',
+    ];
+}

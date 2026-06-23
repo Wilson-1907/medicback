@@ -607,3 +607,82 @@ function advance_hpv_counseling_index(int $patientId): void
         'UPDATE patients SET hpv_counseling_index = hpv_counseling_index + 1 WHERE id = ?'
     )->execute([$patientId]);
 }
+
+/**
+ * Reset HPV lab workflow so staff can record the correct result and rebook.
+ *
+ * @return array<string, mixed>
+ */
+function clear_patient_hpv_result(int $patientId, bool $cancelUpcomingAppointments = true): array
+{
+    if (!hpv_workflow_ready()) {
+        return ['ok' => false, 'error' => hpv_workflow_unavailable_message()];
+    }
+
+    $st = db()->prepare('SELECT id, full_name, hpv_screening_result FROM patients WHERE id = ? LIMIT 1');
+    $st->execute([$patientId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return ['ok' => false, 'error' => 'Patient not found'];
+    }
+
+    $previous = strtolower((string) ($row['hpv_screening_result'] ?? 'pending'));
+
+    db()->prepare(
+        "UPDATE patients
+         SET hpv_screening_result = 'pending',
+             hpv_result_recorded_at = NULL,
+             hpv_result_confirmed_at = NULL,
+             hpv_counseling_index = 0
+         WHERE id = ?"
+    )->execute([$patientId]);
+
+    $cancelledMessages = 0;
+    $cancelledAppointments = 0;
+
+    try {
+        cancel_queued_counseling_schedule($patientId);
+        require_once __DIR__ . '/encouragement_drip.php';
+        cancel_queued_health_tips_for_patient($patientId);
+        $msgSt = db()->prepare(
+            "UPDATE scheduled_messages SET status = 'cancelled'
+             WHERE patient_id = ? AND status = 'queued'
+               AND message_type IN ('hpv_counseling', 'engagement_boost')"
+        );
+        $msgSt->execute([$patientId]);
+        $cancelledMessages = $msgSt->rowCount();
+
+        db()->prepare(
+            "DELETE FROM diagnosis_results
+             WHERE patient_id = ? AND diagnosis_label LIKE 'HPV%'"
+        )->execute([$patientId]);
+    } catch (Throwable $e) {
+        error_log('clear_patient_hpv_result messages: ' . $e->getMessage());
+    }
+
+    if ($cancelUpcomingAppointments) {
+        try {
+            $apptSt = db()->prepare(
+                "UPDATE appointments SET status = 'cancelled'
+                 WHERE patient_id = ?
+                   AND status IN ('proposed', 'confirmed')
+                   AND scheduled_start >= NOW(3)"
+            );
+            $apptSt->execute([$patientId]);
+            $cancelledAppointments = $apptSt->rowCount();
+        } catch (Throwable $e) {
+            error_log('clear_patient_hpv_result appointments: ' . $e->getMessage());
+        }
+    }
+
+    return [
+        'ok' => true,
+        'patient_id' => $patientId,
+        'full_name' => (string) $row['full_name'],
+        'previous_hpv_result' => $previous !== '' ? $previous : 'pending',
+        'hpv_screening_result' => 'pending',
+        'cancelled_scheduled_messages' => $cancelledMessages,
+        'cancelled_upcoming_appointments' => $cancelledAppointments,
+        'message' => 'HPV result cleared. Record the correct result, book an appointment, then confirm to notify the patient.',
+    ];
+}

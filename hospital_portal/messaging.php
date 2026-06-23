@@ -173,6 +173,8 @@ function message_type_allows_sms_fallback(string $messageType): bool
         'referral_appt_reminder' => true,
         'via_negative' => true,
         'via_positive' => true,
+        'via_ablation' => true,
+        'via_tx_postponed' => true,
         'checkup_reminder' => true,
         'missed_reschedule_offer' => true,
         'missed_reschedule_confirm' => true,

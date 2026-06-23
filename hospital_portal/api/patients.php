@@ -111,8 +111,11 @@ try {
         $hpvListCols = hpv_workflow_ready()
             ? 'p.hpv_screening_result, p.hpv_result_recorded_at, p.hpv_result_confirmed_at'
             : 'NULL AS hpv_screening_result, NULL AS hpv_result_recorded_at, NULL AS hpv_result_confirmed_at';
+        $viaListCols = patient_screening_ready()
+            ? 'p.via_result, p.via_date, p.treatment_date, p.has_cancer'
+            : "NULL AS via_result, NULL AS via_date, NULL AS treatment_date, 0 AS has_cancer";
         $sql = "SELECT p.id, p.full_name, p.status, p.registration_at, p.preferred_language, p.external_mrn AS client_id,
-                {$hpvListCols},
+                {$hpvListCols}, {$viaListCols},
                 (SELECT cc.address FROM contact_channels cc WHERE cc.patient_id = p.id AND cc.is_primary = 1 LIMIT 1) AS phone,
                 (SELECT cc.channel FROM contact_channels cc WHERE cc.patient_id = p.id AND cc.is_primary = 1 LIMIT 1) AS primary_channel
                 FROM patients p";

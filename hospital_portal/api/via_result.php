@@ -41,6 +41,13 @@ try {
     }
 
     if ($action === 'clear') {
+        $password = trim((string) ($body['password'] ?? ''));
+        if (!wipe_data_password_configured()) {
+            api_json(['ok' => false, 'error' => 'Admin password is not configured on the server.'], 503);
+        }
+        if (!wipe_data_password_valid($password)) {
+            api_json(['ok' => false, 'error' => 'Invalid password'], 401);
+        }
         $out = clear_patient_via_result($patientId);
         api_json($out, !empty($out['ok']) ? 200 : 422);
     }
@@ -52,7 +59,7 @@ try {
     $treatmentDate = $treatmentDate === '' ? null : $treatmentDate;
     $notifyPatient = array_key_exists('notify_patient', $body)
         ? !empty($body['notify_patient'])
-        : false;
+        : true;
 
     $out = record_patient_via_result(
         $patientId,

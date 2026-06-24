@@ -112,6 +112,27 @@ function patient_has_confirmed_appointment(int $patientId, ?array $appointments 
     return (bool) $st->fetchColumn();
 }
 
+/** Patient has at least one visit marked attended (completed). */
+function patient_has_completed_appointment(int $patientId, ?array $appointments = null): bool
+{
+    if ($appointments !== null) {
+        foreach ($appointments as $a) {
+            if (strtolower((string) ($a['status'] ?? '')) === 'completed') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    $st = db()->prepare(
+        "SELECT 1 FROM appointments WHERE patient_id = ? AND status = 'completed' LIMIT 1"
+    );
+    $st->execute([$patientId]);
+
+    return (bool) $st->fetchColumn();
+}
+
 /** True when this row is the patient's first booked appointment. */
 function appointment_is_patients_first(int $appointmentId, int $patientId): bool
 {
@@ -220,6 +241,7 @@ function mark_appointment_attended(int $appointmentId, string $recordedBy = 'sta
         'appointment_id' => $appointmentId,
         'status' => 'completed',
         'record_via_next' => $recordViaNext,
+        'needs_via_record' => $recordViaNext,
         'recorded_by' => $recordedBy,
     ];
 }

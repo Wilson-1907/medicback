@@ -26,26 +26,6 @@ function ensure_appointment_attendance_schema(): bool
     }
 }
 
-/** Clinic calendar day in APP_TIMEZONE (YYYY-MM-DD). */
-function clinic_today_date(): string
-{
-    return date('Y-m-d');
-}
-
-/** All booked visits on the clinic day (any attendance outcome). */
-function count_clinic_day_appointments(?PDO $pdo = null): int
-{
-    $pdo = $pdo ?? db();
-    $st = $pdo->prepare(
-        "SELECT COUNT(*) FROM appointments
-         WHERE DATE(scheduled_start) = ?
-           AND status IN ('proposed','confirmed','completed','no_show')"
-    );
-    $st->execute([clinic_today_date()]);
-
-    return (int) $st->fetchColumn();
-}
-
 /** True on the appointment calendar day or any day after. */
 function appointment_on_or_past_day(array $appointment): bool
 {
@@ -354,6 +334,148 @@ function resend_missed_appointment_message(int $appointmentId): array
         'ok' => true,
         'appointment_id' => $appointmentId,
         'missed_message_sent' => $missedSent,
+    ];
+}
+
+/**
+ * All clinic visits scheduled on a calendar day (for the daily roster).
+ *
+ * @return list<array<string, mixed>>
+ */
+function clinic_day_appointment_rows(string $date): array
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        return [];
+    }
+    ensure_appointment_attendance_schema();
+    $st = db()->prepare(
+        "SELECT a.id, a.patient_id, p.full_name, p.external_mrn AS client_id, a.department, a.provider_name,
+                a.scheduled_start, a.scheduled_end, a.location, a.status, a.attendance_recorded_at,
+                (SELECT cc.channel FROM contact_channels cc
+                 WHERE cc.patient_id = p.id AND cc.is_primary = 1 LIMIT 1) AS contact_channel,
+                (SELECT e.reason FROM appointment_reschedule_events e
+                 WHERE e.appointment_id = a.id ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS reason,
+                (SELECT COUNT(*) FROM appointment_reschedule_events e
+                 WHERE e.appointment_id = a.id AND e.old_start <> e.new_start) AS reschedule_count
+         FROM appointments a
+         INNER JOIN patients p ON p.id = a.patient_id
+         WHERE DATE(a.scheduled_start) = ?
+           AND a.status IN ('proposed','confirmed','completed','no_show','cancelled')
+         ORDER BY a.scheduled_start ASC, a.id ASC"
+    );
+    $st->execute([$date]);
+    $rows = $st->fetchAll();
+    return is_array($rows) ? $rows : [];
+}
+
+/**
+ * @param list<array<string, mixed>> $items
+ * @return array{date: string, total: int, attended: int, missed: int, waiting: int, rescheduled: int, is_past: bool, is_today: bool}
+ */
+function clinic_day_summary(string $date, array $items): array
+{
+    $today = date('Y-m-d');
+    $isPast = $date < $today;
+    $attended = 0;
+    $missed = 0;
+    $waiting = 0;
+    $rescheduled = 0;
+    foreach ($items as $row) {
+        $status = strtolower((string) ($row['status'] ?? ''));
+        if ($status === 'cancelled') {
+            $rescheduled++;
+            continue;
+        }
+        if ((int) ($row['reschedule_count'] ?? 0) > 0) {
+            $rescheduled++;
+        }
+        if ($status === 'completed') {
+            $attended++;
+        } elseif ($status === 'no_show') {
+            $missed++;
+        } elseif (in_array($status, ['proposed', 'confirmed'], true)) {
+            if ($isPast) {
+                $missed++;
+            } else {
+                $waiting++;
+            }
+        }
+    }
+
+    return [
+        'date' => $date,
+        'total' => count(array_filter($items, static fn ($r) => strtolower((string) ($r['status'] ?? '')) !== 'cancelled')),
+        'attended' => $attended,
+        'missed' => $missed,
+        'waiting' => $waiting,
+        'rescheduled' => $rescheduled,
+        'is_past' => $isPast,
+        'is_today' => $date === $today,
+    ];
+}
+
+/**
+ * One-click: send missed-appointment survey to every patient who missed on this clinic day.
+ * Past days: unmarked booked visits are marked no_show first, then messaged.
+ *
+ * @return array{ok: bool, error?: string, sent?: int, marked_missed?: int, failed?: list<string>}
+ */
+function send_missed_messages_for_clinic_day(string $date): array
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        return ['ok' => false, 'error' => 'Invalid date — use YYYY-MM-DD'];
+    }
+
+    $today = date('Y-m-d');
+    $isPast = $date < $today;
+    $items = clinic_day_appointment_rows($date);
+    $sent = 0;
+    $markedMissed = 0;
+    $failed = [];
+
+    foreach ($items as $row) {
+        $status = strtolower((string) ($row['status'] ?? ''));
+        $appointmentId = (int) ($row['id'] ?? 0);
+        if ($appointmentId < 1 || $status === 'cancelled' || $status === 'completed') {
+            continue;
+        }
+
+        if (in_array($status, ['proposed', 'confirmed'], true)) {
+            if (!$isPast && $date === $today) {
+                continue;
+            }
+            if ($isPast) {
+                $out = mark_appointment_missed($appointmentId, 'clinic_day_bulk');
+                if (empty($out['ok'])) {
+                    $failed[] = (string) ($row['full_name'] ?? 'Patient') . ': ' . (string) ($out['error'] ?? 'mark failed');
+                    continue;
+                }
+                $markedMissed++;
+                if (!empty($out['missed_message_sent'])) {
+                    $sent++;
+                }
+            }
+            continue;
+        }
+
+        if ($status === 'no_show') {
+            $out = resend_missed_appointment_message($appointmentId);
+            if (empty($out['ok'])) {
+                $failed[] = (string) ($row['full_name'] ?? 'Patient') . ': ' . (string) ($out['error'] ?? 'send failed');
+                continue;
+            }
+            if (!empty($out['missed_message_sent'])) {
+                $sent++;
+            }
+        }
+    }
+
+    return [
+        'ok' => true,
+        'date' => $date,
+        'sent' => $sent,
+        'marked_missed' => $markedMissed,
+        'failed' => $failed,
     ];
 }
 

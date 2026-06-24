@@ -15,6 +15,15 @@ try {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
         cancel_duplicate_appointments($pdo);
         $day = trim((string) ($_GET['date'] ?? ''));
+        if ($day !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) {
+            $rows = clinic_day_appointment_rows($day);
+            api_json([
+                'ok' => true,
+                'items' => $rows,
+                'date' => $day,
+                'summary' => clinic_day_summary($day, $rows),
+            ]);
+        }
         $sql = "SELECT a.id, a.patient_id, p.full_name, p.external_mrn AS client_id, a.department, a.provider_name,
                     a.scheduled_start, a.scheduled_end, a.location, a.status,
                     a.reminder_7d_sent_at, a.reminder_3d_sent_at, a.reminder_night_sent_at,
@@ -22,25 +31,16 @@ try {
                      WHERE cc.patient_id = p.id AND cc.is_primary = 1 LIMIT 1) AS contact_channel,
                     (SELECT e.reason FROM appointment_reschedule_events e
                      WHERE e.appointment_id = a.id
-                     ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS reason
+                     ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS reason,
+                    (SELECT COUNT(*) FROM appointment_reschedule_events e
+                     WHERE e.appointment_id = a.id AND e.old_start <> e.new_start) AS reschedule_count
              FROM appointments a
              INNER JOIN patients p ON p.id = a.patient_id
-             WHERE a.status IN ('proposed','confirmed','completed','no_show')";
-        $args = [];
-        if ($day !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) {
-            $sql .= ' AND DATE(a.scheduled_start) = ?';
-            $args[] = $day;
-        }
-        $sql .= ' ORDER BY a.scheduled_start ASC LIMIT 500';
-        $st = $pdo->prepare($sql);
-        $st->execute($args);
-        $rows = $st->fetchAll();
-        api_json([
-            'ok' => true,
-            'items' => $rows,
-            'server_date' => clinic_today_date(),
-            'date' => $day !== '' ? $day : null,
-        ]);
+             WHERE a.status IN ('proposed','confirmed','completed','no_show')
+             ORDER BY a.scheduled_start DESC
+             LIMIT 500";
+        $rows = $pdo->query($sql)->fetchAll();
+        api_json(['ok' => true, 'items' => $rows, 'date' => null]);
     }
 
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
@@ -265,6 +265,15 @@ try {
             api_json(['ok' => false, 'error' => 'appointment_id is required'], 422);
         }
         $out = resend_missed_appointment_message($appointmentId);
+        api_json($out, !empty($out['ok']) ? 200 : 422);
+    }
+
+    if ($action === 'send_missed_messages_day') {
+        $day = trim((string) ($body['date'] ?? ''));
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) {
+            api_json(['ok' => false, 'error' => 'date is required (YYYY-MM-DD)'], 422);
+        }
+        $out = send_missed_messages_for_clinic_day($day);
         api_json($out, !empty($out['ok']) ? 200 : 422);
     }
 

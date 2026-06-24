@@ -35,7 +35,12 @@ try {
         $st = $pdo->prepare($sql);
         $st->execute($args);
         $rows = $st->fetchAll();
-        api_json(['ok' => true, 'items' => $rows, 'date' => $day !== '' ? $day : null]);
+        api_json([
+            'ok' => true,
+            'items' => $rows,
+            'server_date' => clinic_today_date(),
+            'date' => $day !== '' ? $day : null,
+        ]);
     }
 
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {

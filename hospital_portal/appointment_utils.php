@@ -26,6 +26,26 @@ function ensure_appointment_attendance_schema(): bool
     }
 }
 
+/** Clinic calendar day in APP_TIMEZONE (YYYY-MM-DD). */
+function clinic_today_date(): string
+{
+    return date('Y-m-d');
+}
+
+/** All booked visits on the clinic day (any attendance outcome). */
+function count_clinic_day_appointments(?PDO $pdo = null): int
+{
+    $pdo = $pdo ?? db();
+    $st = $pdo->prepare(
+        "SELECT COUNT(*) FROM appointments
+         WHERE DATE(scheduled_start) = ?
+           AND status IN ('proposed','confirmed','completed','no_show')"
+    );
+    $st->execute([clinic_today_date()]);
+
+    return (int) $st->fetchColumn();
+}
+
 /** True on the appointment calendar day or any day after. */
 function appointment_on_or_past_day(array $appointment): bool
 {

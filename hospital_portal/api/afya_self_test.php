@@ -109,18 +109,26 @@ function afya_test_results(): array
     $pass('Pre-VIA counseling SW count = 8', count($dripSw) === 8, 'got ' . count($dripSw));
     $pass('Counseling msg 1 EN — 8 in 10', $contains($dripEn[0], '8 out of every 10'));
     $pass('Counseling msg 2 EN — follow-up clinic', $contains($dripEn[1], 'recommended clinic visit'));
-    $pass('Counseling msg 7 EN — VIA exam', $contains($dripEn[6], 'Visual Inspection with Acetic acid'));
+    $pass('Counseling msg 7 EN — VIA exam', $contains($dripEn[6], 'Visual Assessment with Acetic acid'));
     $pass('Counseling msg 8 EN — VIA results', $contains($dripEn[7], 'VIA Negative'));
 
     require_once __DIR__ . '/../afya_post_via_positive_counseling.php';
     $postViaEn = afya_post_via_positive_counseling_messages('en');
     $pass('Post-VIA positive counseling count = 5', count($postViaEn) === 5);
-    $pass('Post-VIA msg 1 — Thermal Ablation', $contains($postViaEn[0], 'Thermal Ablation'));
+    $pass('Post-VIA msg 1 — Thermal Ablation', $contains($postViaEn[0], 'uses heat to remove'));
 
     require_once __DIR__ . '/../patient_screening.php';
-    $viaNeg = build_via_negative_result_notification('Jane', 'negative', 'en', 'Monday, 10 June 2027');
+    $viaNeg = build_via_negative_result_notification('Jane', 'negative', 'en', 'Wednesday, 24 June 2027, 9:00 AM');
     $pass('VIA neg result EN — §12b 1 year', $contains($viaNeg, 'repeat HPV test after 1 year'));
-    $pass('VIA neg result EN — appointment date', $contains($viaNeg, 'Monday, 10 June 2027'));
+    $pass('VIA neg result EN — appointment date', $contains($viaNeg, '2027'));
+    $pass(
+        'VIA neg follow-up date is always VIA + 1 year',
+        str_contains(afya_via_negative_followup_appointment_display(99, '2026-06-24'), '2027')
+            && str_contains(
+                build_via_negative_result_notification('Irene', 'negative', 'en', 'Wednesday, 24 June 2026, 9:00 AM', '2026-06-24'),
+                '2027'
+            )
+    );
 
     $fu = compute_screening_followups([
         'via_result' => 'negative',
@@ -166,6 +174,20 @@ function afya_test_results(): array
     $tplFailed = mteja_resolve_template($fakePatientId, 'hpv_failed', $failedEn);
     $pass('Mteja template hpv_sample_failed', ($tplFailed['templateName'] ?? '') === 'afya_hpv_sample_failed_en');
 
+    $viaNegBody = build_via_negative_result_notification('Jane', 'negative', 'en', 'Monday, 10 June 2027');
+    $tplViaNeg = mteja_resolve_template($fakePatientId, 'via_negative', $viaNegBody);
+    $pass('Mteja template via_negative → afya_nav_via_neg_result', ($tplViaNeg['templateName'] ?? '') === 'afya_nav_via_neg_result_en');
+    $viaNegWaDate = 'Wednesday, 24 June 2027, 9:00 AM';
+    $tplViaNegWa = mteja_resolve_template(
+        $fakePatientId,
+        'via_negative',
+        build_post_visit_via_negative('Irene', $viaNegWaDate, 'en')
+    );
+    $pass(
+        'Mteja via_negative WA date from §12b body (not booked appt)',
+        ($tplViaNegWa['components'][0]['parameters'][1]['text'] ?? '') === $viaNegWaDate
+    );
+
     $rem7 = build_reminder_7d_message('Jane', $appt, 'en');
     $tpl7 = mteja_resolve_template($fakePatientId, 'appointment_reminder', $rem7);
     $pass('Mteja template appt_reminder_7d', str_starts_with((string) ($tpl7['templateName'] ?? ''), 'afya_appt_reminder_7d'));
@@ -196,12 +218,17 @@ function afya_test_results(): array
         'VIA record stops pre-VIA drip and sends script result only',
         str_contains($viaSrc, 'complete_encouragement_drip_after_via')
             && str_contains($viaSrc, 'build_via_positive_result_notification')
+            && str_contains($viaSrc, 'build_post_visit_via_negative')
     );
     $dripSrc = (string) file_get_contents(__DIR__ . '/../encouragement_drip.php');
     $pass(
         'HPV+ drip continues until VIA is recorded',
         str_contains($dripSrc, 'patient_hpv_positive_confirmed')
             && str_contains($dripSrc, 'patient_via_result_recorded')
+    );
+    $pass(
+        'AI clinical facts — women-only cervical screening',
+        str_contains((string) file_get_contents(__DIR__ . '/../afya_rafiki_content.php'), 'Men do not have a cervix')
     );
     $pass(
         'Registration does not send language intro (1/2/3)',

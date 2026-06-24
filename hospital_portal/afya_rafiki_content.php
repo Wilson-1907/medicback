@@ -209,15 +209,100 @@ function build_hpv_positive_result_notification(string $patientName, string $app
         . "\nThank you for choosing Afya Rafiki.";
 }
 
-/** VIA negative result — study §12b (sent when follow-up appointment is booked). */
+/** VIA negative result — study §12b (sent after follow-up appointment is booked). */
 function build_via_negative_result_notification(
     string $patientName,
     string $hivStatus = 'negative',
     string $lang = 'en',
-    string $appointmentDate = '__________'
+    string $appointmentDate = '__________',
+    ?string $viaDate = null
 ): string {
     unset($hivStatus);
+    if ($viaDate !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $viaDate)) {
+        $appointmentDate = afya_format_appointment_date(
+            date('Y-m-d H:i:s', strtotime($viaDate . ' +1 year 09:00:00'))
+        );
+    }
     return build_post_visit_via_negative($patientName, $appointmentDate, $lang);
+}
+
+/**
+ * Follow-up appointment date for VIA result SMS — next booked visit after VIA, else VIA date + 1 year.
+ */
+function afya_screening_followup_appointment_display(int $patientId, ?string $viaDate = null): string
+{
+    $anchor = ($viaDate !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $viaDate)) ? $viaDate : null;
+    try {
+        if ($anchor !== null) {
+            $st = db()->prepare(
+                "SELECT scheduled_start FROM appointments
+                 WHERE patient_id = ? AND status IN ('proposed','confirmed')
+                   AND scheduled_start > ?
+                 ORDER BY scheduled_start ASC LIMIT 1"
+            );
+            $st->execute([$patientId, $anchor . ' 23:59:59']);
+        } else {
+            $st = db()->prepare(
+                "SELECT scheduled_start FROM appointments
+                 WHERE patient_id = ? AND status IN ('proposed','confirmed')
+                 ORDER BY scheduled_start ASC LIMIT 1"
+            );
+            $st->execute([$patientId]);
+        }
+        $row = $st->fetch();
+        if ($row && !empty($row['scheduled_start'])) {
+            return afya_format_appointment_date((string) $row['scheduled_start']);
+        }
+    } catch (Throwable $e) {
+        error_log('afya_screening_followup_appointment_display: ' . $e->getMessage());
+    }
+    if ($anchor !== null) {
+        return afya_format_appointment_date(date('Y-m-d H:i:s', strtotime($anchor . ' +1 year 09:00:00')));
+    }
+    return '__________';
+}
+
+/**
+ * VIA negative §12b SMS date — always exactly 1 year after the VIA test (never the VIA day itself).
+ * The booked clinic visit should match this; the message always uses VIA date + 1 year.
+ */
+function afya_via_negative_followup_appointment_display(int $patientId, string $viaDate): string
+{
+    unset($patientId);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $viaDate)) {
+        $viaDate = date('Y-m-d');
+    }
+
+    return afya_format_appointment_date(date('Y-m-d H:i:s', strtotime($viaDate . ' +1 year 09:00:00')));
+}
+
+/** True when patient has a future booked visit after the VIA test day (for §12b send gate). */
+function afya_patient_has_booked_followup_after_via(int $patientId, string $viaDate): bool
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $viaDate)) {
+        return false;
+    }
+    try {
+        $st = db()->prepare(
+            "SELECT 1 FROM appointments
+             WHERE patient_id = ? AND status IN ('proposed','confirmed')
+               AND scheduled_start > ?
+             LIMIT 1"
+        );
+        $st->execute([$patientId, $viaDate . ' 23:59:59']);
+        return (bool) $st->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+/** Earliest allowed datetime for VIA-negative 1-year follow-up booking. */
+function afya_via_negative_followup_earliest_iso(string $viaDate): string
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $viaDate)) {
+        $viaDate = date('Y-m-d');
+    }
+    return date('Y-m-d H:i:s', strtotime($viaDate . ' +10 months 09:00:00'));
 }
 
 /** VIA positive result — sent when nurse records VIA after the test (counseling step 10 script). */
@@ -723,9 +808,9 @@ function resolve_via_positive_patient_message(int $patientId, string $patientNam
                 build_post_visit_treatment_postponed($patientName, $formattedTreatment, $lang),
             ];
         }
-        $followUp = afya_next_appointment_display($patientId);
+        $followUp = afya_screening_followup_appointment_display($patientId, $treatmentDate);
         if ($followUp === '__________') {
-            $followUp = afya_format_appointment_date(date('Y-m-d', strtotime($treatmentDate . ' +1 year')) . ' 09:00:00');
+            $followUp = afya_format_appointment_date(date('Y-m-d H:i:s', strtotime($treatmentDate . ' +1 year 09:00:00')));
         }
 
         return [
@@ -780,8 +865,15 @@ function afya_faq_reply(string $body, string $lang = 'en'): ?string
 
     if ($text === '1' || preg_match('/\b(what is hpv|hpv ni nini|hpv nini)\b/u', $text)) {
         return $lang === 'sw'
-            ? 'HPV ni virusi vya kawaida vinavyoweza kuathiri mlango wa kizazi. Aina zingine zinaweza kusababisha saratani ya mlango wa kizazi zisipotibiwa mapema. Huduma ya ufuatiliaji husaidia kulinda afya yako.'
-            : 'HPV is a common virus that can affect the cervix. Some types may cause cervical cancer if not treated early. Follow-up care helps protect your health.';
+            ? 'HPV ni virusi vya kawaida vinavyoweza kuathiri mlango wa kizazi kwa wanawake. Aina zingine zinaweza kusababisha saratani ya mlango wa kizazi zisipotibiwa mapema. Afya Rafiki inasaidia wanawake waliofanyiwa uchunguzi wa HPV wa mlango wa kizazi. Huduma ya ufuatiliaji husaidia kulinda afya yako.'
+            : 'HPV is a common virus that can affect the cervix in women. Some types may cause cervical cancer if not treated early. Afya Rafiki supports women after cervical HPV screening. Follow-up care helps protect your health.';
+    }
+
+    if (preg_match('/\b(man|men|male|husband|boyfriend|mwanamume|baba|mume)\b/u', $text)
+        && preg_match('/\b(hpv|via|screen|test|uchunguzi|kipimo)\b/u', $text)) {
+        return $lang === 'sw'
+            ? 'Afya Rafiki ni kwa wanawake waliosajiliwa baada ya uchunguzi wa HPV wa mlango wa kizazi. Wanaume hawana mlango wa kizazi na hawajumuishwi katika njia hii ya uchunguzi. Kwa maswali ya afya ya wanaume, wasiliana na mhudumu wa afya.'
+            : 'Afya Rafiki is for women enrolled after cervical HPV screening. Men do not have a cervix and are not part of this screening pathway. For men\'s health questions, please contact a healthcare provider.';
     }
 
     if ($text === '2' || preg_match('/\b(cervical cancer|do i have cancer|nina saratani|saratani ya mlango)\b/u', $text)) {
@@ -799,7 +891,7 @@ function afya_faq_reply(string $body, string $lang = 'en'): ?string
     if ($text === '5' || preg_match('/\b(symptoms of hpv|hpv symptoms|dalili za hpv|dalili za virusi)\b/u', $text)) {
         return $lang === 'sw'
             ? 'Watu wengi wenye virusi vya HPV hawana dalili zozote na huenda wasijue kuwa wana maambukizi hayo. HPV kwa kawaida haisababishi maumivu, muwasho, au ugonjwa unaoonekana. Mara nyingi mwili huondoa maambukizi haya wenyewe bila matibabu. Baadhi ya aina za HPV zinaweza kusababisha mabadiliko kwenye mlango wa kizazi ambayo yanaweza kugunduliwa tu kupitia vipimo vya uchunguzi kama vile kipimo cha HPV na VIA. Ndiyo maana uchunguzi wa mara kwa mara ni muhimu hata kama unajisikia mzima na huna dalili zozote. Ikiwa una dalili kama kutokwa na damu isiyo ya kawaida ukeni, maumivu ya muda mrefu chini ya tumbo au nyonga, au majimaji yasiyo ya kawaida kutoka ukeni, tafadhali tembelea mhudumu wa afya kwa uchunguzi zaidi.'
-            : 'Most people with HPV do not have any symptoms and may not know they have the virus. HPV usually does not cause pain, itching, or illness. In many cases, the body clears the infection naturally without treatment. Some types of HPV can cause changes on the cervix that can only be detected through screening tests such as HPV testing and VIA. This is why regular screening is important, even when you feel healthy and have no symptoms. If you have any unusual symptoms such as abnormal vaginal bleeding, persistent pelvic pain, or unusual vaginal discharge, please visit a healthcare provider for assessment.';
+            : 'Most women with HPV do not have any symptoms and may not know they have the virus. HPV usually does not cause pain, itching, or illness. In many cases, the body clears the infection naturally without treatment. Some types of HPV can cause changes on the cervix that can only be detected through screening tests such as HPV testing and VIA. This is why regular screening is important, even when you feel healthy and have no symptoms. If you have any unusual symptoms such as abnormal vaginal bleeding, persistent pelvic pain, or unusual vaginal discharge, please visit a healthcare provider for assessment.';
     }
 
     if ($text === '6' || preg_match('/\b(symptoms of cervical|dalili za saratani|cervical cancer symptoms)\b/u', $text)) {
@@ -896,4 +988,22 @@ function afya_ai_personality_block(): string
         . 'Do NOT diagnose, prescribe, or replace a visit with a health worker. '
         . 'Escalate complex issues to healthcare providers — suggest the patient reply DOCTOR or contact the clinic. '
         . 'Urgent symptoms (heavy bleeding, severe pain, fever): advise immediate facility visit.';
+}
+
+/** Accurate clinical facts for AI replies — cervical screening programme for women at NTHC. */
+function afya_ai_clinical_facts_block(): string
+{
+    $site = afya_clinic_site();
+    $referral = function_exists('afya_referral_hospital') ? afya_referral_hospital() : 'Nyeri County Referral Hospital';
+
+    return 'PROGRAMME FACTS (always follow — do not contradict): '
+        . "Afya Rafiki supports WOMEN enrolled after cervical HPV self-sample screening at {$site}. "
+        . 'This HPV test checks for cervical HPV in women. Men do not have a cervix and are NOT enrolled in this cervical screening pathway — if asked whether a man, husband, or boy can have this HPV test, say clearly that this service is for women\'s cervical screening only; men need their own care from a health provider if they have concerns. '
+        . 'HPV is a very common virus. A positive HPV result means the virus was found in the cervical sample — it does NOT mean cervical cancer. '
+        . 'After HPV positive, the next step is VIA (Visual Assessment with Acetic acid) on the cervix. '
+        . 'VIA negative: usually no treatment now; the clinic schedules repeat cervical HPV screening about 1 year later (a separate SMS gives the appointment date). '
+        . 'VIA positive: changes were seen on the cervix; treatment may include Thermal Ablation at the clinic, or referral to ' . $referral . ' if suspicious for cancer. '
+        . 'HPV negative at initial test (without VIA): repeat interval depends on HIV status (about 3 years if HIV positive, about 5 years if HIV negative) — follow the result SMS and clinic advice. '
+        . 'Thermal Ablation after-care: mild discharge is normal; heavy bleeding, foul smell, severe pain, or fever needs urgent clinic visit. '
+        . 'Never tell a patient they have cancer based on HPV or VIA alone. Never give exact dates unless they are in the patient\'s messages.';
 }

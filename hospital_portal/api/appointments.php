@@ -63,6 +63,26 @@ try {
         $startSql = api_dt($start);
         $endSql = $end === '' ? null : api_dt($end);
 
+        if (patient_screening_ready()) {
+            $viaSt = $pdo->prepare(
+                'SELECT via_result, via_date, via_result_notified_at FROM patients WHERE id = ? LIMIT 1'
+            );
+            $viaSt->execute([$patientId]);
+            $viaRow = $viaSt->fetch();
+            if (is_array($viaRow)
+                && strtolower((string) ($viaRow['via_result'] ?? '')) === 'negative'
+                && empty($viaRow['via_result_notified_at'])) {
+                $viaDate = (string) ($viaRow['via_date'] ?? '');
+                $earliest = afya_via_negative_followup_earliest_iso($viaDate);
+                if ($startSql < $earliest) {
+                    api_json([
+                        'ok' => false,
+                        'error' => 'VIA negative 1-year follow-up must be scheduled at least 10 months after the VIA test date (about 1 year from VIA).',
+                    ], 422);
+                }
+            }
+        }
+
         if (appointment_slot_taken($patientId, $startSql)) {
             api_json([
                 'ok' => false,

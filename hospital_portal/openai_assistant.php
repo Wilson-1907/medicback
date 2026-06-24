@@ -206,9 +206,12 @@ function ai_system_prompt(string $lang = 'en', ?string $latestUserMessage = null
     }
 
     $core = afya_ai_personality_block()
+        . ' '
+        . afya_ai_clinical_facts_block()
+        . ' '
         . $nameBlock
-        . ' Answer the patient\'s health question in order: direct answer → simple actionable steps → warm follow-up question. '
-        . 'Topics include HPV, VIA, Thermal Ablation, follow-up screening, appointments at ' . afya_clinic_site() . ', and general wellness. '
+        . 'Answer the patient\'s health question in order: direct answer → simple actionable steps → warm follow-up question. '
+        . 'Topics include cervical HPV, VIA, Thermal Ablation, follow-up screening, appointments at ' . afya_clinic_site() . ', and general wellness. '
         . 'End with a short encouraging question when appropriate.';
 
     return $languageBlock . "\n\n" . $core;
@@ -339,10 +342,10 @@ function ai_engagement_reply(string $patientName, string $lang = 'en'): array
     if (!function_exists('afya_ai_personality_block')) {
         require_once __DIR__ . '/afya_rafiki_content.php';
     }
-    $personality = afya_ai_personality_block();
+    $personality = afya_ai_personality_block() . ' ' . afya_ai_clinical_facts_block();
     $system = $lang === 'sw'
-        ? $personality . ' Andika ujumbe mfupi wa SMS (herufi 280 tu). Mtie moyo kuhusu ufuatiliaji wa HPV. Usitumie HTML.'
-        : $personality . ' Write a short SMS (max 280 chars). Encourage HPV follow-up care. No HTML.';
+        ? $personality . ' Andika ujumbe mfupi wa SMS (herufi 280 tu). Mtie moyo kuhusu ufuatiliaji wa HPV wa mlango wa kizazi kwa wanawake. Usitumie HTML.'
+        : $personality . ' Write a short SMS (max 280 chars). Encourage cervical HPV follow-up care for women. No HTML.';
 
     $user = $lang === 'sw'
         ? "Andika ujumbe wa kumtia moyo mgonjwa {$greeting} kuhusu: {$topic}."

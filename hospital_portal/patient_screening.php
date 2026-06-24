@@ -356,7 +356,15 @@ function notify_patient_via_result(int $patientId, string $notifiedBy = 'staff')
         return ['notified' => false, 'error' => 'VIA result was already sent to the patient'];
     }
 
-    if (afya_next_appointment_display($patientId) === '__________') {
+    if ($via === 'negative') {
+        $viaDate = (string) ($row['via_date'] ?? '');
+        if (!afya_patient_has_booked_followup_after_via($patientId, $viaDate)) {
+            return [
+                'notified' => false,
+                'error' => 'Book a follow-up appointment first — the patient message needs the appointment date.',
+            ];
+        }
+    } elseif (afya_screening_followup_appointment_display($patientId, (string) ($row['via_date'] ?? '')) === '__________') {
         return [
             'notified' => false,
             'error' => 'Book a follow-up appointment first — the patient message needs the appointment date.',
@@ -514,10 +522,11 @@ function process_via_recorded_messages(
 
     $sent = false;
     if ($screening['via_result'] === 'negative') {
-        $apptDate = afya_next_appointment_display($patientId);
-        if ($apptDate === '__________') {
-            $apptDate = afya_format_appointment_date((string) ($screening['via_date'] ?? date('Y-m-d')) . ' 09:00:00');
+        $viaDate = (string) ($screening['via_date'] ?? date('Y-m-d'));
+        if (!afya_patient_has_booked_followup_after_via($patientId, $viaDate)) {
+            return false;
         }
+        $apptDate = afya_via_negative_followup_appointment_display($patientId, $viaDate);
         $sent = send_patient_message(
             $patientId,
             'via_negative',

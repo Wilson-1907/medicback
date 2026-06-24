@@ -344,7 +344,13 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
     }
 
     if ($messageType === 'via_negative') {
-        $date = mteja_extract_appointment_datetime($body, $patientId);
+        $date = 'TBD';
+        if (preg_match('/follow-up appointment is scheduled for:\s*\nDate:\s*(.+?)(?:\n|$)/mi', $body, $m)
+            || preg_match('/Miadi yako ya ufuatiliaji ni:\s*\nTarehe:\s*(.+?)(?:\n|$)/mi', $body, $m)) {
+            $date = trim($m[1]);
+        } else {
+            $date = mteja_extract_appointment_datetime($body, $patientId);
+        }
         return $mk('afya_nav_via_neg_result', $name !== '' ? [$name, $date] : ['', $date]);
     }
 
@@ -507,14 +513,14 @@ function mteja_resolve_nav_edu_template(string $body, int $patientId): ?array
     $needles = [
         1 => ['about 8 out of every 10', 'watu 8 kati ya 10'],
         2 => ['detect and treat changes early before they become serious', 'kugundua na kutibu mabadiliko mapema kabla'],
-        3 => ['more follow-up is needed to help detect abnormal', 'ufuatiliaji zaidi unahitajika'],
+        3 => ['more follow-up is needed to keep you healthy', 'ufuatiliaji zaidi unahitajika ili kulinda afya yako'],
         4 => ['ability to take important steps to protect your health', 'uwezo wa kuchukua hatua muhimu'],
         5 => ['trusted family member or friend', 'mwanafamilia au rafiki unayemwamini'],
         6 => ['some infections can persist and cause changes on the cervix', 'baadhi yanaweza kuendelea kwa muda mrefu'],
-        7 => ['visual inspection with acetic acid', 'visual assessment with acetic acid'],
+        7 => ['visual assessment with acetic acid', 'visual assessment with acetic acid'],
         8 => ['via negative:', 'via hasi'],
-        9 => ['return for follow up after one year', 'baada ya mwaka mmoja'],
-        10 => ['thermal ablation, a simple procedure', 'thermal ablation, matibabu rahisi'],
+        9 => ['repeat hpv screening after 3 years', 'rudia uchunguzi wa hpv baada ya miaka 3'],
+        10 => ['uses heat to remove abnormal cervical cells', 'yanayotumia joto kuondoa seli'],
     ];
 
     $mk = static fn (string $base): array => [
@@ -558,11 +564,11 @@ function mteja_resolve_nav_ta_template(string $body, int $patientId): ?array
     $bodyLower = mb_strtolower($body);
 
     $needles = [
-        1 => ['what is thermal ablation', 'thermal ablation ni matibabu rahisi'],
+        1 => ['uses heat to remove abnormal cells', 'yanayotumia joto kuondoa seli'],
         2 => ['mild watery discharge', 'majimaji kutoka ukeni'],
         3 => ['heavy vaginal bleeding', 'damu nyingi ukeni'],
         4 => ['avoid sexual intercourse for 4 weeks', 'epuka kufanya ngono kwa wiki 4'],
-        5 => ['repeat hpv test after 1 year', 'kipimo cha hpv baada ya mwaka 1'],
+        5 => ['test of cure', 'test of cure'],
     ];
 
     $mk = static fn (string $base): array => [

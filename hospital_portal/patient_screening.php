@@ -190,9 +190,7 @@ function record_patient_via_result(
     if (!patient_has_confirmed_appointment($patientId)) {
         return ['ok' => false, 'error' => 'Confirm the patient appointment before recording VIA.'];
     }
-    if (!patient_has_completed_appointment($patientId)) {
-        return ['ok' => false, 'error' => 'Mark patient attendance as attended before recording VIA — the result SMS is sent when VIA is saved.'];
-    }
+    ensure_attendance_before_via_record($patientId, $recordedBy);
 
     $err = validate_via_record([
         'via_result' => $viaResult,

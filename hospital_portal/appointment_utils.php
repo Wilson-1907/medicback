@@ -247,6 +247,28 @@ function mark_appointment_attended(int $appointmentId, string $recordedBy = 'sta
 }
 
 /**
+ * If VIA is being saved but attendance was not marked yet, complete the earliest open visit.
+ */
+function ensure_attendance_before_via_record(int $patientId, string $recordedBy = 'staff'): void
+{
+    if (patient_has_completed_appointment($patientId)) {
+        return;
+    }
+    ensure_appointment_attendance_schema();
+    $st = db()->prepare(
+        "SELECT id FROM appointments
+         WHERE patient_id = ? AND status IN ('proposed','confirmed')
+         ORDER BY scheduled_start ASC, id ASC
+         LIMIT 1"
+    );
+    $st->execute([$patientId]);
+    $appointmentId = (int) ($st->fetchColumn() ?: 0);
+    if ($appointmentId > 0) {
+        mark_appointment_attended($appointmentId, $recordedBy);
+    }
+}
+
+/**
  * Nurse confirms patient did not attend — mark no_show and send missed-appointment message.
  *
  * @return array{ok: bool, error?: string, missed_message_sent?: bool}

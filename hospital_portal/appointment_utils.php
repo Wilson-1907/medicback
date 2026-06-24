@@ -120,14 +120,11 @@ function appointment_is_patients_first(int $appointmentId, int $patientId): bool
     return $firstId !== null && $firstId === $appointmentId;
 }
 
-/** Appointment day has arrived and nurse has not recorded attendance yet. */
+/** True when attendance can be recorded (any active booked visit). */
 function appointment_needs_attendance_check(array $appointment): bool
 {
     $status = strtolower((string) ($appointment['status'] ?? ''));
-    if (!in_array($status, ['proposed', 'confirmed'], true)) {
-        return false;
-    }
-    return appointment_on_or_past_day($appointment);
+    return in_array($status, ['proposed', 'confirmed'], true);
 }
 
 /**
@@ -184,15 +181,6 @@ function mark_appointment_attended(int $appointmentId, string $recordedBy = 'sta
     }
     if (!in_array($row['status'], ['proposed', 'confirmed'], true)) {
         return ['ok' => false, 'error' => 'Attendance was already recorded for this appointment'];
-    }
-    if (!appointment_on_or_past_day($row)) {
-        return ['ok' => false, 'error' => 'Attendance can be recorded on or after the appointment day'];
-    }
-    if (!appointment_start_time_passed($row)) {
-        return [
-            'ok' => false,
-            'error' => 'Attendance can only be recorded after the appointment start time has passed',
-        ];
     }
 
     $up = db()->prepare(

@@ -287,6 +287,56 @@ function mark_appointment_missed(int $appointmentId, string $recordedBy = 'staff
     ];
 }
 
+/**
+ * Resend missed-appointment survey SMS/WhatsApp for an already marked no_show visit.
+ *
+ * @return array{ok: bool, error?: string, missed_message_sent?: bool}
+ */
+function resend_missed_appointment_message(int $appointmentId): array
+{
+    $st = db()->prepare(
+        'SELECT a.id, a.patient_id, a.status, p.full_name, p.preferred_language
+         FROM appointments a
+         INNER JOIN patients p ON p.id = a.patient_id
+         WHERE a.id = ?
+         LIMIT 1'
+    );
+    $st->execute([$appointmentId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return ['ok' => false, 'error' => 'Appointment not found'];
+    }
+    if (strtolower((string) ($row['status'] ?? '')) !== 'no_show') {
+        return ['ok' => false, 'error' => 'Missed message can only be sent for did-not-attend visits'];
+    }
+
+    $patientId = (int) $row['patient_id'];
+    $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
+    $missedSent = false;
+
+    require_once __DIR__ . '/missed_appointment_flow.php';
+    missed_flow_on_appointment_missed($patientId, $appointmentId);
+
+    $optSt = db()->prepare(
+        'SELECT 1 FROM contact_channels WHERE patient_id = ? AND opted_in = 1 LIMIT 1'
+    );
+    $optSt->execute([$patientId]);
+    if ($optSt->fetchColumn()) {
+        require_once __DIR__ . '/afya_rafiki_content.php';
+        $missedSent = send_patient_message(
+            $patientId,
+            'missed_survey',
+            build_missed_appointment_message((string) $row['full_name'], $lang)
+        );
+    }
+
+    return [
+        'ok' => true,
+        'appointment_id' => $appointmentId,
+        'missed_message_sent' => $missedSent,
+    ];
+}
+
 /** True if patient already has a proposed/confirmed appointment at this start time. */
 function appointment_slot_taken(int $patientId, string $startSql, ?int $excludeAppointmentId = null): bool
 {

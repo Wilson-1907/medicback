@@ -14,8 +14,8 @@ try {
     // List booked appointments (for the hospital console appointments viewer).
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
         cancel_duplicate_appointments($pdo);
-        $rows = $pdo->query(
-            "SELECT a.id, a.patient_id, p.full_name, p.external_mrn AS client_id, a.department, a.provider_name,
+        $day = trim((string) ($_GET['date'] ?? ''));
+        $sql = "SELECT a.id, a.patient_id, p.full_name, p.external_mrn AS client_id, a.department, a.provider_name,
                     a.scheduled_start, a.scheduled_end, a.location, a.status,
                     a.reminder_7d_sent_at, a.reminder_3d_sent_at, a.reminder_night_sent_at,
                     (SELECT cc.channel FROM contact_channels cc
@@ -25,11 +25,17 @@ try {
                      ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS reason
              FROM appointments a
              INNER JOIN patients p ON p.id = a.patient_id
-             WHERE a.status IN ('proposed','confirmed','completed','no_show')
-             ORDER BY a.scheduled_start DESC
-             LIMIT 300"
-        )->fetchAll();
-        api_json(['ok' => true, 'items' => $rows]);
+             WHERE a.status IN ('proposed','confirmed','completed','no_show')";
+        $args = [];
+        if ($day !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) {
+            $sql .= ' AND DATE(a.scheduled_start) = ?';
+            $args[] = $day;
+        }
+        $sql .= ' ORDER BY a.scheduled_start ASC LIMIT 500';
+        $st = $pdo->prepare($sql);
+        $st->execute($args);
+        $rows = $st->fetchAll();
+        api_json(['ok' => true, 'items' => $rows, 'date' => $day !== '' ? $day : null]);
     }
 
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
@@ -245,6 +251,15 @@ try {
             api_json(['ok' => false, 'error' => 'appointment_id is required'], 422);
         }
         $out = mark_appointment_missed($appointmentId, 'hospital_console');
+        api_json($out, !empty($out['ok']) ? 200 : 422);
+    }
+
+    if ($action === 'send_missed_message') {
+        $appointmentId = (int) ($body['appointment_id'] ?? 0);
+        if ($appointmentId < 1) {
+            api_json(['ok' => false, 'error' => 'appointment_id is required'], 422);
+        }
+        $out = resend_missed_appointment_message($appointmentId);
         api_json($out, !empty($out['ok']) ? 200 : 422);
     }
 

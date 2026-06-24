@@ -172,6 +172,85 @@ function validate_via_record(array $data): ?string
 }
 
 /**
+ * Remove VIA result from a patient record (does not delete appointments or HPV lab result).
+ *
+ * @return array{ok: bool, error?: string, cleared?: bool}
+ */
+function clear_patient_via_result(int $patientId): array
+{
+    if (!patient_screening_ready()) {
+        return ['ok' => false, 'error' => 'VIA recording is not available on this server.'];
+    }
+
+    $st = db()->prepare(
+        'SELECT id, via_result, via_date FROM patients WHERE id = ? LIMIT 1'
+    );
+    $st->execute([$patientId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return ['ok' => false, 'error' => 'Patient not found'];
+    }
+
+    $via = strtolower((string) ($row['via_result'] ?? ''));
+    if (!in_array($via, ['negative', 'positive'], true)) {
+        return ['ok' => false, 'error' => 'No VIA result to clear'];
+    }
+
+    db()->prepare(
+        "UPDATE patients
+         SET via_result = 'unknown',
+             via_date = NULL,
+             has_cancer = 0,
+             treatment_date = NULL,
+             via_result_notified_at = NULL,
+             next_checkup_at = NULL
+         WHERE id = ?"
+    )->execute([$patientId]);
+
+    try {
+        db()->prepare(
+            "UPDATE scheduled_messages
+             SET status = 'cancelled'
+             WHERE patient_id = ? AND message_type = 'checkup_reminder' AND status = 'queued'"
+        )->execute([$patientId]);
+    } catch (Throwable $e) {
+        error_log('clear_patient_via_result scheduled: ' . $e->getMessage());
+    }
+
+    return ['ok' => true, 'cleared' => true, 'patient_id' => $patientId];
+}
+
+/**
+ * Clear all VIA results recorded on a specific date (e.g. mistaken batch entry).
+ *
+ * @return array{ok: bool, error?: string, cleared?: int, date?: string}
+ */
+function clear_via_results_on_date(string $date): array
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        return ['ok' => false, 'error' => 'Invalid date — use YYYY-MM-DD'];
+    }
+    if (!patient_screening_ready()) {
+        return ['ok' => false, 'error' => 'VIA recording is not available on this server.'];
+    }
+
+    $st = db()->prepare(
+        "SELECT id FROM patients
+         WHERE via_date = ? AND via_result IN ('positive', 'negative')"
+    );
+    $st->execute([$date]);
+    $cleared = 0;
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $patientId) {
+        $out = clear_patient_via_result((int) $patientId);
+        if (!empty($out['ok'])) {
+            $cleared++;
+        }
+    }
+
+    return ['ok' => true, 'cleared' => $cleared, 'date' => $date];
+}
+
+/**
  * Record VIA after the patient has been tested (not at registration).
  *
  * @return array{ok: bool, error?: string, referral_sent?: bool, next_checkup_at?: ?string}

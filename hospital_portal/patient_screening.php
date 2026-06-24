@@ -190,7 +190,9 @@ function record_patient_via_result(
     if (!patient_has_confirmed_appointment($patientId)) {
         return ['ok' => false, 'error' => 'Confirm the patient appointment before recording VIA.'];
     }
-    ensure_attendance_before_via_record($patientId, $recordedBy);
+    if (!patient_has_completed_appointment($patientId)) {
+        return ['ok' => false, 'error' => 'Mark patient attendance first (Patient attended), then record VIA.'];
+    }
 
     $err = validate_via_record([
         'via_result' => $viaResult,
@@ -244,8 +246,6 @@ function record_patient_via_result(
         $followups['next_checkup_at'],
         $patientId,
     ]);
-
-    auto_complete_attendance_on_via_record($patientId);
 
     require_once __DIR__ . '/encouragement_drip.php';
     complete_encouragement_drip_after_via($patientId);

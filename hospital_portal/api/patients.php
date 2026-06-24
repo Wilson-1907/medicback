@@ -74,17 +74,6 @@ try {
             $appts->execute([$id]);
             $patient['appointments'] = $appts->fetchAll();
 
-            $viaRecorded = in_array(
-                strtolower((string) ($patient['via_result'] ?? '')),
-                ['positive', 'negative'],
-                true
-            );
-            if ($viaRecorded) {
-                auto_complete_attendance_on_via_record($id);
-                $appts->execute([$id]);
-                $patient['appointments'] = $appts->fetchAll();
-            }
-
             $esc = $pdo->prepare(
                 'SELECT id, reason, urgency, status, created_at
                  FROM escalations WHERE patient_id = ? ORDER BY created_at DESC LIMIT 10'

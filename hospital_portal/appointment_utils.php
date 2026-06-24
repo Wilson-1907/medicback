@@ -149,33 +149,11 @@ function appointment_needs_attendance_check(array $appointment): bool
 }
 
 /**
- * When VIA is saved, the patient clearly attended — mark the earliest open visit completed.
+ * @deprecated Attendance is marked only by staff via mark_appointment_attended().
  */
 function auto_complete_attendance_on_via_record(int $patientId): void
 {
-    ensure_appointment_attendance_schema();
-
-    $st = db()->prepare(
-        "SELECT id, scheduled_start, status
-         FROM appointments
-         WHERE patient_id = ? AND status IN ('proposed','confirmed')
-         ORDER BY scheduled_start ASC
-         LIMIT 1"
-    );
-    $st->execute([$patientId]);
-    $row = $st->fetch();
-    if (!$row) {
-        return;
-    }
-    if (!appointment_on_or_past_day($row)) {
-        return;
-    }
-
-    db()->prepare(
-        "UPDATE appointments
-         SET status = 'completed', attendance_recorded_at = NOW(3), updated_at = NOW(3)
-         WHERE id = ?"
-    )->execute([(int) $row['id']]);
+    // Intentionally no-op — nurses mark attendance manually.
 }
 
 /**
@@ -244,28 +222,6 @@ function mark_appointment_attended(int $appointmentId, string $recordedBy = 'sta
         'needs_via_record' => $recordViaNext,
         'recorded_by' => $recordedBy,
     ];
-}
-
-/**
- * If VIA is being saved but attendance was not marked yet, complete the earliest open visit.
- */
-function ensure_attendance_before_via_record(int $patientId, string $recordedBy = 'staff'): void
-{
-    if (patient_has_completed_appointment($patientId)) {
-        return;
-    }
-    ensure_appointment_attendance_schema();
-    $st = db()->prepare(
-        "SELECT id FROM appointments
-         WHERE patient_id = ? AND status IN ('proposed','confirmed')
-         ORDER BY scheduled_start ASC, id ASC
-         LIMIT 1"
-    );
-    $st->execute([$patientId]);
-    $appointmentId = (int) ($st->fetchColumn() ?: 0);
-    if ($appointmentId > 0) {
-        mark_appointment_attended($appointmentId, $recordedBy);
-    }
 }
 
 /**

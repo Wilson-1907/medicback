@@ -29,6 +29,9 @@ try {
     $hasCancer = !empty($body['has_cancer']);
     $treatmentDate = trim((string) ($body['treatment_date'] ?? ''));
     $treatmentDate = $treatmentDate === '' ? null : $treatmentDate;
+    $notifyPatient = array_key_exists('notify_patient', $body)
+        ? !empty($body['notify_patient'])
+        : false;
 
     $out = record_patient_via_result(
         $patientId,
@@ -36,7 +39,8 @@ try {
         $viaDate,
         $hasCancer,
         $treatmentDate,
-        'hospital_console'
+        'hospital_console',
+        $notifyPatient
     );
     api_json($out, !empty($out['ok']) ? 200 : 422);
 } catch (Throwable $e) {

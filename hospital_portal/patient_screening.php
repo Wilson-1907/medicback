@@ -182,7 +182,8 @@ function record_patient_via_result(
     string $viaDate,
     bool $hasCancer,
     ?string $treatmentDate,
-    string $recordedBy = 'staff'
+    string $recordedBy = 'staff',
+    bool $notifyPatient = true
 ): array {
     if (!patient_screening_ready()) {
         return ['ok' => false, 'error' => 'VIA recording is not available on this server.'];
@@ -269,23 +270,25 @@ function record_patient_via_result(
 
     $viaMessageSent = false;
     $referralSent = false;
-    $optSt = db()->prepare(
-        'SELECT 1 FROM contact_channels WHERE patient_id = ? AND opted_in = 1 LIMIT 1'
-    );
-    $optSt->execute([$patientId]);
-    if ($optSt->fetchColumn()) {
-        $viaMessageSent = process_via_recorded_messages(
-            $patientId,
-            (string) $row['full_name'],
-            $lang,
-            $screeningForNotify,
-            true
+    if ($notifyPatient) {
+        $optSt = db()->prepare(
+            'SELECT 1 FROM contact_channels WHERE patient_id = ? AND opted_in = 1 LIMIT 1'
         );
-        if ($viaMessageSent) {
-            db()->prepare('UPDATE patients SET via_result_notified_at = NOW(3) WHERE id = ?')->execute([$patientId]);
-            $referralSent = $viaResult === 'positive' && $hasCancerVal === 1;
-            if ($viaResult === 'positive' && $hasCancerVal !== 1) {
-                start_post_via_positive_counseling_drip($patientId);
+        $optSt->execute([$patientId]);
+        if ($optSt->fetchColumn()) {
+            $viaMessageSent = process_via_recorded_messages(
+                $patientId,
+                (string) $row['full_name'],
+                $lang,
+                $screeningForNotify,
+                true
+            );
+            if ($viaMessageSent) {
+                db()->prepare('UPDATE patients SET via_result_notified_at = NOW(3) WHERE id = ?')->execute([$patientId]);
+                $referralSent = $viaResult === 'positive' && $hasCancerVal === 1;
+                if ($viaResult === 'positive' && $hasCancerVal !== 1) {
+                    start_post_via_positive_counseling_drip($patientId);
+                }
             }
         }
     }
@@ -297,7 +300,8 @@ function record_patient_via_result(
         'next_checkup_at' => $followups['next_checkup_at'],
         'referral_sent' => $referralSent,
         'via_message_sent' => $viaMessageSent,
-        'book_followup_next' => !$viaMessageSent,
+        'book_followup_next' => !$viaMessageSent && $viaResult === 'negative',
+        'recorded_only' => !$notifyPatient,
         'recorded_by' => $recordedBy,
     ];
 }

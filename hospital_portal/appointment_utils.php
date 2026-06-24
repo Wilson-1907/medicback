@@ -248,9 +248,6 @@ function mark_appointment_missed(int $appointmentId, string $recordedBy = 'staff
     if (!in_array($row['status'], ['proposed', 'confirmed'], true)) {
         return ['ok' => false, 'error' => 'Attendance was already recorded for this appointment'];
     }
-    if (!appointment_on_or_past_day($row)) {
-        return ['ok' => false, 'error' => 'Missed visits can be recorded on or after the appointment day'];
-    }
 
     $up = db()->prepare(
         "UPDATE appointments

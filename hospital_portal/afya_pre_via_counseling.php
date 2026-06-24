@@ -2,8 +2,8 @@
 declare(strict_types=1);
 
 /**
- * Pre-VIA HPV positive counseling drip — official study messages 1–10 only.
- * Messages 11–16 are sent after VIA / treatment, not in this drip.
+ * Pre-VIA HPV positive counseling drip — official study messages 1–8 only.
+ * Stops at "Understanding VIA results". Outcome-specific and TA messages follow VIA.
  */
 
 require_once __DIR__ . '/afya_counseling_positive.php';
@@ -19,7 +19,7 @@ function afya_pre_via_counseling_messages(string $lang = 'en'): array
     $all = afya_lang($lang) === 'sw'
         ? afya_counseling_messages_positive_sw()
         : afya_counseling_messages_positive_en();
-    return array_slice($all, 0, 10);
+    return array_slice($all, 0, 8);
 }
 
 function afya_pre_via_counseling_message_at(int $index, string $lang = 'en'): ?string
@@ -31,13 +31,13 @@ function afya_pre_via_counseling_message_at(int $index, string $lang = 'en'): ?s
     return $messages[$index];
 }
 
-/** All 10 counseling messages must complete within 6.5 days of HPV+ confirm. */
+/** All 8 pre-VIA counseling messages must complete within 6.5 days of HPV+ confirm. */
 const AFYA_PRE_VIA_COUNSELING_MAX_SPAN_DAYS = 6.5;
 
 /**
  * Study schedule after HPV+ confirm:
  * msg1 immediate on confirm, msg2 +2min after msg1, msg3 +1h after msg2,
- * msgs 4–10 +21h each (7×21h ≈ 6.3 days total span).
+ * msgs 4–8 +21h each.
  */
 function afya_pre_via_counseling_delay_before_index(int $index): string
 {

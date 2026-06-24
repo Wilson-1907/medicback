@@ -248,7 +248,11 @@ function record_patient_via_result(
     ]);
 
     require_once __DIR__ . '/encouragement_drip.php';
-    complete_encouragement_drip_after_via($patientId);
+    if ($viaResult === 'positive' && $hasCancerVal !== 1) {
+        stop_pre_via_counseling_for_via_positive($patientId);
+    } else {
+        complete_encouragement_drip_after_via($patientId);
+    }
 
     $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
     $screeningForNotify = [
@@ -280,6 +284,9 @@ function record_patient_via_result(
         if ($viaMessageSent) {
             db()->prepare('UPDATE patients SET via_result_notified_at = NOW(3) WHERE id = ?')->execute([$patientId]);
             $referralSent = $viaResult === 'positive' && $hasCancerVal === 1;
+            if ($viaResult === 'positive' && $hasCancerVal !== 1) {
+                start_post_via_positive_counseling_drip($patientId);
+            }
         }
     }
 
@@ -382,6 +389,10 @@ function notify_patient_via_result(int $patientId, string $notifiedBy = 'staff')
 
     if ($messageSent) {
         db()->prepare('UPDATE patients SET via_result_notified_at = NOW(3) WHERE id = ?')->execute([$patientId]);
+        if ($via === 'positive' && (int) ($row['has_cancer'] ?? 0) !== 1) {
+            require_once __DIR__ . '/encouragement_drip.php';
+            start_post_via_positive_counseling_drip($patientId);
+        }
     }
 
     return [
@@ -433,6 +444,12 @@ function compute_screening_followups(array $screening): array
             'reason' => 'via_neg_1y',
             'send_at' => date('Y-m-d H:i:s', strtotime($anchor . ' +1 year')),
         ];
+    } elseif ($screening['via_result'] === 'positive' && empty($screening['has_cancer'])) {
+        $schedules[] = [
+            'years' => 1.0,
+            'reason' => 'via_pos_1y',
+            'send_at' => date('Y-m-d H:i:s', strtotime($anchor . ' +1 year')),
+        ];
     }
 
     $next = null;
@@ -461,13 +478,13 @@ function build_checkup_reminder_message(
     $hospital = defined('HOSPITAL_NAME') ? HOSPITAL_NAME : 'Nyeri Town Health Center';
 
     if ($lang === 'sw') {
-        if ($reasonKey === 'via_neg_1y') {
+        if ($reasonKey === 'via_neg_1y' || $reasonKey === 'via_pos_1y') {
             return "Habari {$patientName}, ni muhimu urudi {$hospital} kwa kipimo kingine cha HPV baada ya mwaka 1. Tarehe ya kukumbushwa: {$dateStr}.";
         }
         return "Habari {$patientName}, tafadhali rudi {$hospital} kwa uchunguzi tarehe {$dateStr}.";
     }
 
-    if ($reasonKey === 'via_neg_1y') {
+    if ($reasonKey === 'via_neg_1y' || $reasonKey === 'via_pos_1y') {
         return "Hello {$patientName}, please return to {$hospital} for a repeat HPV test after 1 year. Reminder date: {$dateStr}.";
     }
     return "Hello {$patientName}, please return to {$hospital} for a check-up on {$dateStr}.";

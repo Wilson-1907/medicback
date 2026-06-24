@@ -101,16 +101,21 @@ function afya_test_results(): array
     $pass('§10 HELP menu EN', $contains(build_help_menu_message('en'), 'What is HPV?'));
     $pass('§10 HELP menu SW', $contains(build_help_menu_message('sw'), 'HPV ni nini?'));
 
-    // --- Pre-VIA counseling drip (study messages 1–10) ---
+    // --- Pre-VIA counseling drip (study messages 1–8) ---
     require_once __DIR__ . '/../afya_pre_via_counseling.php';
     $dripEn = afya_pre_via_counseling_messages('en');
     $dripSw = afya_pre_via_counseling_messages('sw');
-    $pass('Pre-VIA counseling EN count = 10', count($dripEn) === 10, 'got ' . count($dripEn));
-    $pass('Pre-VIA counseling SW count = 10', count($dripSw) === 10, 'got ' . count($dripSw));
+    $pass('Pre-VIA counseling EN count = 8', count($dripEn) === 8, 'got ' . count($dripEn));
+    $pass('Pre-VIA counseling SW count = 8', count($dripSw) === 8, 'got ' . count($dripSw));
     $pass('Counseling msg 1 EN — 8 in 10', $contains($dripEn[0], '8 out of every 10'));
     $pass('Counseling msg 2 EN — follow-up clinic', $contains($dripEn[1], 'recommended clinic visit'));
     $pass('Counseling msg 7 EN — VIA exam', $contains($dripEn[6], 'Visual Inspection with Acetic acid'));
-    $pass('Counseling msg 9 EN — 1 year return', $contains($dripEn[8], 'return for follow up after one year'));
+    $pass('Counseling msg 8 EN — VIA results', $contains($dripEn[7], 'VIA Negative'));
+
+    require_once __DIR__ . '/../afya_post_via_positive_counseling.php';
+    $postViaEn = afya_post_via_positive_counseling_messages('en');
+    $pass('Post-VIA positive counseling count = 5', count($postViaEn) === 5);
+    $pass('Post-VIA msg 1 — Thermal Ablation', $contains($postViaEn[0], 'Thermal Ablation'));
 
     require_once __DIR__ . '/../patient_screening.php';
     $viaNeg = build_via_negative_result_notification('Jane', 'negative', 'en', 'Monday, 10 June 2027');
@@ -133,11 +138,10 @@ function afya_test_results(): array
     $pass('Encouragement drip delay index 3 = +21 hours', encouragement_drip_delay_before_index(3) === '+21 hours');
     $spanDays = round(afya_pre_via_counseling_total_span_minutes() / 60 / 24, 2);
     $pass(
-        'All 10 counseling messages within 6.5 days',
+        'All 8 pre-VIA counseling messages within 6.5 days',
         afya_pre_via_counseling_within_max_span(),
         "span={$spanDays} days"
     );
-    $pass('Encouragement drip delay index 2 = +1 day', encouragement_drip_delay_before_index(2) === '+1 day');
 
     // --- Mteja language codes ---
     $pass('Mteja lang en_US → en', mteja_lang_code('en_US') === 'en');
@@ -229,7 +233,7 @@ function afya_test_results(): array
             && str_contains($missedSrc, 'missed_reschedule_offer')
     );
     $pass(
-        'Pre-VIA drip uses study counseling 1–10',
+        'Pre-VIA drip uses study counseling 1–8',
         str_contains((string) file_get_contents(__DIR__ . '/../encouragement_drip.php'), 'hpv_counseling')
             && str_contains((string) file_get_contents(__DIR__ . '/../afya_pre_via_counseling.php'), 'afya_counseling_messages_positive_en')
     );

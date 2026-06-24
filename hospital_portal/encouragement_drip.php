@@ -9,6 +9,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/scheduled_messages.php';
 require_once __DIR__ . '/afya_pre_via_counseling.php';
+require_once __DIR__ . '/afya_post_via_positive_counseling.php';
 
 function encouragement_drip_message_count(string $lang = 'en'): int
 {
@@ -121,16 +122,95 @@ function cancel_queued_health_tips_for_patient(int $patientId): void
         db()->prepare(
             "UPDATE scheduled_messages SET status = 'cancelled'
              WHERE patient_id = ? AND status = 'queued'
-               AND message_type IN ('engagement_boost', 'hpv_counseling')"
+               AND message_type IN ('engagement_boost', 'hpv_counseling', 'hpv_post_via_counseling')"
         )->execute([$patientId]);
     } catch (Throwable $e) {
         error_log('cancel_queued_health_tips_for_patient: ' . $e->getMessage());
     }
 }
 
-/** Drip stops when VIA is recorded, HPV negative is confirmed, or the FAQ sequence ended (non HPV+). */
+function patient_via_positive_for_post_counseling(int $patientId): bool
+{
+    if (!db_table_has_column('patients', 'via_result')) {
+        return false;
+    }
+    $st = db()->prepare('SELECT via_result, has_cancer FROM patients WHERE id = ? LIMIT 1');
+    $st->execute([$patientId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return false;
+    }
+    $via = strtolower((string) ($row['via_result'] ?? ''));
+    return $via === 'positive' && (int) ($row['has_cancer'] ?? 0) !== 1;
+}
+
+function post_via_positive_counseling_message_count(string $lang = 'en'): int
+{
+    return afya_post_via_positive_counseling_count($lang);
+}
+
+function get_post_via_positive_counseling_message_at_index(int $patientId, int $index, ?string $lang = null): ?string
+{
+    if ($lang === null) {
+        $st = db()->prepare('SELECT preferred_language FROM patients WHERE id = ? LIMIT 1');
+        $st->execute([$patientId]);
+        $lang = (string) ($st->fetchColumn() ?: 'en');
+        $lang = in_array($lang, ['en', 'sw'], true) ? $lang : 'en';
+    }
+    return afya_post_via_positive_counseling_message_at($index, $lang);
+}
+
+function post_via_positive_counseling_pathway_complete(int $patientId): bool
+{
+    if (!patient_via_positive_for_post_counseling($patientId)) {
+        return true;
+    }
+    if (!db_table_has_column('patients', 'hpv_counseling_index')) {
+        return false;
+    }
+    $st = db()->prepare('SELECT preferred_language, hpv_counseling_index FROM patients WHERE id = ? LIMIT 1');
+    $st->execute([$patientId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return true;
+    }
+    $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
+    $index = (int) ($row['hpv_counseling_index'] ?? 0);
+    return $index >= post_via_positive_counseling_message_count($lang);
+}
+
+function patient_has_queued_post_via_counseling(int $patientId): bool
+{
+    if (!scheduled_messages_has_counseling_chain_column()) {
+        return false;
+    }
+    $st = db()->prepare(
+        "SELECT 1 FROM scheduled_messages
+         WHERE patient_id = ? AND status = 'queued' AND message_type = 'hpv_post_via_counseling'
+         LIMIT 1"
+    );
+    $st->execute([$patientId]);
+    return (bool) $st->fetchColumn();
+}
+
+function cancel_queued_post_via_counseling(int $patientId): void
+{
+    try {
+        db()->prepare(
+            "UPDATE scheduled_messages SET status = 'cancelled'
+             WHERE patient_id = ? AND status = 'queued' AND message_type = 'hpv_post_via_counseling'"
+        )->execute([$patientId]);
+    } catch (Throwable $e) {
+        error_log('cancel_queued_post_via_counseling: ' . $e->getMessage());
+    }
+}
+
+/** Drip stops when VIA negative is recorded, HPV negative is confirmed, or sequences end. */
 function encouragement_drip_pathway_complete(int $patientId): bool
 {
+    if (patient_via_positive_for_post_counseling($patientId)) {
+        return post_via_positive_counseling_pathway_complete($patientId);
+    }
     if (patient_via_result_recorded($patientId)) {
         return true;
     }
@@ -354,10 +434,11 @@ function restart_encouragement_drip(int $patientId, string $firstDelay = '+2 min
     return schedule_encouragement_drip_step($patientId, $firstDelay);
 }
 
-/** Stop HPV FAQ drip once VIA result is recorded (official VIA script SMS is sent separately). */
+/** Stop pre-VIA drip once VIA is recorded (VIA negative / referral). */
 function complete_encouragement_drip_after_via(int $patientId): void
 {
     cancel_queued_encouragement_drip($patientId);
+    cancel_queued_post_via_counseling($patientId);
     if (!db_table_has_column('patients', 'hpv_counseling_index')) {
         return;
     }
@@ -365,8 +446,112 @@ function complete_encouragement_drip_after_via(int $patientId): void
     $st->execute([$patientId]);
     $langRaw = (string) ($st->fetchColumn() ?: 'en');
     $lang = in_array($langRaw, ['en', 'sw'], true) ? $langRaw : 'en';
-    $done = encouragement_drip_message_count($lang);
+    $done = max(encouragement_drip_message_count($lang), post_via_positive_counseling_message_count($lang));
     db()->prepare('UPDATE patients SET hpv_counseling_index = ? WHERE id = ?')->execute([$done, $patientId]);
+}
+
+/** After VIA positive (non-referral): queue Thermal Ablation education messages 5–9. */
+function start_post_via_positive_counseling_drip(int $patientId): bool
+{
+    if (!patient_via_positive_for_post_counseling($patientId)) {
+        return false;
+    }
+
+    $optSt = db()->prepare(
+        'SELECT 1 FROM contact_channels WHERE patient_id = ? AND opted_in = 1 LIMIT 1'
+    );
+    $optSt->execute([$patientId]);
+    if (!$optSt->fetchColumn()) {
+        return false;
+    }
+
+    cancel_queued_post_via_counseling($patientId);
+    if (db_table_has_column('patients', 'hpv_counseling_index')) {
+        db()->prepare('UPDATE patients SET hpv_counseling_index = 0 WHERE id = ?')->execute([$patientId]);
+    }
+
+    return schedule_post_via_positive_counseling_step($patientId, '+2 minutes');
+}
+
+function schedule_post_via_positive_counseling_step(int $patientId, ?string $delayExpression = null): bool
+{
+    if (!patient_via_positive_for_post_counseling($patientId)) {
+        return false;
+    }
+    if (post_via_positive_counseling_pathway_complete($patientId)) {
+        return false;
+    }
+    if (patient_has_queued_post_via_counseling($patientId)) {
+        return false;
+    }
+
+    $st = db()->prepare('SELECT preferred_language, hpv_counseling_index FROM patients WHERE id = ? LIMIT 1');
+    $st->execute([$patientId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return false;
+    }
+
+    $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
+    $index = (int) ($row['hpv_counseling_index'] ?? 0);
+    $count = post_via_positive_counseling_message_count($lang);
+    $msg = get_post_via_positive_counseling_message_at_index($patientId, $index, $lang);
+    if ($msg === null || trim($msg) === '') {
+        return false;
+    }
+
+    $delay = $delayExpression ?? afya_post_via_positive_counseling_delay_before_index($index);
+    schedule_patient_message($patientId, 'hpv_post_via_counseling', $msg, $delay, true);
+    if (function_exists('maybe_flush_due_scheduled_messages')) {
+        maybe_flush_due_scheduled_messages(30);
+    }
+    return true;
+}
+
+/** Called after each post-VIA positive counseling message is sent. */
+function post_via_positive_counseling_step_sent(int $patientId): void
+{
+    if (!db_table_has_column('patients', 'hpv_counseling_index')) {
+        return;
+    }
+    if (!patient_via_positive_for_post_counseling($patientId)) {
+        return;
+    }
+
+    $st = db()->prepare('SELECT preferred_language, hpv_counseling_index FROM patients WHERE id = ? LIMIT 1');
+    $st->execute([$patientId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return;
+    }
+
+    $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
+    $count = post_via_positive_counseling_message_count($lang);
+    $index = (int) ($row['hpv_counseling_index'] ?? 0);
+
+    if ($index < $count - 1) {
+        db()->prepare(
+            'UPDATE patients SET hpv_counseling_index = hpv_counseling_index + 1 WHERE id = ?'
+        )->execute([$patientId]);
+        $nextIndex = $index + 1;
+        schedule_post_via_positive_counseling_step(
+            $patientId,
+            afya_post_via_positive_counseling_delay_before_index($nextIndex)
+        );
+        return;
+    }
+
+    db()->prepare('UPDATE patients SET hpv_counseling_index = ? WHERE id = ?')->execute([$count, $patientId]);
+}
+
+/** Stop pre-VIA drip only (VIA positive path continues with post-VIA counseling). */
+function stop_pre_via_counseling_for_via_positive(int $patientId): void
+{
+    cancel_queued_encouragement_drip($patientId);
+    if (!db_table_has_column('patients', 'hpv_counseling_index')) {
+        return;
+    }
+    db()->prepare('UPDATE patients SET hpv_counseling_index = 0 WHERE id = ?')->execute([$patientId]);
 }
 
 /** Stop all automated messaging once HPV negative is confirmed (one SMS only; no VIA path). */
@@ -404,7 +589,7 @@ function repair_stalled_hpv_positive_drips(): int
         "SELECT id, hpv_counseling_index FROM patients
          WHERE hpv_screening_result = 'positive'
            AND hpv_result_confirmed_at IS NOT NULL
-           AND hpv_counseling_index BETWEEN 1 AND 9
+           AND hpv_counseling_index BETWEEN 1 AND 7
            AND (via_result IS NULL OR via_result = '' OR via_result NOT IN ('positive', 'negative'))"
     )->fetchAll();
 

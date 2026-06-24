@@ -183,7 +183,10 @@ function process_due_scheduled_messages(): array
         if ($ok) {
             $upd->execute(['sent', $id]);
             $sent++;
-            if ($type === 'hpv_counseling' && function_exists('encouragement_drip_step_sent')) {
+            if ($type === 'hpv_post_via_counseling' && function_exists('post_via_positive_counseling_step_sent')) {
+                require_once __DIR__ . '/encouragement_drip.php';
+                post_via_positive_counseling_step_sent($patientId);
+            } elseif ($type === 'hpv_counseling' && function_exists('encouragement_drip_step_sent')) {
                 require_once __DIR__ . '/encouragement_drip.php';
                 encouragement_drip_step_sent($patientId);
             } elseif ($chain && function_exists('encouragement_drip_step_sent')) {

@@ -30,9 +30,9 @@ Missed **survey** (§13) still uses **`afya_missed_appt_en`** / **`afya_missed_a
 
 ---
 
-## Pre-VIA counseling (study messages 1–10)
+## Pre-VIA counseling (study messages 1–8)
 
-**Schedule:** HPV+ **recorded** arms the pathway; on **confirm & notify** msg 1 sends **immediately** after the result SMS, then msg 2 **+2 min**, msg 3 **+1 h**, msgs 4–10 **+21 h** each (~**6.3 days**, within **6.5 day** limit). Stops when VIA is recorded. Cron: `process_due_scheduled_messages` every **5–15 min** for msgs 2–10.
+**Schedule:** HPV+ **recorded** arms the pathway; on **confirm & notify** msg 1 sends **immediately** after the result SMS, then msg 2 **+2 min**, msg 3 **+1 h**, msgs 4–8 **+21 h** each. Stops when VIA is recorded. Outcome-specific messages (if VIA neg/pos, TA series) follow **after** the VIA test.
 
 ### `afya_nav_edu_01_en` — Understanding HPV
 
@@ -464,6 +464,97 @@ Hello {{1}}, Welcome to Afya Rafiki. Your HPV test result is negative. This mean
 ```
 Habari {{1}}, Karibu kwenye Afya Rafiki. Majibu yako ya kipimo cha HPV ni hasi (negative). Hii inamaanisha kuwa hakuna maambukizi ya HPV yaliyopatikana kwa sasa. Ili kuendelea kudumisha afya ya mlango wa kizazi na kuzuia saratani ya mlango wa kizazi, tafadhali rudi Nyeri Town Health Centre kwa uchunguzi mwingine wa virusi vya HPV baada ya miaka 5, au mapema zaidi ikiwa utaelekezwa na mhudumu wako wa afya. Asante kwa kutumia Afya Rafiki.
 ```
+
+---
+
+## Batch 3 — Post-VIA positive Thermal Ablation counseling (10 templates)
+
+**When sent:** After VIA positive result SMS is delivered (non-referral). Messages 5–9 from the study script, queued **+2 min** then **+21 h** apart. Stops when all 5 are sent.
+
+| # | English | Kiswahili | Study msg |
+|---|---------|-----------|-----------|
+| 24 | `afya_nav_ta_01_en` | `afya_nav_ta_01_sw` | 5 — What is Thermal Ablation? |
+| 25 | `afya_nav_ta_02_en` | `afya_nav_ta_02_sw` | 6 — After Thermal Ablation (normal symptoms) |
+| 26 | `afya_nav_ta_03_en` | `afya_nav_ta_03_sw` | 7 — When to return urgently |
+| 27 | `afya_nav_ta_04_en` | `afya_nav_ta_04_sw` | 8 — Care after Thermal Ablation |
+| 28 | `afya_nav_ta_05_en` | `afya_nav_ta_05_sw` | 9 — 1-year HPV repeat (Test of Cure) |
+
+**Code:** `message_type` = `hpv_post_via_counseling` → `mteja_resolve_nav_ta_template()`.
+
+### `afya_nav_ta_01_en`
+
+```
+If your HPV test was positive and your VIA positive (result showed changes on the cervix), your healthcare provider may recommend Thermal Ablation. Thermal Ablation is a simple treatment that removes abnormal cells on the cervix before they can develop into cervical cancer. The procedure usually takes only a few minutes and does not require admission to hospital. Early treatment is highly effective and helps keep your cervix healthy.
+```
+
+### `afya_nav_ta_01_sw`
+
+```
+Majibu yako ya HPV yakiwa chanya (positive) na matokeo ya VIA yaonyeshe mabadiliko kwenye mlango wa kizazi (VIA Positive), mhudumu wa afya anaweza kupendekeza Thermal Ablation. Thermal Ablation ni matibabu rahisi yanayo ondoa seli zisizo za kawaida kwenye mlango wa kizazi kabla hazijageuka kuwa saratani ya mlango wa kizazi. Matibabu haya huchukua dakika chache tu na kwa kawaida hayahitaji kulazwa hospitalini. Matibabu ya mapema yanafanikiwa sana na husaidia kudumisha afya ya mlango wa kizazi.
+```
+
+### `afya_nav_ta_02_en`
+
+```
+After Thermal Ablation, it is normal to experience: Mild watery discharge — use pad or panty liner. Mild blood spots. Mild lower abdominal discomfort. These symptoms usually improve within a few days to weeks (about 2–6 weeks).
+```
+
+### `afya_nav_ta_02_sw`
+
+```
+Baada ya Thermal Ablation, ni kawaida kupata: Majimaji kutoka ukeni — tumia pad ama panty liner. Maumivu madogo chini ya tumbo. Dalili hizi kwa kawaida hupungua ndani ya siku au wiki chache (wiki 2–6).
+```
+
+### `afya_nav_ta_03_en`
+
+```
+Please return to the health facility immediately if you experience: Heavy vaginal bleeding. Foul-smelling vaginal discharge. Severe lower abdominal pain. Fever or high body temperature. Any symptoms that concern you.
+```
+
+### `afya_nav_ta_03_sw`
+
+```
+Tafadhali rudi hospitalini mara moja ikiwa utapata: Kutokwa na damu nyingi ukeni. Majimaji yenye harufu mbaya kutoka ukeni. Maumivu makali chini ya tumbo. Homa au joto la mwili kuongezeka. Dalili nyingine zinazokusumbua.
+```
+
+### `afya_nav_ta_04_en`
+
+```
+To allow your cervix to heal: Avoid sexual intercourse for 4 weeks or as advised by your healthcare provider. Avoid inserting anything into the vagina during the healing period (e.g. tampons, douching). It is advisable to avoid getting pregnant for at least one year after treatment. Attend all scheduled follow-up appointments.
+```
+
+### `afya_nav_ta_04_sw`
+
+```
+Ili kuruhusu mlango wa kizazi kupona: Epuka kufanya ngono kwa wiki 4 au kama ulivyoelekezwa na mhudumu wa afya. Epuka kuingiza kitu chochote ukeni wakati wa kupona (kama tampons, douching, n.k.). Ni shauri lipasalo kuepuka kupata mimba kwa angalau mwaka mmoja baada ya matibabu. Hudhuria miadi yote ya ufuatiliaji.
+```
+
+### `afya_nav_ta_05_en`
+
+```
+After Thermal Ablation, you should return for a repeat HPV test after 1 year. This helps confirm whether treatment was successful and that your cervix remains healthy.
+```
+
+### `afya_nav_ta_05_sw`
+
+```
+Baada ya Thermal Ablation, unapaswa kurudi kwa kipimo cha kuthibitisha kama matibabu yalifaulu kwa kutumia kipimo cha HPV baada ya mwaka 1. Hii husaidia kuthibitisha kuwa matibabu yalifanikiwa na afya ya mlango wa kizazi inaendelea kuwa nzuri.
+```
+
+---
+
+## Updated flow summary (June 2026)
+
+| Stage | Messages | WhatsApp templates |
+|-------|----------|-------------------|
+| HPV+ confirm → before VIA | Study msgs **1–8** (`afya_nav_edu_01`–`08`) | Pre-VIA drip |
+| VIA **negative** + 1-yr appt booked | Study **§12b** | `afya_nav_via_neg_result` |
+| VIA **positive** (result SMS) | **§12c** ablation / **§12d** postponed / msg 4 edu | `afya_nav_via_ablation`, `afya_nav_tx_postponed`, `afya_counsel_pos_10` |
+| After VIA **positive** | Study msgs **5–9** TA series | `afya_nav_ta_01`–`05` (new Batch 3) |
+| 1 year before repeat HPV | Reminder | `afya_nav_checkup_1y` |
+| Appointment reminders | 7d / 3d / 1d | `afya_appt_reminder_7d`, `_3d`, `_1d` |
+
+*Pre-VIA drip no longer sends study msgs 9–10 (if VIA neg/pos) before the test — those are outcome-specific.*
 
 ---
 

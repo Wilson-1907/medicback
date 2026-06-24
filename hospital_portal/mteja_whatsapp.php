@@ -290,6 +290,14 @@ function mteja_resolve_template(int $patientId, string $messageType, string $bod
         return $mk('afya_fallback');
     }
 
+    if ($messageType === 'hpv_post_via_counseling') {
+        $navTa = mteja_resolve_nav_ta_template($body, $patientId);
+        if ($navTa !== null) {
+            return $navTa;
+        }
+        return $mk('afya_fallback');
+    }
+
     if ($messageType === 'engagement_boost') {
         if (str_contains($bodyLower, 'common virus that can affect the cervix')
             || str_contains($bodyLower, 'virusi vya kawaida vinavyoweza kuathiri')) {
@@ -529,6 +537,54 @@ function mteja_resolve_nav_edu_template(string $body, int $patientId): ?array
         if ($snippet !== '' && str_contains($bodyLower, $snippet)) {
             $num = str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT);
             return $mk('afya_nav_edu_' . $num);
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Map post-VIA positive TA counseling drip → afya_nav_ta_01_en/sw … afya_nav_ta_05_en/sw.
+ *
+ * @return array{templateName: string, languageCode: string, components: list<array<string, mixed>>}|null
+ */
+function mteja_resolve_nav_ta_template(string $body, int $patientId): ?array
+{
+    require_once __DIR__ . '/afya_post_via_positive_counseling.php';
+
+    $lang = function_exists('get_patient_language') ? get_patient_language($patientId) : 'en';
+    $suffix = mteja_template_suffix($lang);
+    $langCode = mteja_lang_code($lang);
+    $bodyLower = mb_strtolower($body);
+
+    $needles = [
+        1 => ['what is thermal ablation', 'thermal ablation ni matibabu rahisi'],
+        2 => ['mild watery discharge', 'majimaji kutoka ukeni'],
+        3 => ['heavy vaginal bleeding', 'damu nyingi ukeni'],
+        4 => ['avoid sexual intercourse for 4 weeks', 'epuka kufanya ngono kwa wiki 4'],
+        5 => ['repeat hpv test after 1 year', 'kipimo cha hpv baada ya mwaka 1'],
+    ];
+
+    $mk = static fn (string $base): array => [
+        'templateName' => mteja_template_name($base, $suffix),
+        'languageCode' => $langCode,
+        'components' => [],
+    ];
+
+    foreach ($needles as $num => $patterns) {
+        foreach ($patterns as $pattern) {
+            if (str_contains($bodyLower, mb_strtolower($pattern))) {
+                return $mk('afya_nav_ta_' . str_pad((string) $num, 2, '0', STR_PAD_LEFT));
+            }
+        }
+    }
+
+    $messages = afya_post_via_positive_counseling_messages($lang);
+    foreach ($messages as $i => $msg) {
+        $snippet = mb_strtolower(mb_substr(trim($msg), 0, 48));
+        if ($snippet !== '' && str_contains($bodyLower, $snippet)) {
+            $num = str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT);
+            return $mk('afya_nav_ta_' . $num);
         }
     }
 

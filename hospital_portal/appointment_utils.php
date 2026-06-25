@@ -365,9 +365,40 @@ function clinic_day_appointment_rows(string $date): array
     return is_array($rows) ? $rows : [];
 }
 
+/** 5 PM on the appointment calendar day — bulk missed messages apply after this time. */
+function clinic_missed_cutoff_datetime(array $appointment): ?string
+{
+    $start = strtotime((string) ($appointment['scheduled_start'] ?? ''));
+    if ($start === false) {
+        return null;
+    }
+
+    return date('Y-m-d', $start) . ' 17:00:00';
+}
+
+/** Unmarked visit eligible for end-of-clinic bulk missed messaging (after 5 PM on appt day). */
+function appointment_unmarked_bulk_missed_eligible(array $appointment): bool
+{
+    $status = strtolower((string) ($appointment['status'] ?? ''));
+    if (!in_array($status, ['proposed', 'confirmed'], true)) {
+        return false;
+    }
+    $cutoff = clinic_missed_cutoff_datetime($appointment);
+    if ($cutoff === null) {
+        return false;
+    }
+    $row = db()->query('SELECT NOW(3) AS db_now')->fetch();
+    $dbNow = is_array($row) ? (string) ($row['db_now'] ?? '') : date('Y-m-d H:i:s');
+    if ($dbNow === '') {
+        return time() >= strtotime($cutoff);
+    }
+
+    return strtotime($dbNow) >= strtotime($cutoff);
+}
+
 /**
  * @param list<array<string, mixed>> $items
- * @return array{date: string, total: int, attended: int, missed: int, waiting: int, rescheduled: int, is_past: bool, is_today: bool}
+ * @return array{date: string, total: int, attended: int, missed: int, waiting: int, rescheduled: int, bulk_missed_eligible: int, is_past: bool, is_today: bool}
  */
 function clinic_day_summary(string $date, array $items): array
 {
@@ -377,6 +408,7 @@ function clinic_day_summary(string $date, array $items): array
     $missed = 0;
     $waiting = 0;
     $rescheduled = 0;
+    $bulkMissedEligible = 0;
     foreach ($items as $row) {
         $status = strtolower((string) ($row['status'] ?? ''));
         if ($status === 'cancelled') {
@@ -391,10 +423,9 @@ function clinic_day_summary(string $date, array $items): array
         } elseif ($status === 'no_show') {
             $missed++;
         } elseif (in_array($status, ['proposed', 'confirmed'], true)) {
-            if ($isPast) {
-                $missed++;
-            } else {
-                $waiting++;
+            $waiting++;
+            if (appointment_unmarked_bulk_missed_eligible($row)) {
+                $bulkMissedEligible++;
             }
         }
     }
@@ -405,15 +436,16 @@ function clinic_day_summary(string $date, array $items): array
         'attended' => $attended,
         'missed' => $missed,
         'waiting' => $waiting,
+        'not_marked' => $waiting,
         'rescheduled' => $rescheduled,
+        'bulk_missed_eligible' => $bulkMissedEligible,
         'is_past' => $isPast,
         'is_today' => $date === $today,
     ];
 }
 
 /**
- * One-click: send missed-appointment survey to every patient who missed on this clinic day.
- * Past days: unmarked booked visits are marked no_show first, then messaged.
+ * One-click: mark unmarked visits as no_show and send missed message (after 5 PM on appt day only).
  *
  * @return array{ok: bool, error?: string, sent?: int, marked_missed?: int, failed?: list<string>}
  */
@@ -423,47 +455,25 @@ function send_missed_messages_for_clinic_day(string $date): array
         return ['ok' => false, 'error' => 'Invalid date — use YYYY-MM-DD'];
     }
 
-    $today = date('Y-m-d');
-    $isPast = $date < $today;
     $items = clinic_day_appointment_rows($date);
     $sent = 0;
     $markedMissed = 0;
     $failed = [];
 
     foreach ($items as $row) {
-        $status = strtolower((string) ($row['status'] ?? ''));
         $appointmentId = (int) ($row['id'] ?? 0);
-        if ($appointmentId < 1 || $status === 'cancelled' || $status === 'completed') {
+        if ($appointmentId < 1 || !appointment_unmarked_bulk_missed_eligible($row)) {
             continue;
         }
 
-        if (in_array($status, ['proposed', 'confirmed'], true)) {
-            if (!$isPast && $date === $today) {
-                continue;
-            }
-            if ($isPast) {
-                $out = mark_appointment_missed($appointmentId, 'clinic_day_bulk');
-                if (empty($out['ok'])) {
-                    $failed[] = (string) ($row['full_name'] ?? 'Patient') . ': ' . (string) ($out['error'] ?? 'mark failed');
-                    continue;
-                }
-                $markedMissed++;
-                if (!empty($out['missed_message_sent'])) {
-                    $sent++;
-                }
-            }
+        $out = mark_appointment_missed($appointmentId, 'clinic_day_bulk');
+        if (empty($out['ok'])) {
+            $failed[] = (string) ($row['full_name'] ?? 'Patient') . ': ' . (string) ($out['error'] ?? 'mark failed');
             continue;
         }
-
-        if ($status === 'no_show') {
-            $out = resend_missed_appointment_message($appointmentId);
-            if (empty($out['ok'])) {
-                $failed[] = (string) ($row['full_name'] ?? 'Patient') . ': ' . (string) ($out['error'] ?? 'send failed');
-                continue;
-            }
-            if (!empty($out['missed_message_sent'])) {
-                $sent++;
-            }
+        $markedMissed++;
+        if (!empty($out['missed_message_sent'])) {
+            $sent++;
         }
     }
 

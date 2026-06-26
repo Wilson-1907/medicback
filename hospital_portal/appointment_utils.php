@@ -486,6 +486,42 @@ function send_missed_messages_for_clinic_day(string $date): array
     ];
 }
 
+/**
+ * Cancel a booked visit that was created in error or wrongly marked missed.
+ *
+ * @return array{ok: bool, error?: string, appointment_id?: int, status?: string}
+ */
+function cancel_appointment(int $appointmentId, string $recordedBy = 'staff'): array
+{
+    $st = db()->prepare(
+        'SELECT id, patient_id, status FROM appointments WHERE id = ? LIMIT 1'
+    );
+    $st->execute([$appointmentId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return ['ok' => false, 'error' => 'Appointment not found'];
+    }
+    $status = strtolower((string) ($row['status'] ?? ''));
+    if ($status === 'completed') {
+        return ['ok' => false, 'error' => 'Completed visits cannot be cancelled'];
+    }
+    if ($status === 'cancelled') {
+        return ['ok' => true, 'appointment_id' => $appointmentId, 'status' => 'cancelled'];
+    }
+
+    $up = db()->prepare(
+        "UPDATE appointments SET status = 'cancelled', updated_at = NOW(3) WHERE id = ?"
+    );
+    $up->execute([$appointmentId]);
+
+    return [
+        'ok' => true,
+        'appointment_id' => $appointmentId,
+        'status' => 'cancelled',
+        'recorded_by' => $recordedBy,
+    ];
+}
+
 /** True if patient already has a proposed/confirmed appointment at this start time. */
 function appointment_slot_taken(int $patientId, string $startSql, ?int $excludeAppointmentId = null): bool
 {

@@ -277,6 +277,15 @@ try {
         api_json($out, !empty($out['ok']) ? 200 : 422);
     }
 
+    if ($action === 'cancel') {
+        $appointmentId = (int) ($body['appointment_id'] ?? 0);
+        if ($appointmentId < 1) {
+            api_json(['ok' => false, 'error' => 'appointment_id is required'], 422);
+        }
+        $out = cancel_appointment($appointmentId, 'hospital_console');
+        api_json($out, !empty($out['ok']) ? 200 : 422);
+    }
+
     api_json(['ok' => false, 'error' => 'Unknown action'], 422);
 } catch (Throwable $e) {
     api_json(['ok' => false, 'error' => $e->getMessage()], 500);

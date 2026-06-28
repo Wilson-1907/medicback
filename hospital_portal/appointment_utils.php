@@ -357,7 +357,7 @@ function clinic_day_appointment_rows(string $date): array
          FROM appointments a
          INNER JOIN patients p ON p.id = a.patient_id
          WHERE DATE(a.scheduled_start) = ?
-           AND a.status IN ('proposed','confirmed','completed','no_show','cancelled')
+           AND a.status IN ('proposed','confirmed','completed','no_show')
          ORDER BY a.scheduled_start ASC, a.id ASC"
     );
     $st->execute([$date]);

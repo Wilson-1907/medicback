@@ -494,7 +494,7 @@ function start_post_via_positive_counseling_drip(int $patientId): bool
     return schedule_post_via_positive_counseling_step($patientId, '+2 minutes');
 }
 
-function schedule_post_via_positive_counseling_step(int $patientId, ?string $delayExpression = null): bool
+function schedule_post_via_positive_counseling_step(int $patientId, ?string $delayExpression = null, bool $flushAfter = true): bool
 {
     if (!patient_via_positive_for_post_counseling($patientId)) {
         return false;
@@ -523,7 +523,7 @@ function schedule_post_via_positive_counseling_step(int $patientId, ?string $del
 
     $delay = $delayExpression ?? afya_post_via_positive_counseling_delay_before_index($index);
     schedule_patient_message($patientId, 'hpv_post_via_counseling', $msg, $delay, true);
-    if (function_exists('maybe_flush_due_scheduled_messages')) {
+    if ($flushAfter && function_exists('maybe_flush_due_scheduled_messages')) {
         maybe_flush_due_scheduled_messages(30);
     }
     return true;
@@ -745,7 +745,7 @@ function repair_stalled_post_via_positive_counseling_drips(bool $immediate = fal
         }
 
         $delay = $immediate ? '+0 seconds' : '+2 minutes';
-        if (schedule_post_via_positive_counseling_step($patientId, $delay)) {
+        if (schedule_post_via_positive_counseling_step($patientId, $delay, !$immediate)) {
             $repaired++;
         }
     }

@@ -160,6 +160,22 @@ function get_post_via_positive_counseling_message_at_index(int $patientId, int $
     return afya_post_via_positive_counseling_message_at($index, $lang);
 }
 
+function patient_post_via_counseling_delivery_count(int $patientId): int
+{
+    try {
+        $st = db()->prepare(
+            "SELECT COUNT(DISTINCT body) FROM outbound_messages
+             WHERE patient_id = ? AND message_type = 'hpv_post_via_counseling'
+               AND status IN ('sent', 'delivered')"
+        );
+        $st->execute([$patientId]);
+
+        return (int) $st->fetchColumn();
+    } catch (Throwable $e) {
+        return 0;
+    }
+}
+
 function post_via_positive_counseling_pathway_complete(int $patientId): bool
 {
     if (!patient_via_positive_for_post_counseling($patientId)) {
@@ -176,7 +192,12 @@ function post_via_positive_counseling_pathway_complete(int $patientId): bool
     }
     $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
     $index = (int) ($row['hpv_counseling_index'] ?? 0);
-    return $index >= post_via_positive_counseling_message_count($lang);
+    $count = post_via_positive_counseling_message_count($lang);
+    if ($index < $count) {
+        return false;
+    }
+    // hpv_counseling_index is shared with pre-VIA drip — require actual post-VIA sends.
+    return patient_post_via_counseling_delivery_count($patientId) >= $count;
 }
 
 function patient_has_queued_post_via_counseling(int $patientId): bool
@@ -628,6 +649,94 @@ function repair_stalled_hpv_positive_drips(): int
         $msg = get_encouragement_drip_message_at_index($patientId, $index, $lang);
         if ($msg !== null && trim($msg) !== '') {
             schedule_patient_message($patientId, 'hpv_counseling', $msg, $delay, true);
+            $repaired++;
+        }
+    }
+
+    return $repaired;
+}
+
+/**
+ * Start or resume post-VIA positive drips for all eligible patients immediately.
+ *
+ * @return array<string, mixed>
+ */
+function kickoff_post_via_positive_counseling_drips_now(): array
+{
+    require_once __DIR__ . '/patient_screening.php';
+    require_once __DIR__ . '/stuck_messages.php';
+
+    $pdo = db();
+    $forcedQueued = $pdo->exec(
+        "UPDATE scheduled_messages SET send_at = NOW(3)
+         WHERE status = 'queued'
+           AND message_type = 'hpv_post_via_counseling'
+           AND send_at > NOW(3)"
+    );
+
+    $viaResultRepaired = repair_missing_via_positive_result_messages();
+    $dripStarted = repair_stalled_post_via_positive_counseling_drips(true);
+    $scheduledProcessed = flush_all_due_scheduled_messages(25);
+
+    $eligible = (int) $pdo->query(
+        "SELECT COUNT(DISTINCT p.id)
+         FROM patients p
+         INNER JOIN contact_channels c ON c.patient_id = p.id AND c.opted_in = 1
+         WHERE p.status = 'active'
+           AND p.via_result = 'positive'
+           AND (p.has_cancer IS NULL OR p.has_cancer = 0)"
+    )->fetchColumn();
+
+    return [
+        'eligible_patients' => $eligible,
+        'queued_brought_forward' => $forcedQueued === false ? 0 : (int) $forcedQueued,
+        'via_result_resent' => $viaResultRepaired,
+        'drip_steps_queued' => $dripStarted,
+        'scheduled_processed' => $scheduledProcessed,
+        'queue_after' => scheduled_messages_queue_stats(),
+    ];
+}
+
+/** Re-queue post-VIA positive Thermal Ablation education (study messages 5–9) when stalled. */
+function repair_stalled_post_via_positive_counseling_drips(bool $immediate = false): int
+{
+    if (!db_table_has_column('patients', 'via_result') || !db_table_has_column('patients', 'hpv_counseling_index')) {
+        return 0;
+    }
+
+    $repaired = 0;
+    $rows = db()->query(
+        "SELECT p.id, p.preferred_language, p.hpv_counseling_index
+         FROM patients p
+         INNER JOIN contact_channels c ON c.patient_id = p.id AND c.opted_in = 1
+         WHERE p.status = 'active'
+           AND p.via_result = 'positive'
+           AND (p.has_cancer IS NULL OR p.has_cancer = 0)"
+    )->fetchAll();
+
+    foreach ($rows as $row) {
+        $patientId = (int) ($row['id'] ?? 0);
+        if ($patientId < 1 || !patient_via_positive_for_post_counseling($patientId)) {
+            continue;
+        }
+        if (post_via_positive_counseling_pathway_complete($patientId)) {
+            continue;
+        }
+        if (patient_has_queued_post_via_counseling($patientId)) {
+            continue;
+        }
+
+        $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
+        $count = post_via_positive_counseling_message_count($lang);
+        $delivered = patient_post_via_counseling_delivery_count($patientId);
+        $index = min(max($delivered, 0), max(0, $count - 1));
+        cancel_queued_post_via_counseling($patientId);
+        if (db_table_has_column('patients', 'hpv_counseling_index')) {
+            db()->prepare('UPDATE patients SET hpv_counseling_index = ? WHERE id = ?')->execute([$index, $patientId]);
+        }
+
+        $delay = $immediate ? '+0 seconds' : '+2 minutes';
+        if (schedule_post_via_positive_counseling_step($patientId, $delay)) {
             $repaired++;
         }
     }

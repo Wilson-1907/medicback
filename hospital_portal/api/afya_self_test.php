@@ -216,9 +216,15 @@ function afya_test_results(): array
     $viaSrc = (string) file_get_contents(__DIR__ . '/../patient_screening.php');
     $pass(
         'VIA record stops pre-VIA drip and sends script result only',
-        str_contains($viaSrc, 'complete_encouragement_drip_after_via')
-            && str_contains($viaSrc, 'build_via_positive_result_notification')
+        str_contains($viaSrc, 'stop_pre_via_counseling_for_via_positive')
+            && str_contains($viaSrc, 'resolve_via_positive_patient_message')
             && str_contains($viaSrc, 'build_post_visit_via_negative')
+    );
+    $pass(
+        'VIA positive starts post-VIA counseling drip even if immediate SMS fails',
+        str_contains($viaSrc, 'post_via_drip_started')
+            && str_contains($viaSrc, 'start_post_via_positive_counseling_drip($patientId)')
+            && !preg_match('/if \(\$viaMessageSent\)\s*\{[^}]*start_post_via_positive_counseling_drip/s', $viaSrc)
     );
     $dripSrc = (string) file_get_contents(__DIR__ . '/../encouragement_drip.php');
     $pass(

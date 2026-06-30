@@ -349,6 +349,7 @@ function record_patient_via_result(
 
     $viaMessageSent = false;
     $referralSent = false;
+    $postViaDripStarted = false;
     if ($notifyPatient) {
         $optSt = db()->prepare(
             'SELECT 1 FROM contact_channels WHERE patient_id = ? AND opted_in = 1 LIMIT 1'
@@ -365,9 +366,9 @@ function record_patient_via_result(
             if ($viaMessageSent) {
                 db()->prepare('UPDATE patients SET via_result_notified_at = NOW(3) WHERE id = ?')->execute([$patientId]);
                 $referralSent = $viaResult === 'positive' && $hasCancerVal === 1;
-                if ($viaResult === 'positive' && $hasCancerVal !== 1) {
-                    start_post_via_positive_counseling_drip($patientId);
-                }
+            }
+            if ($viaResult === 'positive' && $hasCancerVal !== 1) {
+                $postViaDripStarted = start_post_via_positive_counseling_drip($patientId);
             }
         }
     }
@@ -379,6 +380,7 @@ function record_patient_via_result(
         'next_checkup_at' => $followups['next_checkup_at'],
         'referral_sent' => $referralSent,
         'via_message_sent' => $viaMessageSent,
+        'post_via_drip_started' => $postViaDripStarted,
         'book_followup_next' => !$viaMessageSent && $viaResult === 'negative',
         'recorded_only' => !$notifyPatient,
         'recorded_by' => $recordedBy,
@@ -473,23 +475,25 @@ function notify_patient_via_result(int $patientId, string $notifiedBy = 'staff')
     $optSt->execute([$patientId]);
     $messageSent = false;
     $referralSent = false;
+    $postViaDripStarted = false;
     if ($optSt->fetchColumn()) {
         $messageSent = process_via_recorded_messages($patientId, $name, $lang, $screening, true);
         $referralSent = $messageSent && $via === 'positive' && (int) ($row['has_cancer'] ?? 0) === 1;
+        if ($via === 'positive' && (int) ($row['has_cancer'] ?? 0) !== 1) {
+            require_once __DIR__ . '/encouragement_drip.php';
+            $postViaDripStarted = start_post_via_positive_counseling_drip($patientId);
+        }
     }
 
     if ($messageSent) {
         db()->prepare('UPDATE patients SET via_result_notified_at = NOW(3) WHERE id = ?')->execute([$patientId]);
-        if ($via === 'positive' && (int) ($row['has_cancer'] ?? 0) !== 1) {
-            require_once __DIR__ . '/encouragement_drip.php';
-            start_post_via_positive_counseling_drip($patientId);
-        }
     }
 
     return [
         'notified' => $messageSent,
         'via_message_sent' => $messageSent,
         'referral_sent' => $referralSent,
+        'post_via_drip_started' => $postViaDripStarted,
         'notified_by' => $notifiedBy,
         'error' => $messageSent ? null : 'Message could not be sent — check SMS balance or patient contact.',
     ];
@@ -652,6 +656,82 @@ function process_via_recorded_messages(
     }
 
     return $sent;
+}
+
+/** True when the immediate VIA result SMS (positive / ablation / postponed) reached the patient. */
+function patient_via_result_immediate_delivered(int $patientId): bool
+{
+    try {
+        $st = db()->prepare(
+            "SELECT 1 FROM outbound_messages
+             WHERE patient_id = ?
+               AND message_type IN ('via_positive', 'via_ablation', 'via_tx_postponed', 'referral')
+               AND status IN ('sent', 'delivered')
+             LIMIT 1"
+        );
+        $st->execute([$patientId]);
+
+        return (bool) $st->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+/**
+ * Resend missing immediate VIA result messages for VIA+ patients (cron safety net).
+ */
+function repair_missing_via_positive_result_messages(): int
+{
+    if (!patient_screening_ready()) {
+        return 0;
+    }
+
+    $repaired = 0;
+    $st = db()->query(
+        "SELECT p.id, p.full_name, p.preferred_language, p.via_result, p.via_date,
+                p.has_cancer, p.treatment_date, p.hiv_status, p.hpv_done_before,
+                p.hpv_prior_result, p.place_of_residence
+         FROM patients p
+         INNER JOIN contact_channels c ON c.patient_id = p.id AND c.opted_in = 1
+         WHERE p.status = 'active'
+           AND p.via_result = 'positive'"
+    );
+
+    while ($row = $st->fetch()) {
+        $patientId = (int) ($row['id'] ?? 0);
+        if ($patientId < 1 || patient_via_result_immediate_delivered($patientId)) {
+            continue;
+        }
+
+        $lang = in_array($row['preferred_language'], ['en', 'sw'], true) ? $row['preferred_language'] : 'en';
+        $name = (string) $row['full_name'];
+        $hasCancer = (int) ($row['has_cancer'] ?? 0) === 1;
+        $sent = false;
+        if ($hasCancer) {
+            $refDate = (string) ($row['via_date'] ?? date('Y-m-d'));
+            $sent = send_patient_message(
+                $patientId,
+                'referral',
+                build_referral_message($name, $lang, afya_format_appointment_date($refDate . ' 09:00:00'))
+            );
+        } else {
+            [$viaType, $viaBody] = resolve_via_positive_patient_message(
+                $patientId,
+                $name,
+                $lang,
+                isset($row['treatment_date']) && $row['treatment_date'] !== null
+                    ? (string) $row['treatment_date']
+                    : null
+            );
+            $sent = send_patient_message($patientId, $viaType, $viaBody);
+        }
+        if ($sent) {
+            db()->prepare('UPDATE patients SET via_result_notified_at = NOW(3) WHERE id = ?')->execute([$patientId]);
+            $repaired++;
+        }
+    }
+
+    return $repaired;
 }
 
 /** @deprecated VIA is no longer recorded at registration; use process_via_recorded_messages(). */

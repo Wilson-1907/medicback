@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/reminders.php';
 require_once __DIR__ . '/scheduled_messages.php';
 require_once __DIR__ . '/encouragement_drip.php';
+require_once __DIR__ . '/patient_screening.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -22,6 +23,8 @@ try {
     $scheduled = process_due_scheduled_messages();
     $engagementMessages = process_random_engagement_messages();
     $dripRepaired = repair_stalled_hpv_positive_drips();
+    $postViaDripRepaired = repair_stalled_post_via_positive_counseling_drips();
+    $viaResultRepaired = repair_missing_via_positive_result_messages();
 
     echo json_encode([
         'ok' => true,
@@ -30,6 +33,8 @@ try {
         'scheduled_messages' => $scheduled,
         'engagement_boost' => $engagementMessages,
         'hpv_drip_repaired' => $dripRepaired,
+        'post_via_drip_repaired' => $postViaDripRepaired,
+        'via_positive_result_repaired' => $viaResultRepaired,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (Throwable $e) {
     error_log('Cron job error: ' . $e->getMessage());

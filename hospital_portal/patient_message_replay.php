@@ -222,6 +222,25 @@ function replay_patient_messages(int $patientId, bool $forceResend = false): arr
         }
     }
 
+    require_once __DIR__ . '/patient_screening.php';
+    $viaCheckSt = $pdo->prepare(
+        'SELECT via_result, has_cancer FROM patients WHERE id = ? LIMIT 1'
+    );
+    $viaCheckSt->execute([$patientId]);
+    $viaCheck = $viaCheckSt->fetch();
+    $viaRecorded = strtolower((string) ($viaCheck['via_result'] ?? ''));
+    if (
+        $viaRecorded === 'positive'
+        && (int) ($viaCheck['has_cancer'] ?? 0) !== 1
+        && patient_via_positive_for_post_counseling($patientId)
+        && !post_via_positive_counseling_pathway_complete($patientId)
+        && !patient_has_queued_post_via_counseling($patientId)
+    ) {
+        if (start_post_via_positive_counseling_drip($patientId)) {
+            $sent[] = ['label' => 'post_via_counseling_drip_started', 'message_type' => 'hpv_post_via_counseling'];
+        }
+    }
+
     if ($forceResend) {
         require_once __DIR__ . '/patient_screening.php';
         $viaSt = $pdo->prepare(

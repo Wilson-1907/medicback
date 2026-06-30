@@ -209,9 +209,14 @@ function resend_stuck_messages(int $lookbackHours = 168, int $maxOutboundResends
     $scheduledProcessed = flush_all_due_scheduled_messages();
 
     $dripRepaired = 0;
+    $postViaDripRepaired = 0;
+    $viaResultRepaired = 0;
     if (function_exists('repair_stalled_hpv_positive_drips')) {
         require_once __DIR__ . '/encouragement_drip.php';
+        require_once __DIR__ . '/patient_screening.php';
         $dripRepaired = repair_stalled_hpv_positive_drips();
+        $postViaDripRepaired = repair_stalled_post_via_positive_counseling_drips();
+        $viaResultRepaired = repair_missing_via_positive_result_messages();
     }
 
     $after = scheduled_messages_queue_stats();
@@ -224,5 +229,7 @@ function resend_stuck_messages(int $lookbackHours = 168, int $maxOutboundResends
         'scheduled_failed_requeued' => $scheduledFailedRequeued,
         'scheduled_processed' => $scheduledProcessed,
         'hpv_drip_repaired' => $dripRepaired,
+        'post_via_drip_repaired' => $postViaDripRepaired,
+        'via_positive_result_repaired' => $viaResultRepaired,
     ];
 }

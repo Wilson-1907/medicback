@@ -19,7 +19,10 @@ try {
     $cronOk = $cronSecret !== '' && hash_equals($cronSecret, $providedCron);
 
     if ($method === 'GET' && $cronOk) {
-        $result = kickoff_post_via_positive_counseling_drips_now();
+        $result = kickoff_post_via_positive_counseling_drips_now(
+            !empty($_GET['flush_all']),
+            !empty($_GET['resend_results'])
+        );
         api_json(['ok' => true, 'timestamp' => date('c'), 'kickoff' => $result]);
     }
 
@@ -42,7 +45,10 @@ try {
         }
     }
 
-    $result = kickoff_post_via_positive_counseling_drips_now();
+    $result = kickoff_post_via_positive_counseling_drips_now(
+        !empty($body['flush_all']),
+        !empty($body['resend_results'])
+    );
     api_json(['ok' => true, 'timestamp' => date('c'), 'kickoff' => $result]);
 } catch (Throwable $e) {
     error_log('kickoff_via_positive_drips API: ' . $e->getMessage());

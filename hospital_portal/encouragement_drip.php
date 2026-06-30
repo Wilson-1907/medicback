@@ -661,7 +661,7 @@ function repair_stalled_hpv_positive_drips(): int
  *
  * @return array<string, mixed>
  */
-function kickoff_post_via_positive_counseling_drips_now(): array
+function kickoff_post_via_positive_counseling_drips_now(bool $flushDue = false, bool $resendResults = false): array
 {
     require_once __DIR__ . '/patient_screening.php';
     require_once __DIR__ . '/stuck_messages.php';
@@ -674,9 +674,15 @@ function kickoff_post_via_positive_counseling_drips_now(): array
            AND send_at > NOW(3)"
     );
 
-    $viaResultRepaired = repair_missing_via_positive_result_messages();
+    $viaResultRepaired = $resendResults ? repair_missing_via_positive_result_messages() : 0;
     $dripStarted = repair_stalled_post_via_positive_counseling_drips(true);
-    $scheduledProcessed = flush_all_due_scheduled_messages(25);
+
+    $scheduledProcessed = ['processed' => 0, 'sent' => 0, 'failed' => 0, 'batches' => 0];
+    if ($flushDue) {
+        $scheduledProcessed = flush_all_due_scheduled_messages(3);
+    } else {
+        $scheduledProcessed = process_due_scheduled_messages();
+    }
 
     $eligible = (int) $pdo->query(
         "SELECT COUNT(DISTINCT p.id)
@@ -694,6 +700,9 @@ function kickoff_post_via_positive_counseling_drips_now(): array
         'drip_steps_queued' => $dripStarted,
         'scheduled_processed' => $scheduledProcessed,
         'queue_after' => scheduled_messages_queue_stats(),
+        'note' => $flushDue
+            ? 'Due messages flushed in this request.'
+            : 'First due batch processed; cron will send the rest within minutes.',
     ];
 }
 
